@@ -48,11 +48,11 @@ export class PrescriptionParseVoiceResponseDto {
 // --- Check Safety ---
 
 class SafetyCheckItemDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Medication name to check', example: 'Dipirona 500mg' })
   @IsString()
   medicationName!: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Prescribed dose', example: '1g' })
   @IsOptional()
   @IsString()
   dose?: string;
@@ -71,24 +71,24 @@ export class PrescriptionCheckSafetyDto {
 }
 
 export class SafetyWarningDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Warning type (e.g. interaction, allergy, contraindication)', example: 'interaction' })
   type!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Warning severity (low, medium, high, critical)', example: 'high' })
   severity!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Human-readable warning message', example: 'Interacao entre Varfarina e AAS aumenta risco de sangramento' })
   message!: string;
 
-  @ApiProperty({ type: [String] })
+  @ApiProperty({ type: [String], description: 'Medication names involved in the warning' })
   items!: string[];
 }
 
 export class PrescriptionCheckSafetyResponseDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Whether the prescription passed all safety checks', example: false })
   safe!: boolean;
 
-  @ApiProperty({ type: [SafetyWarningDto] })
+  @ApiProperty({ type: [SafetyWarningDto], description: 'List of safety warnings found' })
   warnings!: SafetyWarningDto[];
 }
 
@@ -105,26 +105,26 @@ export class PrescriptionSuggestDto {
 }
 
 export class MedicationSuggestionDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Suggested medication name', example: 'Amoxicilina 500mg' })
   medicationName!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Recommended dose', example: '500mg' })
   dose!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Route of administration', example: 'Oral' })
   route!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Dosing frequency', example: '8/8h' })
   frequency!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Clinical reason for suggestion', example: 'Primeira linha para infeccao bacteriana comunitaria' })
   reason!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'AI confidence score (0-1)', example: 0.88 })
   confidence!: number;
 }
 
 export class PrescriptionSuggestResponseDto {
-  @ApiProperty({ type: [MedicationSuggestionDto] })
+  @ApiProperty({ type: [MedicationSuggestionDto], description: 'AI-generated medication suggestions' })
   suggestions!: MedicationSuggestionDto[];
 }

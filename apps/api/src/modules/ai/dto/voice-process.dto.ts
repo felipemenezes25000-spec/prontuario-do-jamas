@@ -23,12 +23,23 @@ export class VoiceProcessDto {
 }
 
 export class VoiceProcessResponseDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Processed and normalized text', example: 'Paciente com dor abdominal em regiao epigastrica' })
   processedText!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Structured data extracted from text' })
   structuredData!: Record<string, unknown>;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Named entities extracted from text',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        type: { type: 'string' },
+        value: { type: 'string' },
+        confidence: { type: 'number' },
+      },
+    },
+  })
   entities!: Array<{ type: string; value: string; confidence: number }>;
 }

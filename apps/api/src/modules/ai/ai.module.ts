@@ -14,10 +14,12 @@ import { CodingAiService } from './coding-ai.service';
 import { HandoffAiService } from './handoff-ai.service';
 import { PredictiveAiService } from './predictive-ai.service';
 import { AiController } from './ai.controller';
+import { VoiceTranscriptionController } from './voice-transcription.controller';
+import { VoiceTranscriptionService } from './voice-transcription.service';
 
 @Module({
   imports: [ConfigModule],
-  controllers: [AiController],
+  controllers: [AiController, VoiceTranscriptionController],
   providers: [
     OpenAiProvider,
     GeminiProvider,
@@ -32,6 +34,7 @@ import { AiController } from './ai.controller';
     CodingAiService,
     HandoffAiService,
     PredictiveAiService,
+    VoiceTranscriptionService,
   ],
   exports: [
     GeminiProvider,
@@ -46,6 +49,7 @@ import { AiController } from './ai.controller';
     CodingAiService,
     HandoffAiService,
     PredictiveAiService,
+    VoiceTranscriptionService,
   ],
 })
 export class AiModule {}

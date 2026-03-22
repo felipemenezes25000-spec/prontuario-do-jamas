@@ -11,6 +11,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { VitalSignsService } from './vital-signs.service';
 import { CreateVitalSignsDto } from './dto/create-vital-signs.dto';
@@ -35,6 +37,7 @@ export class VitalSignsController {
   }
 
   @Get('by-encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get vital signs by encounter' })
   @ApiResponse({ status: 200, description: 'List of vital signs' })
   async findByEncounter(
@@ -44,6 +47,7 @@ export class VitalSignsController {
   }
 
   @Get('patient/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get vital signs by patient (paginated)' })
   @ApiResponse({ status: 200, description: 'Paginated vital signs' })
   async findByPatient(
@@ -54,6 +58,7 @@ export class VitalSignsController {
   }
 
   @Get('patient/:patientId/latest')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get latest vital signs for a patient' })
   @ApiResponse({ status: 200, description: 'Latest vital signs' })
   async getLatest(
@@ -63,6 +68,8 @@ export class VitalSignsController {
   }
 
   @Get('patient/:patientId/trends')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiQuery({ name: 'count', required: false, type: Number, description: 'Number of records to return (default 20)' })
   @ApiOperation({ summary: 'Get vital signs trends for charting' })
   @ApiResponse({ status: 200, description: 'Vital signs trends' })
   async getTrends(
@@ -76,6 +83,7 @@ export class VitalSignsController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Vital signs UUID' })
   @ApiOperation({ summary: 'Get vital signs by ID' })
   @ApiResponse({ status: 200, description: 'Vital signs details' })
   @ApiResponse({ status: 404, description: 'Not found' })

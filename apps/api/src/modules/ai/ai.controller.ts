@@ -1,6 +1,8 @@
 import {
   Controller,
+  Get,
   Post,
+  Param,
   Body,
   UseInterceptors,
   UploadedFile,
@@ -16,10 +18,12 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
+  ApiParam,
 } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 import { AuditService } from '../audit/audit.service';
 
 import { VoiceEngineService } from './voice-engine.service';
@@ -29,6 +33,8 @@ import { ClinicalCopilotService } from './clinical-copilot.service';
 import { PatientSummaryAiService } from './patient-summary-ai.service';
 import { TriageAiService } from './triage-ai.service';
 import { MedicalNerService } from './medical-ner.service';
+import { CodingAiService } from './coding-ai.service';
+import { DischargeAiService } from './discharge-ai.service';
 
 import {
   VoiceTranscribeDto,
@@ -49,6 +55,15 @@ import {
   PatientSummaryResponseDto,
   TriageClassifyDto,
   TriageClassifyResponseDto,
+  RefineSOAPDto,
+  RefineSOAPResponseDto,
+  CopilotAutocompleteDto,
+  CopilotAutocompleteResponseDto,
+  CodingSuggestionsResponseDto,
+  SuggestNursingDiagnosesDto,
+  SuggestNursingDiagnosesResponseDto,
+  DischargePlanDto,
+  DischargePlanResponseDto,
 } from './dto';
 
 const TRIAGE_LEVEL_DESCRIPTIONS: Record<string, string> = {
@@ -73,6 +88,8 @@ export class AiController {
     private readonly patientSummaryAi: PatientSummaryAiService,
     private readonly triageAi: TriageAiService,
     private readonly medicalNer: MedicalNerService,
+    private readonly codingAi: CodingAiService,
+    private readonly dischargeAi: DischargeAiService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -522,6 +539,325 @@ export class AiController {
     } catch (error) {
       this.logger.error(
         `classifyTriage failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── SOAP Refine ─────────────────────────────────────────────────
+
+  @Post('soap/refine')
+  @ApiOperation({ summary: 'Refine/improve an existing SOAP note' })
+  @ApiResponse({ status: 200, description: 'Refined SOAP note', type: RefineSOAPResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async refineSOAP(
+    @Body() dto: RefineSOAPDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<RefineSOAPResponseDto> {
+    try {
+      // TODO: Add a dedicated refineSOAP method to SoapGeneratorService.
+      // For now, re-generate using the existing SOAP fields as a transcription-like input.
+      const combinedText = [
+        `Subjetivo: ${dto.subjective}`,
+        `Objetivo: ${dto.objective}`,
+        `Avaliacao: ${dto.assessment}`,
+        `Plano: ${dto.plan}`,
+        dto.feedback ? `Feedback do medico: ${dto.feedback}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+
+      const result = await this.soapGenerator.generateSOAP(combinedText);
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        action: 'AI_SUGGESTION',
+        entity: 'SOAPRefine',
+        newData: {
+          hasFeedback: !!dto.feedback,
+          inputLength: combinedText.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return {
+        subjective: result.subjective,
+        objective: result.objective,
+        assessment: result.assessment,
+        plan: result.plan,
+        changesMade: [
+          'Nota SOAP refinada com base no conteudo original',
+          ...(dto.feedback ? [`Feedback aplicado: ${dto.feedback}`] : []),
+        ],
+      };
+    } catch (error) {
+      this.logger.error(
+        `refineSOAP failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Copilot Autocomplete ────────────────────────────────────────
+
+  @Post('copilot/autocomplete')
+  @ApiOperation({ summary: 'Auto-complete text in clinical context' })
+  @ApiResponse({ status: 200, description: 'Autocomplete suggestions', type: CopilotAutocompleteResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async autocomplete(
+    @Body() dto: CopilotAutocompleteDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<CopilotAutocompleteResponseDto> {
+    try {
+      // TODO: Add a dedicated autocomplete method to ClinicalCopilotService.
+      // For now, use getSuggestions and extract text as autocomplete suggestions.
+      const suggestions = await this.copilot.getSuggestions(
+        { context: dto.context ?? 'general' },
+        dto.text,
+        {},
+      );
+
+      const autocompleteSuggestions = suggestions
+        .filter((s) => s.type === 'suggestion')
+        .map((s) => s.text)
+        .slice(0, 5);
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        action: 'AI_SUGGESTION',
+        entity: 'CopilotAutocomplete',
+        newData: {
+          textLength: dto.text.length,
+          context: dto.context,
+          suggestionsCount: autocompleteSuggestions.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return { suggestions: autocompleteSuggestions };
+    } catch (error) {
+      this.logger.error(
+        `autocomplete failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Coding Suggestions ──────────────────────────────────────────
+
+  @Get('encounters/:encounterId/coding-suggestions')
+  @ApiOperation({ summary: 'Suggest ICD-10 and procedure codes for an encounter' })
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Coding suggestions', type: CodingSuggestionsResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async getCodingSuggestions(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<CodingSuggestionsResponseDto> {
+    try {
+      // TODO: Fetch encounter clinical notes from DB to provide richer context to suggestCodes.
+      // For now, pass the encounterId as context.
+      const result = await this.codingAi.suggestCodes({
+        assessment: `Encounter ${encounterId}`,
+      });
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        action: 'AI_SUGGESTION',
+        entity: 'CodingSuggestion',
+        newData: {
+          encounterId,
+          diagnosisCount: result.diagnosisCodes.length,
+          procedureCount: result.procedureCodes.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return {
+        diagnosisCodes: result.diagnosisCodes,
+        procedureCodes: result.procedureCodes,
+      };
+    } catch (error) {
+      this.logger.error(
+        `getCodingSuggestions failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Nursing Diagnoses ───────────────────────────────────────────
+
+  @Post('nursing/suggest-diagnoses')
+  @ApiOperation({ summary: 'Suggest NANDA nursing diagnoses based on symptoms and vitals' })
+  @ApiResponse({ status: 200, description: 'Nursing diagnosis suggestions', type: SuggestNursingDiagnosesResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async suggestNursingDiagnoses(
+    @Body() dto: SuggestNursingDiagnosesDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<SuggestNursingDiagnosesResponseDto> {
+    try {
+      // TODO: Create a dedicated NursingAiService.suggestDiagnoses method.
+      // For now, use triage AI to classify and map to NANDA diagnoses as a stub.
+      const triageResult = await this.triageAi.classifyTriage(
+        dto.symptoms,
+        dto.vitalSigns,
+      );
+
+      // Map triage data to nursing diagnosis suggestions (stub)
+      const diagnoses: Array<{ code: string; label: string; priority: string }> = [];
+
+      if (triageResult.suggestedLevel === 'VERMELHO' || triageResult.suggestedLevel === 'LARANJA') {
+        diagnoses.push({
+          code: '00032',
+          label: 'Padrao respiratorio ineficaz',
+          priority: 'HIGH',
+        });
+      }
+
+      diagnoses.push(
+        {
+          code: '00132',
+          label: 'Dor aguda',
+          priority: dto.symptoms.some((s) => s.toLowerCase().includes('dor')) ? 'HIGH' : 'MEDIUM',
+        },
+        {
+          code: '00146',
+          label: 'Ansiedade',
+          priority: 'MEDIUM',
+        },
+        {
+          code: '00004',
+          label: 'Risco de infeccao',
+          priority: 'LOW',
+        },
+      );
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        patientId: dto.patientId,
+        action: 'AI_SUGGESTION',
+        entity: 'NursingDiagnosis',
+        newData: {
+          symptomsCount: dto.symptoms.length,
+          diagnosesCount: diagnoses.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return { diagnoses };
+    } catch (error) {
+      this.logger.error(
+        `suggestNursingDiagnoses failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Discharge Plan ──────────────────────────────────────────────
+
+  @Post('admissions/:admissionId/discharge-plan')
+  @ApiOperation({ summary: 'Generate AI-powered discharge plan for an admission' })
+  @ApiParam({ name: 'admissionId', description: 'Admission UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Discharge plan', type: DischargePlanResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async generateDischargePlan(
+    @Param('admissionId', ParseUUIDPipe) admissionId: string,
+    @Body() dto: DischargePlanDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<DischargePlanResponseDto> {
+    try {
+      const [summary, instructions] = await Promise.all([
+        this.dischargeAi.generateDischargeSummary({
+          id: admissionId,
+          patientId: dto.patientId,
+        }),
+        this.dischargeAi.generateDischargeInstructions(
+          { id: admissionId },
+          { id: dto.patientId },
+        ),
+      ]);
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        patientId: dto.patientId,
+        action: 'AI_SUGGESTION',
+        entity: 'DischargePlan',
+        newData: {
+          admissionId,
+          summaryLength: summary.length,
+          instructionsLength: instructions.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return {
+        plan: summary,
+        medications: [], // TODO: Extract medications from discharge summary via NER
+        followUp: [], // TODO: Extract follow-up items from discharge summary
+        instructions,
+        warnings: [], // TODO: Extract warning signs from instructions
+      };
+    } catch (error) {
+      this.logger.error(
+        `generateDischargePlan failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Patient Summary (GET) ──────────────────────────────────────
+
+  @Get('patients/:patientId/summary')
+  @ApiOperation({ summary: 'Get AI-generated patient summary (GET version)' })
+  @ApiParam({ name: 'patientId', description: 'Patient UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Patient summary', type: PatientSummaryResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async getPatientSummaryById(
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<PatientSummaryResponseDto> {
+    try {
+      const summary = await this.patientSummaryAi.generateSummary({
+        id: patientId,
+      });
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        patientId,
+        action: 'AI_SUGGESTION',
+        entity: 'PatientSummary',
+        newData: { summaryLength: summary.length },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return { summary };
+    } catch (error) {
+      this.logger.error(
+        `getPatientSummaryById failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       throw new ServiceUnavailableException(
         'Servico de IA indisponivel. Tente novamente em alguns instantes.',

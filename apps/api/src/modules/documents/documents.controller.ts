@@ -10,6 +10,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiBody,
 } from '@nestjs/swagger';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
@@ -35,6 +37,7 @@ export class DocumentsController {
   }
 
   @Get('by-patient/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get documents by patient' })
   @ApiResponse({ status: 200, description: 'Patient documents' })
   async findByPatient(
@@ -44,6 +47,7 @@ export class DocumentsController {
   }
 
   @Get('by-encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get documents by encounter' })
   @ApiResponse({ status: 200, description: 'Encounter documents' })
   async findByEncounter(
@@ -53,6 +57,7 @@ export class DocumentsController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Document UUID' })
   @ApiOperation({ summary: 'Get document by ID' })
   @ApiResponse({ status: 200, description: 'Document details' })
   @ApiResponse({ status: 404, description: 'Not found' })
@@ -61,6 +66,7 @@ export class DocumentsController {
   }
 
   @Post(':id/sign')
+  @ApiParam({ name: 'id', description: 'Document UUID' })
   @ApiOperation({ summary: 'Sign a document' })
   @ApiResponse({ status: 200, description: 'Document signed' })
   async sign(
@@ -72,6 +78,18 @@ export class DocumentsController {
 
   @Post('generate-from-template')
   @ApiOperation({ summary: 'Generate document from template' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        templateId: { type: 'string', format: 'uuid', description: 'Template UUID' },
+        patientId: { type: 'string', format: 'uuid', description: 'Patient UUID' },
+        encounterId: { type: 'string', format: 'uuid', description: 'Encounter UUID (optional)' },
+        variables: { type: 'object', additionalProperties: { type: 'string' }, description: 'Template variable values' },
+      },
+      required: ['templateId', 'patientId'],
+    },
+  })
   @ApiResponse({ status: 201, description: 'Document generated' })
   async generateFromTemplate(
     @CurrentTenant() tenantId: string,

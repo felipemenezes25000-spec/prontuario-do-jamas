@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import {
   Pill,
   Search,
@@ -14,12 +15,22 @@ import { cn } from '@/lib/utils';
 import { usePrescriptions } from '@/services/prescriptions.service';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
-import { useState } from 'react';
 
 export default function PharmacyPage() {
   const [search, setSearch] = useState('');
   const { data: prescriptionsData, isLoading, isError, refetch } = usePrescriptions();
   const prescriptions = prescriptionsData?.data ?? [];
+
+  const kpiValues = useMemo(() => {
+    const pending = prescriptions.filter((p) => p.status === 'ACTIVE' || p.status === 'DRAFT').length;
+    const dispensed = prescriptions.filter((p) => p.status === 'COMPLETED').length;
+    const totalItems = prescriptions.reduce((sum, p) => sum + (p.items?.length ?? 0), 0);
+    const highAlertItems = prescriptions.reduce(
+      (sum, p) => sum + (p.items?.filter((i) => i.isHighAlert).length ?? 0),
+      0,
+    );
+    return { pending, dispensed, totalItems, highAlertItems };
+  }, [prescriptions]);
 
   if (isLoading) return <PageLoading cards={4} showTable={false} />;
   if (isError) return <PageError onRetry={() => refetch()} />;
@@ -31,10 +42,10 @@ export default function PharmacyPage() {
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Prescrições Pendentes', value: '4', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-          { label: 'Dispensadas Hoje', value: '12', icon: CheckCircle2, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-500/10' },
-          { label: 'Estoque Baixo', value: '7', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
-          { label: 'Itens em Estoque', value: '1.245', icon: Package, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Prescrições Pendentes', value: String(kpiValues.pending), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+          { label: 'Dispensadas', value: String(kpiValues.dispensed), icon: CheckCircle2, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-500/10' },
+          { label: 'Itens Alto Alerta', value: String(kpiValues.highAlertItems), icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
+          { label: 'Total de Itens', value: String(kpiValues.totalItems), icon: Package, color: 'text-blue-400', bg: 'bg-blue-500/10' },
         ].map((kpi) => (
           <Card key={kpi.label} className="border-border bg-card">
             <CardContent className="p-5">
@@ -69,7 +80,12 @@ export default function PharmacyPage() {
           <CardTitle className="text-base">Fila de Dispensação</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {prescriptions.map((presc) => (
+          {prescriptions.length === 0 ? (
+            <div className="flex flex-col items-center py-12">
+              <Pill className="h-10 w-10 text-muted-foreground" />
+              <p className="mt-3 text-sm text-muted-foreground">Nenhuma prescrição na fila</p>
+            </div>
+          ) : prescriptions.map((presc) => (
             <div key={presc.id} className="rounded-lg border border-border p-3">
               <div className="flex items-center justify-between mb-2">
                 <div>

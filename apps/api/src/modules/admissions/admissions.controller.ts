@@ -12,6 +12,9 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+  ApiBody,
 } from '@nestjs/swagger';
 import { AdmissionsService } from './admissions.service';
 import { BedsService } from './beds.service';
@@ -43,6 +46,7 @@ export class AdmissionsController {
   }
 
   @Post(':id/discharge')
+  @ApiParam({ name: 'id', description: 'Admission UUID' })
   @ApiOperation({ summary: 'Discharge a patient' })
   @ApiResponse({ status: 200, description: 'Patient discharged' })
   async discharge(
@@ -53,6 +57,7 @@ export class AdmissionsController {
   }
 
   @Post(':id/transfer')
+  @ApiParam({ name: 'id', description: 'Admission UUID' })
   @ApiOperation({ summary: 'Transfer patient to another bed' })
   @ApiResponse({ status: 200, description: 'Patient transferred' })
   async transfer(
@@ -71,6 +76,7 @@ export class AdmissionsController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Admission UUID' })
   @ApiOperation({ summary: 'Get admission by ID' })
   @ApiResponse({ status: 200, description: 'Admission details' })
   @ApiResponse({ status: 404, description: 'Admission not found' })
@@ -79,6 +85,7 @@ export class AdmissionsController {
   }
 
   @Get('patient/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get admissions by patient' })
   @ApiResponse({ status: 200, description: 'Patient admissions' })
   async findByPatient(
@@ -91,6 +98,9 @@ export class AdmissionsController {
 
   @Get('beds/all')
   @ApiOperation({ summary: 'Get all beds with filters' })
+  @ApiQuery({ name: 'ward', required: false, description: 'Filter by ward' })
+  @ApiQuery({ name: 'floor', required: false, description: 'Filter by floor' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by bed status' })
   @ApiResponse({ status: 200, description: 'List of beds' })
   async findAllBeds(
     @CurrentTenant() tenantId: string,
@@ -116,7 +126,9 @@ export class AdmissionsController {
   }
 
   @Patch('beds/:id/status')
+  @ApiParam({ name: 'id', description: 'Bed UUID' })
   @ApiOperation({ summary: 'Update bed status' })
+  @ApiBody({ schema: { type: 'object', properties: { status: { type: 'string', description: 'New bed status' } }, required: ['status'] } })
   @ApiResponse({ status: 200, description: 'Bed status updated' })
   async updateBedStatus(
     @Param('id', ParseUUIDPipe) id: string,

@@ -12,6 +12,9 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+  ApiBody,
 } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
@@ -48,6 +51,8 @@ export class AppointmentsController {
 
   @Get('available-slots')
   @ApiOperation({ summary: 'Get available appointment slots for a doctor on a date' })
+  @ApiQuery({ name: 'doctorId', required: true, description: 'Doctor UUID' })
+  @ApiQuery({ name: 'date', required: true, description: 'Date (YYYY-MM-DD)', example: '2026-03-22' })
   @ApiResponse({ status: 200, description: 'Available slots' })
   async getAvailableSlots(
     @CurrentTenant() tenantId: string,
@@ -58,6 +63,9 @@ export class AppointmentsController {
   }
 
   @Get('by-doctor/:doctorId')
+  @ApiParam({ name: 'doctorId', description: 'Doctor UUID' })
+  @ApiQuery({ name: 'dateFrom', required: true, description: 'Start date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'dateTo', required: true, description: 'End date (YYYY-MM-DD)' })
   @ApiOperation({ summary: 'Get appointments by doctor for a date range' })
   @ApiResponse({ status: 200, description: 'Doctor appointments' })
   async findByDoctor(
@@ -70,6 +78,7 @@ export class AppointmentsController {
   }
 
   @Get('by-patient/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get appointments by patient' })
   @ApiResponse({ status: 200, description: 'Patient appointments' })
   async findByPatient(
@@ -79,6 +88,7 @@ export class AppointmentsController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Appointment UUID' })
   @ApiOperation({ summary: 'Get appointment by ID' })
   @ApiResponse({ status: 200, description: 'Appointment details' })
   @ApiResponse({ status: 404, description: 'Not found' })
@@ -87,6 +97,7 @@ export class AppointmentsController {
   }
 
   @Patch(':id/confirm')
+  @ApiParam({ name: 'id', description: 'Appointment UUID' })
   @ApiOperation({ summary: 'Confirm an appointment' })
   @ApiResponse({ status: 200, description: 'Appointment confirmed' })
   async confirm(@Param('id', ParseUUIDPipe) id: string) {
@@ -94,7 +105,9 @@ export class AppointmentsController {
   }
 
   @Patch(':id/cancel')
+  @ApiParam({ name: 'id', description: 'Appointment UUID' })
   @ApiOperation({ summary: 'Cancel an appointment' })
+  @ApiBody({ schema: { type: 'object', properties: { cancellationReason: { type: 'string', description: 'Reason for cancellation' } }, required: ['cancellationReason'] } })
   @ApiResponse({ status: 200, description: 'Appointment cancelled' })
   async cancel(
     @Param('id', ParseUUIDPipe) id: string,
@@ -104,6 +117,7 @@ export class AppointmentsController {
   }
 
   @Patch(':id/reschedule')
+  @ApiParam({ name: 'id', description: 'Appointment UUID' })
   @ApiOperation({ summary: 'Reschedule an appointment' })
   @ApiResponse({ status: 200, description: 'Appointment rescheduled' })
   async reschedule(

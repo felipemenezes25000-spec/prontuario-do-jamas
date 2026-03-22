@@ -12,6 +12,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiQuery,
+  ApiParam,
 } from '@nestjs/swagger';
 import { DigitalSignatureService } from './digital-signature.service';
 import { SignDocumentDto } from './dto/sign-document.dto';
@@ -35,6 +36,7 @@ export class DigitalSignatureController {
   ) {}
 
   @Post('sign/document/:id')
+  @ApiParam({ name: 'id', description: 'Document UUID' })
   @ApiOperation({
     summary: 'Sign a clinical document with ICP-Brasil certificate',
     description:
@@ -60,6 +62,7 @@ export class DigitalSignatureController {
   }
 
   @Post('sign/clinical-note/:id')
+  @ApiParam({ name: 'id', description: 'Clinical note UUID' })
   @ApiOperation({
     summary: 'Sign a clinical note with ICP-Brasil certificate',
     description:
@@ -85,6 +88,7 @@ export class DigitalSignatureController {
   }
 
   @Post('sign/prescription/:id')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
   @ApiOperation({
     summary: 'Sign a prescription with ICP-Brasil certificate',
     description:
@@ -110,6 +114,7 @@ export class DigitalSignatureController {
   }
 
   @Get('verify/:signatureId')
+  @ApiParam({ name: 'signatureId', description: 'Signature UUID' })
   @ApiOperation({
     summary: 'Verify a digital signature',
     description:
@@ -124,6 +129,7 @@ export class DigitalSignatureController {
   }
 
   @Get('document/:documentId')
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
   @ApiOperation({
     summary: 'List all signatures for a document',
     description: 'Returns all digital signatures associated with a clinical document.',
@@ -136,6 +142,7 @@ export class DigitalSignatureController {
   }
 
   @Get('user/:userId')
+  @ApiParam({ name: 'userId', description: 'User UUID' })
   @ApiOperation({
     summary: 'List all signatures by a user',
     description: 'Returns all digital signatures created by a specific user.',

@@ -8,7 +8,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiConsumes, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { StorageService } from './storage.service';
 import { CurrentUser, CurrentTenant } from '../../common/decorators';
 
@@ -19,6 +19,8 @@ export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
   @Post('upload/audio')
+  @ApiOperation({ summary: 'Upload audio file (max 50MB)' })
+  @ApiResponse({ status: 201, description: 'Audio uploaded' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -66,6 +68,8 @@ export class StorageController {
   }
 
   @Post('upload/document')
+  @ApiOperation({ summary: 'Upload document file (max 20MB)' })
+  @ApiResponse({ status: 201, description: 'Document uploaded' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -113,6 +117,8 @@ export class StorageController {
   }
 
   @Post('upload/image')
+  @ApiOperation({ summary: 'Upload image file (max 10MB)' })
+  @ApiResponse({ status: 201, description: 'Image uploaded' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -154,6 +160,11 @@ export class StorageController {
   }
 
   @Get('presigned-url')
+  @ApiOperation({ summary: 'Get presigned download URL' })
+  @ApiQuery({ name: 'bucket', required: true, description: 'S3 bucket name' })
+  @ApiQuery({ name: 'key', required: true, description: 'Object key' })
+  @ApiQuery({ name: 'expiresIn', required: false, description: 'URL expiry in seconds (default 3600)' })
+  @ApiResponse({ status: 200, description: 'Presigned URL' })
   async getPresignedUrl(
     @Query('bucket') bucket: string,
     @Query('key') key: string,

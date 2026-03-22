@@ -13,6 +13,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiBody,
 } from '@nestjs/swagger';
 import { EncountersService } from './encounters.service';
 import { CreateEncounterDto } from './dto/create-encounter.dto';
@@ -56,6 +58,7 @@ export class EncountersController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get encounter by ID with all relations' })
   @ApiResponse({ status: 200, description: 'Encounter details' })
   @ApiResponse({ status: 404, description: 'Encounter not found' })
@@ -67,6 +70,7 @@ export class EncountersController {
   }
 
   @Patch(':id')
+  @ApiParam({ name: 'id', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Update encounter' })
   @ApiResponse({ status: 200, description: 'Encounter updated' })
   async update(
@@ -78,7 +82,9 @@ export class EncountersController {
   }
 
   @Patch(':id/status')
+  @ApiParam({ name: 'id', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Update encounter status' })
+  @ApiBody({ schema: { type: 'object', properties: { status: { type: 'string', description: 'New encounter status' } }, required: ['status'] } })
   @ApiResponse({ status: 200, description: 'Status updated' })
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
@@ -89,6 +95,7 @@ export class EncountersController {
   }
 
   @Delete(':id')
+  @ApiParam({ name: 'id', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Delete encounter' })
   @ApiResponse({ status: 200, description: 'Encounter deleted' })
   async delete(

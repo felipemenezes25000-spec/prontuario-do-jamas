@@ -10,6 +10,13 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { Request } from 'express';
 import { LgpdService } from './lgpd.service';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -28,6 +35,8 @@ import { ConsentType } from '@prisma/client';
  *
  * All endpoints require ADMIN role.
  */
+@ApiTags('LGPD')
+@ApiBearerAuth('access-token')
 @Controller('lgpd')
 @UseGuards(RolesGuard)
 @Roles('ADMIN')
@@ -38,6 +47,8 @@ export class LgpdController {
 
   /** Record patient consent — LGPD Art. 8 */
   @Post('consent')
+  @ApiOperation({ summary: 'Record patient consent (LGPD Art. 8)' })
+  @ApiResponse({ status: 201, description: 'Consent recorded' })
   async recordConsent(
     @Body() dto: RecordConsentDto,
     @CurrentTenant() tenantId: string,
@@ -57,6 +68,10 @@ export class LgpdController {
 
   /** Revoke specific consent — LGPD Art. 8, §5 */
   @Delete('consent/:patientId/:consentType')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiParam({ name: 'consentType', description: 'Consent type to revoke' })
+  @ApiOperation({ summary: 'Revoke specific consent (LGPD Art. 8, para 5)' })
+  @ApiResponse({ status: 200, description: 'Consent revoked' })
   async revokeConsent(
     @Param('patientId') patientId: string,
     @Param('consentType') consentType: ConsentType,
@@ -67,6 +82,9 @@ export class LgpdController {
 
   /** Get patient consents — LGPD Art. 18, II */
   @Get('consent/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get patient consents (LGPD Art. 18, II)' })
+  @ApiResponse({ status: 200, description: 'Patient consent records' })
   async getPatientConsents(
     @Param('patientId') patientId: string,
     @CurrentTenant() tenantId: string,
@@ -78,6 +96,9 @@ export class LgpdController {
 
   /** Export all patient data — LGPD Art. 18, V */
   @Get('export/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Export all patient data (LGPD Art. 18, V — data portability)' })
+  @ApiResponse({ status: 200, description: 'Exported patient data' })
   async exportPatientData(
     @Param('patientId') patientId: string,
     @CurrentTenant() tenantId: string,
@@ -89,6 +110,9 @@ export class LgpdController {
 
   /** Anonymize patient data — LGPD Art. 18, VI */
   @Post('anonymize/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Anonymize patient data (LGPD Art. 18, VI)' })
+  @ApiResponse({ status: 200, description: 'Patient data anonymized' })
   async anonymizePatientData(
     @Param('patientId') patientId: string,
     @CurrentTenant() tenantId: string,
@@ -101,12 +125,16 @@ export class LgpdController {
 
   /** List retention policies */
   @Get('retention-policies')
+  @ApiOperation({ summary: 'List data retention policies' })
+  @ApiResponse({ status: 200, description: 'Retention policies' })
   async getRetentionPolicies(@CurrentTenant() tenantId: string) {
     return this.lgpdService.getDataRetentionPolicies(tenantId);
   }
 
   /** Update retention policy — LGPD Art. 15 */
   @Put('retention-policies')
+  @ApiOperation({ summary: 'Set data retention policy (LGPD Art. 15)' })
+  @ApiResponse({ status: 200, description: 'Retention policy updated' })
   async setRetentionPolicy(
     @Body() dto: SetRetentionPolicyDto,
     @CurrentTenant() tenantId: string,
@@ -123,6 +151,8 @@ export class LgpdController {
 
   /** Generate LGPD compliance report — LGPD Art. 37-38 */
   @Get('compliance-report')
+  @ApiOperation({ summary: 'Generate LGPD compliance report (Art. 37-38)' })
+  @ApiResponse({ status: 200, description: 'Compliance report' })
   async generateComplianceReport(
     @Query() query: ComplianceReportQueryDto,
     @CurrentTenant() tenantId: string,
@@ -138,6 +168,8 @@ export class LgpdController {
 
   /** Purge expired data — LGPD Art. 16 */
   @Post('purge-expired')
+  @ApiOperation({ summary: 'Purge expired data (LGPD Art. 16)' })
+  @ApiResponse({ status: 200, description: 'Expired data purged' })
   async purgeExpiredData(@CurrentTenant() tenantId: string) {
     return this.lgpdService.purgeExpiredData(tenantId);
   }

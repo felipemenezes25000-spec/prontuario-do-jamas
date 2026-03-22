@@ -12,6 +12,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiBody,
 } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
 import { TissService } from './tiss.service';
@@ -58,6 +60,7 @@ export class BillingController {
   }
 
   @Get('by-encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get billing entries by encounter' })
   @ApiResponse({ status: 200, description: 'Encounter billing entries' })
   async findByEncounter(
@@ -67,6 +70,7 @@ export class BillingController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Billing entry UUID' })
   @ApiOperation({ summary: 'Get billing entry by ID' })
   @ApiResponse({ status: 200, description: 'Billing entry details' })
   @ApiResponse({ status: 404, description: 'Not found' })
@@ -75,7 +79,9 @@ export class BillingController {
   }
 
   @Patch(':id/status')
+  @ApiParam({ name: 'id', description: 'Billing entry UUID' })
   @ApiOperation({ summary: 'Update billing entry status' })
+  @ApiBody({ schema: { type: 'object', properties: { status: { type: 'string', description: 'New billing status' } }, required: ['status'] } })
   @ApiResponse({ status: 200, description: 'Status updated' })
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
@@ -85,6 +91,7 @@ export class BillingController {
   }
 
   @Post(':id/generate-tiss')
+  @ApiParam({ name: 'id', description: 'Billing entry UUID' })
   @ApiOperation({ summary: 'Generate TISS XML 4.0 for a billing entry' })
   @ApiResponse({ status: 201, description: 'TISS XML generated' })
   @ApiResponse({ status: 404, description: 'Billing entry not found' })

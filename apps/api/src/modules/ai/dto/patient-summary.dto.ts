@@ -8,6 +8,6 @@ export class PatientSummaryDto {
 }
 
 export class PatientSummaryResponseDto {
-  @ApiProperty({ description: 'AI-generated concise patient summary' })
+  @ApiProperty({ description: 'AI-generated concise patient summary', example: 'Paciente feminina, 45 anos, hipertensa, em uso de losartana 50mg. Ultima consulta em 10/01/2026 por cefaleia.' })
   summary!: string;
 }

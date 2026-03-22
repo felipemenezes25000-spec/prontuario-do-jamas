@@ -13,6 +13,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiBody,
 } from '@nestjs/swagger';
 import { PrescriptionsService } from './prescriptions.service';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
@@ -41,6 +43,7 @@ export class PrescriptionsController {
   }
 
   @Get('by-encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get prescriptions by encounter' })
   @ApiResponse({ status: 200, description: 'List of prescriptions' })
   async findByEncounter(
@@ -50,6 +53,7 @@ export class PrescriptionsController {
   }
 
   @Get('by-patient/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get active prescriptions by patient' })
   @ApiResponse({ status: 200, description: 'List of active prescriptions' })
   async findByPatient(
@@ -59,6 +63,7 @@ export class PrescriptionsController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
   @ApiOperation({ summary: 'Get prescription by ID with items and checks' })
   @ApiResponse({ status: 200, description: 'Prescription details' })
   @ApiResponse({ status: 404, description: 'Prescription not found' })
@@ -67,6 +72,7 @@ export class PrescriptionsController {
   }
 
   @Patch(':id')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
   @ApiOperation({ summary: 'Update prescription' })
   @ApiResponse({ status: 200, description: 'Prescription updated' })
   async update(
@@ -80,6 +86,7 @@ export class PrescriptionsController {
   }
 
   @Post(':id/sign')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
   @ApiOperation({ summary: 'Sign a prescription' })
   @ApiResponse({ status: 200, description: 'Prescription signed' })
   async sign(
@@ -90,6 +97,7 @@ export class PrescriptionsController {
   }
 
   @Post(':id/items')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
   @ApiOperation({ summary: 'Add item to prescription' })
   @ApiResponse({ status: 201, description: 'Item added' })
   async addItem(
@@ -100,6 +108,8 @@ export class PrescriptionsController {
   }
 
   @Delete(':id/items/:itemId')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
+  @ApiParam({ name: 'itemId', description: 'Prescription item UUID' })
   @ApiOperation({ summary: 'Remove item from prescription' })
   @ApiResponse({ status: 200, description: 'Item removed' })
   async removeItem(
@@ -110,7 +120,22 @@ export class PrescriptionsController {
   }
 
   @Post('items/:itemId/check')
+  @ApiParam({ name: 'itemId', description: 'Prescription item UUID' })
   @ApiOperation({ summary: 'Create medication check for an item' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        scheduledAt: { type: 'string', format: 'date-time', description: 'Scheduled administration time' },
+        status: { type: 'string', description: 'Medication check status' },
+        reason: { type: 'string', description: 'Reason (if not administered)' },
+        observations: { type: 'string', description: 'Observations' },
+        lotNumber: { type: 'string', description: 'Medication lot number' },
+        expirationDate: { type: 'string', description: 'Medication expiration date' },
+      },
+      required: ['scheduledAt', 'status'],
+    },
+  })
   @ApiResponse({ status: 201, description: 'Medication check created' })
   async checkMedication(
     @Param('itemId', ParseUUIDPipe) itemId: string,

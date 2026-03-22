@@ -13,23 +13,23 @@ export class CopilotSuggestionsDto {
 }
 
 export class CopilotSuggestionItemDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Suggestion type (e.g. diagnosis, exam, medication, alert)', example: 'diagnosis' })
   type!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Suggestion text', example: 'Considerar solicitar hemograma completo' })
   text!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'AI confidence score (0-1)', example: 0.85 })
   confidence!: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Source of the suggestion (e.g. guidelines, patient-history)', example: 'clinical-guidelines' })
   source!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Whether the suggestion can be directly applied', example: true })
   actionable!: boolean;
 }
 
 export class CopilotSuggestionsResponseDto {
-  @ApiProperty({ type: [CopilotSuggestionItemDto] })
+  @ApiProperty({ type: [CopilotSuggestionItemDto], description: 'AI copilot suggestions for the encounter' })
   suggestions!: CopilotSuggestionItemDto[];
 }

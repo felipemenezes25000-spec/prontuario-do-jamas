@@ -7,6 +7,7 @@ import {
   Stethoscope,
   ArrowRight,
   Construction,
+  FileX,
 } from 'lucide-react';
 import {
   BarChart,
@@ -20,6 +21,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { useReportSummary } from '@/services/reports.service';
+import { PageLoading } from '@/components/common/page-loading';
+import { PageError } from '@/components/common/page-error';
 
 const reportCards = [
   { id: 'hospital-movement', title: 'Movimento Hospitalar', description: 'Internações, altas, óbitos e transferências', icon: BedDouble, color: 'text-blue-400', bgColor: 'bg-blue-500/10' },
@@ -30,17 +34,11 @@ const reportCards = [
   { id: 'encounters', title: 'Estatísticas de Atendimento', description: 'Volume, classificação, tempo de espera', icon: BarChart3, color: 'text-red-400', bgColor: 'bg-red-500/10' },
 ];
 
-const mockChartData = [
-  { month: 'Out', atendimentos: 420, internacoes: 85 },
-  { month: 'Nov', atendimentos: 480, internacoes: 92 },
-  { month: 'Dez', atendimentos: 390, internacoes: 78 },
-  { month: 'Jan', atendimentos: 510, internacoes: 95 },
-  { month: 'Fev', atendimentos: 475, internacoes: 88 },
-  { month: 'Mar', atendimentos: 530, internacoes: 102 },
-];
-
 export default function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
+
+  const { data: reportData, isLoading, isError, refetch } = useReportSummary(selectedReport);
+  const chartData = reportData?.chartData ?? [];
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -82,21 +80,31 @@ export default function ReportsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Visualização em desenvolvimento. Dados de demonstração abaixo.
-            </p>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mockChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="month" stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', color: '#fafafa' }} />
-                  <Bar dataKey="atendimentos" fill="#0D9488" radius={[4, 4, 0, 0]} name="Atendimentos" />
-                  <Bar dataKey="internacoes" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Internações" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {isLoading ? (
+              <PageLoading cards={0} showTable={false} />
+            ) : isError ? (
+              <PageError onRetry={() => refetch()} />
+            ) : chartData.length === 0 ? (
+              <div className="flex flex-col items-center py-12">
+                <FileX className="h-10 w-10 text-muted-foreground" />
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Relatório em desenvolvimento. Dados ainda não disponíveis.
+                </p>
+              </div>
+            ) : (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.5} />
+                    <XAxis dataKey="month" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--color-foreground)' }} />
+                    <Bar dataKey="atendimentos" fill="#0D9488" radius={[4, 4, 0, 0]} name="Atendimentos" />
+                    <Bar dataKey="internacoes" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Internações" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

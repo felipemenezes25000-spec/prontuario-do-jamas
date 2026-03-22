@@ -12,6 +12,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { ClinicalNotesService } from './clinical-notes.service';
 import { CreateClinicalNoteDto } from './dto/create-clinical-note.dto';
@@ -36,6 +37,7 @@ export class ClinicalNotesController {
   }
 
   @Get('by-encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get clinical notes by encounter' })
   @ApiResponse({ status: 200, description: 'List of clinical notes' })
   async findByEncounter(
@@ -45,6 +47,7 @@ export class ClinicalNotesController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Clinical note UUID' })
   @ApiOperation({ summary: 'Get clinical note by ID' })
   @ApiResponse({ status: 200, description: 'Clinical note details' })
   @ApiResponse({ status: 404, description: 'Clinical note not found' })
@@ -53,6 +56,7 @@ export class ClinicalNotesController {
   }
 
   @Patch(':id')
+  @ApiParam({ name: 'id', description: 'Clinical note UUID' })
   @ApiOperation({ summary: 'Update clinical note (DRAFT only)' })
   @ApiResponse({ status: 200, description: 'Clinical note updated' })
   @ApiResponse({ status: 400, description: 'Only DRAFT notes can be edited' })
@@ -64,6 +68,7 @@ export class ClinicalNotesController {
   }
 
   @Post(':id/sign')
+  @ApiParam({ name: 'id', description: 'Clinical note UUID' })
   @ApiOperation({ summary: 'Sign a clinical note' })
   @ApiResponse({ status: 200, description: 'Clinical note signed' })
   async sign(
@@ -74,6 +79,7 @@ export class ClinicalNotesController {
   }
 
   @Post(':id/addendum')
+  @ApiParam({ name: 'id', description: 'Parent clinical note UUID' })
   @ApiOperation({ summary: 'Create an addendum to a clinical note' })
   @ApiResponse({ status: 201, description: 'Addendum created' })
   async createAddendum(

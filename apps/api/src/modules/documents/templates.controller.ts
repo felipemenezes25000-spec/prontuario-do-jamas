@@ -12,6 +12,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { TemplatesService } from './templates.service';
 import { CreateTemplateDto, UpdateTemplateDto } from './dto/create-template.dto';
@@ -44,6 +45,7 @@ export class TemplatesController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Template UUID' })
   @ApiOperation({ summary: 'Get template by ID' })
   @ApiResponse({ status: 200, description: 'Template details' })
   @ApiResponse({ status: 404, description: 'Not found' })
@@ -52,6 +54,7 @@ export class TemplatesController {
   }
 
   @Patch(':id')
+  @ApiParam({ name: 'id', description: 'Template UUID' })
   @ApiOperation({ summary: 'Update template' })
   @ApiResponse({ status: 200, description: 'Template updated' })
   async update(
@@ -62,6 +65,7 @@ export class TemplatesController {
   }
 
   @Delete(':id')
+  @ApiParam({ name: 'id', description: 'Template UUID' })
   @ApiOperation({ summary: 'Deactivate template (soft delete)' })
   @ApiResponse({ status: 200, description: 'Template deactivated' })
   async delete(@Param('id', ParseUUIDPipe) id: string) {

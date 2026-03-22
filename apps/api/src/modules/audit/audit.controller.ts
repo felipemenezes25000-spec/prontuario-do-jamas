@@ -9,6 +9,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AuditService } from './audit.service';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
@@ -27,6 +29,11 @@ export class AuditController {
   @Get()
   @Roles(ROLES.SYSTEM_ADMIN, ROLES.TENANT_ADMIN)
   @ApiOperation({ summary: 'List audit logs (admin only, paginated with filters)' })
+  @ApiQuery({ name: 'userId', required: false, description: 'Filter by user UUID' })
+  @ApiQuery({ name: 'action', required: false, description: 'Filter by audit action' })
+  @ApiQuery({ name: 'entity', required: false, description: 'Filter by entity type' })
+  @ApiQuery({ name: 'dateFrom', required: false, description: 'Filter from date (ISO)' })
+  @ApiQuery({ name: 'dateTo', required: false, description: 'Filter to date (ISO)' })
   @ApiResponse({ status: 200, description: 'Paginated audit logs' })
   async findAll(
     @CurrentTenant() tenantId: string,
@@ -48,6 +55,7 @@ export class AuditController {
 
   @Get('user/:userId')
   @Roles(ROLES.SYSTEM_ADMIN, ROLES.TENANT_ADMIN)
+  @ApiParam({ name: 'userId', description: 'User UUID' })
   @ApiOperation({ summary: 'Get audit logs by user' })
   @ApiResponse({ status: 200, description: 'User audit logs' })
   async findByUser(
@@ -59,6 +67,7 @@ export class AuditController {
 
   @Get('patient/:patientId')
   @Roles(ROLES.SYSTEM_ADMIN, ROLES.TENANT_ADMIN)
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get audit logs by patient' })
   @ApiResponse({ status: 200, description: 'Patient audit logs' })
   async findByPatient(

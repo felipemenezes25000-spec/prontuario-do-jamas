@@ -46,6 +46,7 @@ export function useGenerateSOAP() {
   });
 }
 
+// TODO: Backend needs POST /ai/soap/refine endpoint
 export function useRefineSOAP() {
   return useMutation({
     mutationFn: async ({
@@ -85,7 +86,7 @@ export function useParsePrescription() {
       transcription: string;
       patientId: string;
     }) => {
-      const { data } = await api.post<AIPrescriptionParseResponse>('/ai/prescription/parse', {
+      const { data } = await api.post<AIPrescriptionParseResponse>('/ai/prescription/parse-voice', {
         transcription,
         patientId,
       });
@@ -107,7 +108,7 @@ export function useCheckPrescriptionSafety() {
         alerts: string[];
         interactions: unknown[];
         allergyConflicts: unknown[];
-      }>('/ai/prescription/safety-check', { patientId, items });
+      }>('/ai/prescription/check-safety', { patientId, items });
       return data;
     },
   });
@@ -128,7 +129,7 @@ export function useSuggestTriage() {
       vitalSigns?: Record<string, number>;
       symptoms?: string[];
     }) => {
-      const { data } = await api.post<AITriageSuggestion>('/ai/triage/suggest', {
+      const { data } = await api.post<AITriageSuggestion>('/ai/triage/classify', {
         chiefComplaint,
         vitalSigns,
         symptoms,
@@ -155,7 +156,7 @@ export function useCopilotSuggestion() {
       currentText: string;
       field: string;
     }) => {
-      const { data } = await api.post<AICopilotResponse>('/ai/copilot/suggest', {
+      const { data } = await api.post<AICopilotResponse>('/ai/copilot/suggestions', {
         encounterId,
         context,
         currentText,
@@ -166,6 +167,7 @@ export function useCopilotSuggestion() {
   });
 }
 
+// TODO: Backend needs POST /ai/copilot/autocomplete endpoint
 export function useCopilotAutoComplete() {
   return useMutation({
     mutationFn: async ({
@@ -192,8 +194,9 @@ export function usePatientAISummary(patientId: string) {
   return useQuery({
     queryKey: aiKeys.patientSummary(patientId),
     queryFn: async () => {
-      const { data } = await api.get<AIPatientSummaryResponse>(
-        `/ai/patients/${patientId}/summary`,
+      const { data } = await api.post<AIPatientSummaryResponse>(
+        '/ai/patient/summary',
+        { patientId },
       );
       return data;
     },
@@ -206,7 +209,8 @@ export function useGeneratePatientSummary() {
   return useMutation({
     mutationFn: async (patientId: string) => {
       const { data } = await api.post<AIPatientSummaryResponse>(
-        `/ai/patients/${patientId}/summary/generate`,
+        '/ai/patient/summary',
+        { patientId },
       );
       return data;
     },
@@ -215,6 +219,7 @@ export function useGeneratePatientSummary() {
 
 // ============================================================================
 // Coding Suggestions (ICD / procedure codes)
+// TODO: Backend needs GET /ai/encounters/:id/coding-suggestions endpoint
 // ============================================================================
 
 export function useCodingSuggestions(encounterId: string) {
@@ -231,6 +236,7 @@ export function useCodingSuggestions(encounterId: string) {
   });
 }
 
+// TODO: Backend needs POST /ai/encounters/:id/coding-suggestions/generate endpoint
 export function useGenerateCodingSuggestions() {
   return useMutation({
     mutationFn: async ({
@@ -251,6 +257,7 @@ export function useGenerateCodingSuggestions() {
 
 // ============================================================================
 // Encounter Summary (AI-generated summary)
+// TODO: Backend needs POST /ai/encounters/:id/summary/generate endpoint
 // ============================================================================
 
 export function useGenerateEncounterSummary() {
@@ -266,6 +273,7 @@ export function useGenerateEncounterSummary() {
 
 // ============================================================================
 // Nursing AI Suggestions
+// TODO: Backend needs POST /ai/nursing/suggest-diagnoses endpoint
 // ============================================================================
 
 export function useSuggestNursingDiagnoses() {
@@ -292,6 +300,7 @@ export function useSuggestNursingDiagnoses() {
 
 // ============================================================================
 // Discharge Planning AI
+// TODO: Backend needs POST /ai/admissions/:id/discharge-plan endpoint
 // ============================================================================
 
 export function useSuggestDischargePlan() {

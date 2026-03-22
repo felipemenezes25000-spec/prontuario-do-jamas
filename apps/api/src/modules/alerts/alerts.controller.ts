@@ -11,6 +11,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiBody,
 } from '@nestjs/swagger';
 import { AlertsService } from './alerts.service';
 import { CreateAlertDto } from './dto/create-alert.dto';
@@ -42,6 +44,7 @@ export class AlertsController {
   }
 
   @Get('patient/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get alerts by patient' })
   @ApiResponse({ status: 200, description: 'Patient alerts' })
   async findByPatient(
@@ -51,6 +54,7 @@ export class AlertsController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Alert UUID' })
   @ApiOperation({ summary: 'Get alert by ID' })
   @ApiResponse({ status: 200, description: 'Alert details' })
   @ApiResponse({ status: 404, description: 'Not found' })
@@ -59,7 +63,9 @@ export class AlertsController {
   }
 
   @Patch(':id/acknowledge')
+  @ApiParam({ name: 'id', description: 'Alert UUID' })
   @ApiOperation({ summary: 'Acknowledge an alert' })
+  @ApiBody({ schema: { type: 'object', properties: { actionTaken: { type: 'string', description: 'Action taken on the alert' } } }, required: false })
   @ApiResponse({ status: 200, description: 'Alert acknowledged' })
   async acknowledge(
     @Param('id', ParseUUIDPipe) id: string,
@@ -70,6 +76,7 @@ export class AlertsController {
   }
 
   @Patch(':id/resolve')
+  @ApiParam({ name: 'id', description: 'Alert UUID' })
   @ApiOperation({ summary: 'Resolve an alert' })
   @ApiResponse({ status: 200, description: 'Alert resolved' })
   async resolve(

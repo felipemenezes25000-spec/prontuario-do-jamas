@@ -13,6 +13,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, ChangePasswordDto } from './dto/create-user.dto';
@@ -50,6 +51,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'User UUID' })
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiResponse({ status: 200, description: 'User details' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -59,6 +61,7 @@ export class UsersController {
 
   @Patch(':id')
   @Roles(ROLES.SYSTEM_ADMIN, ROLES.TENANT_ADMIN)
+  @ApiParam({ name: 'id', description: 'User UUID' })
   @ApiOperation({ summary: 'Update user' })
   @ApiResponse({ status: 200, description: 'User updated' })
   async update(
@@ -70,6 +73,7 @@ export class UsersController {
 
   @Delete(':id')
   @Roles(ROLES.SYSTEM_ADMIN, ROLES.TENANT_ADMIN)
+  @ApiParam({ name: 'id', description: 'User UUID' })
   @ApiOperation({ summary: 'Deactivate user (soft delete)' })
   @ApiResponse({ status: 200, description: 'User deactivated' })
   async deactivate(@Param('id', ParseUUIDPipe) id: string) {

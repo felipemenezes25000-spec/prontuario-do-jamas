@@ -11,6 +11,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { TriageService } from './triage.service';
 import { CreateTriageDto, UpdateTriageDto } from './dto/create-triage.dto';
@@ -42,6 +43,7 @@ export class TriageController {
   }
 
   @Get('encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get triage assessment by encounter' })
   @ApiResponse({ status: 200, description: 'Triage assessment details' })
   async findByEncounter(
@@ -51,6 +53,7 @@ export class TriageController {
   }
 
   @Patch('encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Update triage assessment' })
   @ApiResponse({ status: 200, description: 'Triage assessment updated' })
   async update(

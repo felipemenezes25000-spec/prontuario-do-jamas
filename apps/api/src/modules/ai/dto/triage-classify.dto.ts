@@ -15,13 +15,13 @@ export class TriageClassifyDto {
 }
 
 export class TriageClassifyResponseDto {
-  @ApiProperty({ description: 'Manchester triage level: VERMELHO, LARANJA, AMARELO, VERDE, AZUL' })
+  @ApiProperty({ description: 'Manchester triage level: VERMELHO, LARANJA, AMARELO, VERDE, AZUL', example: 'AMARELO' })
   level!: string;
 
-  @ApiProperty({ description: 'Human-readable level description' })
+  @ApiProperty({ description: 'Human-readable level description', example: 'Urgente — atendimento em ate 60 minutos' })
   levelDescription!: string;
 
-  @ApiProperty({ type: [String], description: 'Manchester discriminators identified' })
+  @ApiProperty({ type: [String], description: 'Manchester discriminators identified', example: ['Dor moderada', 'Inicio subito'] })
   discriminators!: string[];
 
   @ApiProperty({
@@ -37,6 +37,6 @@ export class TriageClassifyResponseDto {
   })
   redFlags!: Array<{ flag: string; severity: string; recommendation: string }>;
 
-  @ApiProperty({ description: 'Suggested maximum wait time in minutes' })
+  @ApiProperty({ description: 'Suggested maximum wait time in minutes', example: 60 })
   suggestedMaxWait!: number;
 }

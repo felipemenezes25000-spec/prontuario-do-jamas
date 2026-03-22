@@ -19,15 +19,15 @@ export class VoiceTranscribeDto {
 }
 
 export class VoiceTranscribeResponseDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Unique transcription ID', example: '550e8400-e29b-41d4-a716-446655440000' })
   transcriptionId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Transcribed text from audio', example: 'Paciente relata dor abdominal ha 3 dias' })
   text!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Transcription confidence score (0-1)', example: 0.95 })
   confidence!: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Structured data extracted from transcription (NER results)' })
   structuredData!: Record<string, unknown>;
 }

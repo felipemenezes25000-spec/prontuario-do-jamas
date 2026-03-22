@@ -12,6 +12,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto, UpdateTenantDto } from './dto/create-tenant.dto';
@@ -44,6 +45,7 @@ export class TenantsController {
 
   @Get(':id')
   @Roles(ROLES.SYSTEM_ADMIN, ROLES.TENANT_ADMIN)
+  @ApiParam({ name: 'id', description: 'Tenant UUID', example: '550e8400-e29b-41d4-a716-446655440000' })
   @ApiOperation({ summary: 'Get tenant by ID' })
   @ApiResponse({ status: 200, description: 'Tenant details' })
   @ApiResponse({ status: 404, description: 'Tenant not found' })
@@ -53,6 +55,7 @@ export class TenantsController {
 
   @Patch(':id')
   @Roles(ROLES.SYSTEM_ADMIN)
+  @ApiParam({ name: 'id', description: 'Tenant UUID' })
   @ApiOperation({ summary: 'Update tenant (system admin only)' })
   @ApiResponse({ status: 200, description: 'Tenant updated' })
   async update(
@@ -64,6 +67,7 @@ export class TenantsController {
 
   @Delete(':id')
   @Roles(ROLES.SYSTEM_ADMIN)
+  @ApiParam({ name: 'id', description: 'Tenant UUID' })
   @ApiOperation({ summary: 'Delete tenant (system admin only)' })
   @ApiResponse({ status: 200, description: 'Tenant deleted' })
   async delete(@Param('id', ParseUUIDPipe) id: string) {

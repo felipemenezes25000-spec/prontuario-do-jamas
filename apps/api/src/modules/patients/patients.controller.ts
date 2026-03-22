@@ -13,6 +13,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiBody,
 } from '@nestjs/swagger';
 import { PatientsService } from './patients.service';
 import {
@@ -51,6 +53,7 @@ export class PatientsController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get patient by ID with relations' })
   @ApiResponse({ status: 200, description: 'Patient details with history' })
   @ApiResponse({ status: 404, description: 'Patient not found' })
@@ -62,6 +65,7 @@ export class PatientsController {
   }
 
   @Patch(':id')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Update patient' })
   @ApiResponse({ status: 200, description: 'Patient updated' })
   async update(
@@ -73,6 +77,7 @@ export class PatientsController {
   }
 
   @Delete(':id')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Soft delete patient' })
   @ApiResponse({ status: 200, description: 'Patient soft-deleted' })
   async softDelete(
@@ -85,6 +90,7 @@ export class PatientsController {
   // --- Allergies sub-routes ---
 
   @Get(':id/allergies')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get patient allergies' })
   @ApiResponse({ status: 200, description: 'List of allergies' })
   async getAllergies(
@@ -95,7 +101,9 @@ export class PatientsController {
   }
 
   @Post(':id/allergies')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Add allergy to patient' })
+  @ApiBody({ schema: { type: 'object', properties: { substance: { type: 'string' }, reaction: { type: 'string' }, severity: { type: 'string' }, notes: { type: 'string' } }, required: ['substance'] } })
   @ApiResponse({ status: 201, description: 'Allergy added' })
   async addAllergy(
     @Param('id', ParseUUIDPipe) id: string,
@@ -106,6 +114,8 @@ export class PatientsController {
   }
 
   @Delete(':id/allergies/:allergyId')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
+  @ApiParam({ name: 'allergyId', description: 'Allergy UUID' })
   @ApiOperation({ summary: 'Remove allergy' })
   @ApiResponse({ status: 200, description: 'Allergy removed' })
   async removeAllergy(
@@ -119,6 +129,7 @@ export class PatientsController {
   // --- Conditions sub-routes ---
 
   @Get(':id/conditions')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get patient conditions' })
   @ApiResponse({ status: 200, description: 'List of conditions' })
   async getConditions(
@@ -129,7 +140,9 @@ export class PatientsController {
   }
 
   @Post(':id/conditions')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Add condition to patient' })
+  @ApiBody({ schema: { type: 'object', properties: { name: { type: 'string' }, icdCode: { type: 'string' }, status: { type: 'string' }, diagnosedAt: { type: 'string' }, notes: { type: 'string' } }, required: ['name'] } })
   @ApiResponse({ status: 201, description: 'Condition added' })
   async addCondition(
     @Param('id', ParseUUIDPipe) id: string,
@@ -142,6 +155,7 @@ export class PatientsController {
   // --- Family History sub-routes ---
 
   @Get(':id/family-history')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get patient family history' })
   @ApiResponse({ status: 200, description: 'List of family history entries' })
   async getFamilyHistory(
@@ -152,7 +166,9 @@ export class PatientsController {
   }
 
   @Post(':id/family-history')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Add family history entry' })
+  @ApiBody({ schema: { type: 'object', properties: { relationship: { type: 'string' }, condition: { type: 'string' }, notes: { type: 'string' } }, required: ['relationship', 'condition'] } })
   @ApiResponse({ status: 201, description: 'Family history added' })
   async addFamilyHistory(
     @Param('id', ParseUUIDPipe) id: string,
@@ -165,6 +181,7 @@ export class PatientsController {
   // --- Surgical History sub-routes ---
 
   @Get(':id/surgical-history')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get patient surgical history' })
   @ApiResponse({ status: 200, description: 'List of surgical history entries' })
   async getSurgicalHistory(
@@ -175,7 +192,9 @@ export class PatientsController {
   }
 
   @Post(':id/surgical-history')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Add surgical history entry' })
+  @ApiBody({ schema: { type: 'object', properties: { procedure: { type: 'string' }, date: { type: 'string' }, notes: { type: 'string' } }, required: ['procedure'] } })
   @ApiResponse({ status: 201, description: 'Surgical history added' })
   async addSurgicalHistory(
     @Param('id', ParseUUIDPipe) id: string,
@@ -188,6 +207,7 @@ export class PatientsController {
   // --- Social History sub-routes ---
 
   @Get(':id/social-history')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get patient social history' })
   @ApiResponse({ status: 200, description: 'Social history' })
   async getSocialHistory(
@@ -198,7 +218,9 @@ export class PatientsController {
   }
 
   @Post(':id/social-history')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Create or update social history' })
+  @ApiBody({ schema: { type: 'object', properties: { smoking: { type: 'string' }, alcohol: { type: 'string' }, drugs: { type: 'string' }, exercise: { type: 'string' }, diet: { type: 'string' }, occupation: { type: 'string' }, notes: { type: 'string' } } } })
   @ApiResponse({ status: 200, description: 'Social history saved' })
   async upsertSocialHistory(
     @Param('id', ParseUUIDPipe) id: string,
@@ -219,6 +241,7 @@ export class PatientsController {
   // --- Vaccinations sub-routes ---
 
   @Get(':id/vaccinations')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get patient vaccinations' })
   @ApiResponse({ status: 200, description: 'List of vaccinations' })
   async getVaccinations(
@@ -229,7 +252,9 @@ export class PatientsController {
   }
 
   @Post(':id/vaccinations')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Add vaccination record' })
+  @ApiBody({ schema: { type: 'object', properties: { vaccine: { type: 'string' }, dose: { type: 'string' }, lot: { type: 'string' }, administeredAt: { type: 'string' }, notes: { type: 'string' } }, required: ['vaccine'] } })
   @ApiResponse({ status: 201, description: 'Vaccination added' })
   async addVaccination(
     @Param('id', ParseUUIDPipe) id: string,

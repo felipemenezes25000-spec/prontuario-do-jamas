@@ -12,6 +12,9 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+  ApiBody,
 } from '@nestjs/swagger';
 import { SurgicalService } from './surgical.service';
 import { CreateSurgicalProcedureDto } from './dto/create-surgical-procedure.dto';
@@ -37,6 +40,7 @@ export class SurgicalController {
 
   @Get('by-date')
   @ApiOperation({ summary: 'Get surgical procedures by date' })
+  @ApiQuery({ name: 'date', required: true, description: 'Date in ISO format (YYYY-MM-DD)', example: '2026-03-22' })
   @ApiResponse({ status: 200, description: 'List of surgical procedures' })
   async findByDate(
     @CurrentTenant() tenantId: string,
@@ -46,6 +50,7 @@ export class SurgicalController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Surgical procedure UUID' })
   @ApiOperation({ summary: 'Get surgical procedure by ID' })
   @ApiResponse({ status: 200, description: 'Surgical procedure details' })
   @ApiResponse({ status: 404, description: 'Not found' })
@@ -54,7 +59,9 @@ export class SurgicalController {
   }
 
   @Patch(':id/status')
+  @ApiParam({ name: 'id', description: 'Surgical procedure UUID' })
   @ApiOperation({ summary: 'Update surgical procedure status' })
+  @ApiBody({ schema: { type: 'object', properties: { status: { type: 'string', description: 'New surgical status' } }, required: ['status'] } })
   @ApiResponse({ status: 200, description: 'Status updated' })
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
@@ -64,6 +71,8 @@ export class SurgicalController {
   }
 
   @Patch(':id/checklist/:phase')
+  @ApiParam({ name: 'id', description: 'Surgical procedure UUID' })
+  @ApiParam({ name: 'phase', description: 'Checklist phase', enum: ['before', 'during', 'after'] })
   @ApiOperation({ summary: 'Update safety checklist for a phase' })
   @ApiResponse({ status: 200, description: 'Checklist updated' })
   async updateChecklist(
@@ -75,7 +84,18 @@ export class SurgicalController {
   }
 
   @Post(':id/complete')
+  @ApiParam({ name: 'id', description: 'Surgical procedure UUID' })
   @ApiOperation({ summary: 'Complete a surgical procedure' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        surgicalDescription: { type: 'string', description: 'Surgical description' },
+        complications: { type: 'string', description: 'Complications encountered' },
+        bloodLoss: { type: 'number', description: 'Estimated blood loss in mL' },
+      },
+    },
+  })
   @ApiResponse({ status: 200, description: 'Procedure completed' })
   async complete(
     @Param('id', ParseUUIDPipe) id: string,

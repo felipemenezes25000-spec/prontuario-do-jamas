@@ -1,76 +1,88 @@
 import { test, expect } from './fixtures/auth.fixture';
 
-test.describe('Patient list', () => {
+test.describe('Fluxo de pacientes', () => {
   test.beforeEach(async ({ authenticatedPage }) => {
     await authenticatedPage.goto('/pacientes');
     await authenticatedPage.waitForSelector('h1', { timeout: 10_000 });
   });
 
-  test('should display patient search input', async ({
+  test('deve exibir campo de busca de pacientes', async ({
     authenticatedPage: page,
   }) => {
     const searchInput = page.getByPlaceholder('Buscar por nome, CPF ou prontuário...');
     await expect(searchInput).toBeVisible();
   });
 
-  test('should list patients in table format', async ({
+  test('deve listar pacientes em formato de tabela', async ({
     authenticatedPage: page,
   }) => {
     // Table headers
     await expect(page.getByRole('columnheader', { name: 'Prontuário' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Paciente' })).toBeVisible();
 
-    // At least one row should be present (mock data)
+    // At least one row should be present
     const rows = page.locator('tbody tr');
     await expect(rows.first()).toBeVisible();
     const rowCount = await rows.count();
     expect(rowCount).toBeGreaterThan(0);
   });
 
-  test('should show patient risk indicators', async ({
+  test('deve exibir indicadores de risco do paciente', async ({
     authenticatedPage: page,
   }) => {
-    // Risk column header
     await expect(page.getByRole('columnheader', { name: 'Risco' })).toBeVisible();
 
-    // Risk score bars are rendered as small colored divs inside the table
+    // Risk score colored indicators
     const riskBars = page.locator('tbody td .rounded-full');
     await expect(riskBars.first()).toBeVisible();
   });
 
-  test('should filter patients by search term', async ({
+  test('deve filtrar pacientes pelo termo de busca', async ({
     authenticatedPage: page,
   }) => {
     const searchInput = page.getByPlaceholder('Buscar por nome, CPF ou prontuário...');
 
-    // Count initial patients
     const initialCount = await page.locator('tbody tr').count();
     expect(initialCount).toBeGreaterThan(0);
 
-    // Type a very specific search that likely matches fewer patients
+    // Type a search that matches no patients
     await searchInput.fill('zzzzzzzzz_no_match');
 
-    // Wait for debounce (300ms) + render
+    // Wait for debounce + render
     await page.waitForTimeout(500);
 
-    // Should show empty state or fewer results
     const emptyState = page.getByText('Nenhum paciente encontrado');
-    const filteredRows = page.locator('tbody tr');
-    const filteredCount = await filteredRows.count();
+    const filteredCount = await page.locator('tbody tr').count();
 
-    // Either empty state is shown or there are fewer rows
     const isEmpty = await emptyState.isVisible().catch(() => false);
     expect(isEmpty || filteredCount < initialCount).toBeTruthy();
   });
 
-  test('should navigate to patient detail on click', async ({
+  test('deve navegar para detalhes do paciente ao clicar', async ({
     authenticatedPage: page,
   }) => {
-    // Click the first patient row
     const firstRow = page.locator('tbody tr').first();
     await firstRow.click();
 
     // Should navigate to patient detail page
     await expect(page).toHaveURL(/\/pacientes\//, { timeout: 10_000 });
+  });
+
+  test('deve exibir abas na pagina de detalhes do paciente', async ({
+    authenticatedPage: page,
+  }) => {
+    // Click first patient
+    const firstRow = page.locator('tbody tr').first();
+    await firstRow.click();
+
+    await expect(page).toHaveURL(/\/pacientes\//, { timeout: 10_000 });
+
+    // Wait for detail page to load
+    await page.waitForSelector('h1', { timeout: 10_000 });
+
+    // Patient detail page should have tab navigation
+    const tabs = page.getByRole('tab');
+    const tabCount = await tabs.count();
+    expect(tabCount).toBeGreaterThan(0);
   });
 });

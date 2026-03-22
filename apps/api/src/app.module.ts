@@ -33,6 +33,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { QueuesModule } from './modules/queues/queues.module';
 import { LgpdModule } from './modules/lgpd/lgpd.module';
 import { DigitalSignatureModule } from './modules/digital-signature/digital-signature.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { DigitalSignatureModule } from './modules/digital-signature/digital-sign
     QueuesModule,
     LgpdModule,
     DigitalSignatureModule,
+    DashboardModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

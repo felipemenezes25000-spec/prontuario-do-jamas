@@ -10,6 +10,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { NursingService } from './nursing.service';
 import { CreateNursingProcessDto } from './dto/create-nursing-process.dto';
@@ -42,6 +43,7 @@ export class NursingController {
   }
 
   @Get('processes/:id')
+  @ApiParam({ name: 'id', description: 'Nursing process UUID' })
   @ApiOperation({ summary: 'Get nursing process by ID' })
   @ApiResponse({ status: 200, description: 'Nursing process details' })
   async findProcessById(@Param('id', ParseUUIDPipe) id: string) {
@@ -49,6 +51,7 @@ export class NursingController {
   }
 
   @Get('processes/patient/:patientId/active')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get active nursing processes for a patient' })
   @ApiResponse({ status: 200, description: 'Active nursing processes' })
   async getActiveProcesses(
@@ -60,6 +63,7 @@ export class NursingController {
   // --- Diagnoses ---
 
   @Post('processes/:processId/diagnoses')
+  @ApiParam({ name: 'processId', description: 'Nursing process UUID' })
   @ApiOperation({ summary: 'Add nursing diagnosis to a process' })
   @ApiResponse({ status: 201, description: 'Diagnosis added' })
   async addDiagnosis(
@@ -72,6 +76,7 @@ export class NursingController {
   // --- Outcomes ---
 
   @Post('diagnoses/:diagnosisId/outcomes')
+  @ApiParam({ name: 'diagnosisId', description: 'Nursing diagnosis UUID' })
   @ApiOperation({ summary: 'Add outcome to a nursing diagnosis' })
   @ApiResponse({ status: 201, description: 'Outcome added' })
   async addOutcome(
@@ -84,6 +89,7 @@ export class NursingController {
   // --- Interventions ---
 
   @Post('diagnoses/:diagnosisId/interventions')
+  @ApiParam({ name: 'diagnosisId', description: 'Nursing diagnosis UUID' })
   @ApiOperation({ summary: 'Add intervention to a nursing diagnosis' })
   @ApiResponse({ status: 201, description: 'Intervention added' })
   async addIntervention(
@@ -120,6 +126,7 @@ export class NursingController {
   // --- Queries ---
 
   @Get('by-encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get all nursing data for an encounter' })
   @ApiResponse({ status: 200, description: 'Nursing data for encounter' })
   async findByEncounter(
@@ -129,6 +136,7 @@ export class NursingController {
   }
 
   @Get('by-patient/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get all nursing processes for a patient' })
   @ApiResponse({ status: 200, description: 'Nursing processes for patient' })
   async findByPatient(

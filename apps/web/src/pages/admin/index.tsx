@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn, getInitials } from '@/lib/utils';
 import { useUsers } from '@/services/users.service';
+import { useAuditLog, useLgpdRequests } from '@/services/admin.service';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
 import type { UserRole } from '@/types';
@@ -49,22 +50,6 @@ const roleLabels: Record<UserRole, { label: string; color: string }> = {
   BILLING: { label: 'Faturamento', color: 'bg-orange-600' },
 };
 
-const auditLog = [
-  { id: 'aud-001', timestamp: '2026-03-21T09:45:00Z', user: 'Dr. Carlos Oliveira', action: 'Assinou prescrição', resource: 'Prescrição #PRESC-001', ip: '192.168.1.45' },
-  { id: 'aud-002', timestamp: '2026-03-21T09:30:00Z', user: 'Enf. Marcos Lima', action: 'Registrou sinais vitais', resource: 'Paciente Maria da Silva', ip: '192.168.1.52' },
-  { id: 'aud-003', timestamp: '2026-03-21T09:15:00Z', user: 'Dr. Carlos Oliveira', action: 'Visualizou prontuário', resource: 'Paciente José Carlos', ip: '192.168.1.45' },
-  { id: 'aud-004', timestamp: '2026-03-21T08:50:00Z', user: 'Camila Ferreira', action: 'Cadastrou paciente', resource: 'Paciente Fernando Souza', ip: '192.168.1.10' },
-  { id: 'aud-005', timestamp: '2026-03-21T08:30:00Z', user: 'Dra. Ana Souza', action: 'Iniciou atendimento', resource: 'Atendimento #ENC-004', ip: '192.168.1.48' },
-  { id: 'aud-006', timestamp: '2026-03-21T08:00:00Z', user: 'Administrador', action: 'Login realizado', resource: 'Sistema', ip: '192.168.1.1' },
-  { id: 'aud-007', timestamp: '2026-03-21T07:45:00Z', user: 'Enf. Juliana Costa', action: 'Checou medicação', resource: 'Checagem #MC-001', ip: '192.168.1.55' },
-  { id: 'aud-008', timestamp: '2026-03-20T18:30:00Z', user: 'Dr. Carlos Oliveira', action: 'Exportou relatório', resource: 'Relatório Financeiro', ip: '192.168.1.45' },
-];
-
-const lgpdRequests = [
-  { id: 'lgpd-001', date: '2026-03-15', requester: 'Maria da Silva Santos', type: 'Acesso', status: 'COMPLETED', description: 'Solicitação de cópia dos dados pessoais' },
-  { id: 'lgpd-002', date: '2026-03-10', requester: 'Lucas Gabriel Martins', type: 'Retificação', status: 'IN_PROGRESS', description: 'Correção do endereço residencial' },
-  { id: 'lgpd-003', date: '2026-02-28', requester: 'Fernando Souza Dias', type: 'Portabilidade', status: 'PENDING', description: 'Transferência de dados para outra instituição' },
-];
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('usuarios');
@@ -72,6 +57,11 @@ export default function AdminPage() {
   const [auditSearch, setAuditSearch] = useState('');
 
   const { data: allUsers = [], isLoading, isError, refetch } = useUsers({ search: userSearch || undefined });
+  const { data: auditData, isLoading: auditLoading, isError: auditError, refetch: refetchAudit } = useAuditLog({ search: auditSearch || undefined });
+  const { data: lgpdData, isLoading: lgpdLoading, isError: lgpdError, refetch: refetchLgpd } = useLgpdRequests();
+
+  const auditLog = auditData?.data ?? [];
+  const lgpdRequests = lgpdData?.data ?? [];
 
   const filteredUsers = allUsers.filter((u) =>
     !userSearch || u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase()),
@@ -272,38 +262,63 @@ export default function AdminPage() {
             />
           </div>
 
-          <Card className="border-border bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Data/Hora</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Usuário</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Ação</th>
-                    <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">Recurso</th>
-                    <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">IP</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {filteredAudit.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-accent/30">
-                      <td className="px-4 py-3 text-sm">
-                        {new Date(entry.timestamp).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td className="px-4 py-3 text-sm font-medium">{entry.user}</td>
-                      <td className="px-4 py-3 text-sm">{entry.action}</td>
-                      <td className="hidden px-4 py-3 text-sm text-muted-foreground sm:table-cell">{entry.resource}</td>
-                      <td className="hidden px-4 py-3 text-sm text-muted-foreground font-mono md:table-cell">{entry.ip}</td>
+          {auditLoading ? (
+            <PageLoading cards={0} showTable />
+          ) : auditError ? (
+            <PageError onRetry={() => refetchAudit()} />
+          ) : filteredAudit.length === 0 ? (
+            <Card className="border-border bg-card">
+              <CardContent className="flex flex-col items-center py-12">
+                <ClipboardList className="h-10 w-10 text-muted-foreground" />
+                <p className="mt-3 text-sm text-muted-foreground">Nenhum registro de auditoria encontrado</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Data/Hora</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Usuário</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Ação</th>
+                      <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">Recurso</th>
+                      <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">IP</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/50">
+                    {filteredAudit.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-accent/30">
+                        <td className="px-4 py-3 text-sm">
+                          {new Date(entry.timestamp).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-3 text-sm font-medium">{entry.user}</td>
+                        <td className="px-4 py-3 text-sm">{entry.action}</td>
+                        <td className="hidden px-4 py-3 text-sm text-muted-foreground sm:table-cell">{entry.resource}</td>
+                        <td className="hidden px-4 py-3 text-sm text-muted-foreground font-mono md:table-cell">{entry.ip}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
         </TabsContent>
 
         {/* LGPD */}
         <TabsContent value="lgpd" className="mt-4">
+          {lgpdLoading ? (
+            <PageLoading cards={0} showTable={false} />
+          ) : lgpdError ? (
+            <PageError onRetry={() => refetchLgpd()} />
+          ) : lgpdRequests.length === 0 ? (
+            <Card className="border-border bg-card">
+              <CardContent className="flex flex-col items-center py-12">
+                <Lock className="h-10 w-10 text-muted-foreground" />
+                <p className="mt-3 text-sm text-muted-foreground">Nenhuma solicitação LGPD registrada</p>
+              </CardContent>
+            </Card>
+          ) : (
           <Card className="border-border bg-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -339,6 +354,7 @@ export default function AdminPage() {
               ))}
             </CardContent>
           </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

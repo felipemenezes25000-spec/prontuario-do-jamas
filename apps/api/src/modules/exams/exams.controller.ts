@@ -10,6 +10,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { ExamsService } from './exams.service';
 import { CreateExamRequestDto } from './dto/create-exam-request.dto';
@@ -35,6 +36,7 @@ export class ExamsController {
   }
 
   @Post(':id/results')
+  @ApiParam({ name: 'id', description: 'Exam request UUID' })
   @ApiOperation({ summary: 'Add results to an exam' })
   @ApiResponse({ status: 200, description: 'Results added' })
   async addResults(
@@ -53,6 +55,7 @@ export class ExamsController {
   }
 
   @Get('by-patient/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Get exams by patient' })
   @ApiResponse({ status: 200, description: 'Patient exams' })
   async findByPatient(
@@ -62,6 +65,7 @@ export class ExamsController {
   }
 
   @Get('by-encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get exams by encounter' })
   @ApiResponse({ status: 200, description: 'Encounter exams' })
   async findByEncounter(
@@ -71,6 +75,7 @@ export class ExamsController {
   }
 
   @Get(':id')
+  @ApiParam({ name: 'id', description: 'Exam request UUID' })
   @ApiOperation({ summary: 'Get exam by ID' })
   @ApiResponse({ status: 200, description: 'Exam details' })
   @ApiResponse({ status: 404, description: 'Not found' })

@@ -10,6 +10,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -40,6 +41,7 @@ export class NotificationsController {
   }
 
   @Patch(':id/read')
+  @ApiParam({ name: 'id', description: 'Notification UUID' })
   @ApiOperation({ summary: 'Mark notification as read' })
   @ApiResponse({ status: 200, description: 'Notification marked as read' })
   async markRead(@Param('id', ParseUUIDPipe) id: string) {

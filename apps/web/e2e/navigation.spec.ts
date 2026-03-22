@@ -1,21 +1,21 @@
 import { test, expect } from './fixtures/auth.fixture';
 
-test.describe('Global navigation', () => {
+test.describe('Navegacao global', () => {
   test.beforeEach(async ({ authenticatedPage }) => {
     await authenticatedPage.goto('/dashboard');
     await authenticatedPage.waitForSelector('h1', { timeout: 10_000 });
   });
 
-  test('should show sidebar with all menu items', async ({
+  test('deve exibir sidebar com todos os itens do menu', async ({
     authenticatedPage: page,
   }) => {
     const sidebar = page.locator('aside');
     await expect(sidebar).toBeVisible();
 
-    // VoxPEP branding in sidebar
+    // VoxPEP branding
     await expect(sidebar.getByText('PEP')).toBeVisible();
 
-    // All main nav items from sidebar.tsx navItems array
+    // All main nav items
     const expectedItems = [
       'Dashboard',
       'Agenda',
@@ -36,10 +36,10 @@ test.describe('Global navigation', () => {
     }
   });
 
-  test('should highlight active page in sidebar', async ({
+  test('deve destacar a pagina ativa no sidebar', async ({
     authenticatedPage: page,
   }) => {
-    // On /dashboard, the Dashboard link should have the active class (text-primary)
+    // On /dashboard the Dashboard link should be active
     const dashboardLink = page.locator('aside').getByRole('link', { name: 'Dashboard' });
     await expect(dashboardLink).toHaveClass(/text-primary/);
 
@@ -52,18 +52,16 @@ test.describe('Global navigation', () => {
     await expect(pacientesLink).toHaveClass(/text-primary/);
   });
 
-  test('should collapse sidebar on mobile viewport', async ({
+  test('deve recolher sidebar em viewport mobile', async ({
     authenticatedPage: page,
   }) => {
-    // Resize to mobile
     await page.setViewportSize({ width: 375, height: 812 });
 
-    // Sidebar should be off-screen (translated away) on mobile
     const sidebar = page.locator('aside');
     await expect(sidebar).toHaveClass(/-translate-x-full/);
   });
 
-  test('should navigate between all main pages', async ({
+  test('deve navegar entre todas as paginas principais sem erro', async ({
     authenticatedPage: page,
   }) => {
     const routes: Array<{ name: string; urlPattern: RegExp }> = [
@@ -82,7 +80,7 @@ test.describe('Global navigation', () => {
       await page.locator('aside').getByRole('link', { name: route.name }).click();
       await expect(page).toHaveURL(route.urlPattern, { timeout: 10_000 });
 
-      // Each page should render an h1
+      // Each page should render an h1 without errors
       await expect(page.locator('h1').first()).toBeVisible({ timeout: 10_000 });
     }
   });
