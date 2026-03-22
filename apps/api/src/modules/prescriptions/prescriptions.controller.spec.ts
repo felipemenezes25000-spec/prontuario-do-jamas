@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrescriptionsController } from './prescriptions.controller';
 import { PrescriptionsService } from './prescriptions.service';
 import { PrescriptionSafetyService } from './prescription-safety.service';
+import { PdfGeneratorService } from '../documents/pdf-generator.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 
 describe('PrescriptionsController', () => {
@@ -26,6 +27,7 @@ describe('PrescriptionsController', () => {
 
   const mockPrescriptionsService = {
     create: jest.fn(),
+    findAll: jest.fn(),
     findByEncounter: jest.fn(),
     findByPatient: jest.fn(),
     findById: jest.fn(),
@@ -34,6 +36,14 @@ describe('PrescriptionsController', () => {
     addItem: jest.fn(),
     removeItem: jest.fn(),
     checkMedication: jest.fn(),
+    findMedicationChecks: jest.fn(),
+  };
+
+  const mockPdfGeneratorService = {
+    generatePrescriptionPdf: jest.fn(),
+    generateMedicalCertificatePdf: jest.fn(),
+    generateDischargeSummaryPdf: jest.fn(),
+    generateTissGuidePdf: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -41,12 +51,16 @@ describe('PrescriptionsController', () => {
       controllers: [PrescriptionsController],
       providers: [
         { provide: PrescriptionsService, useValue: mockPrescriptionsService },
-        { provide: PrescriptionSafetyService, useValue: {
-          validateSafety: jest.fn(),
-          generateSchedule: jest.fn(),
-          firstCheck: jest.fn(),
-          doubleCheck: jest.fn(),
-        }},
+        {
+          provide: PrescriptionSafetyService,
+          useValue: {
+            validateSafety: jest.fn(),
+            generateSchedule: jest.fn(),
+            firstCheck: jest.fn(),
+            doubleCheck: jest.fn(),
+          },
+        },
+        { provide: PdfGeneratorService, useValue: mockPdfGeneratorService },
       ],
     }).compile();
 

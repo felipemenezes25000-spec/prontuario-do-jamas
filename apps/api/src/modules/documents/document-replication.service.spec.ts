@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 describe('DocumentReplicationService', () => {
   let service: DocumentReplicationService;
-  let prisma: Record<string, Record<string, jest.Mock>>;
+  let _prisma: Record<string, Record<string, jest.Mock>>;
 
   const tenantId = 'tenant-1';
   const patientId = 'patient-1';
@@ -44,7 +44,7 @@ describe('DocumentReplicationService', () => {
     }).compile();
 
     service = module.get<DocumentReplicationService>(DocumentReplicationService);
-    prisma = module.get(PrismaService);
+    _prisma = module.get(PrismaService);
     jest.clearAllMocks();
   });
 

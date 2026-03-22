@@ -385,7 +385,7 @@ export class PdfGeneratorService {
       );
     }
 
-    const { patient, tenant, admittingDoctor, attendingDoctor, encounter } =
+    const { patient, tenant, admittingDoctor, attendingDoctor, encounter: _encounter } =
       admission;
     const doctor = attendingDoctor ?? admittingDoctor;
     const profile = doctor.doctorProfile;

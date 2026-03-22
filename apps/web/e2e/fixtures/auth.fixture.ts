@@ -42,6 +42,7 @@ async function injectAuth(page: Page) {
  *   test('my test', async ({ authenticatedPage }) => { ... });
  */
 export const test = base.extend<{ authenticatedPage: Page }>({
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   authenticatedPage: async ({ page }, use) => {
     await injectAuth(page);
     await use(page);

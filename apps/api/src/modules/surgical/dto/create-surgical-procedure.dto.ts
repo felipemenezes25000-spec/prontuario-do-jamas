@@ -6,7 +6,6 @@ import {
   IsOptional,
   IsEnum,
   IsDateString,
-  IsInt,
 } from 'class-validator';
 import { Laterality, AnesthesiaType } from '@prisma/client';
 

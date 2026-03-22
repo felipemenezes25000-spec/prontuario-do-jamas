@@ -54,7 +54,7 @@ describe('VoiceEngineService', () => {
       );
 
       const audioBuffer = Buffer.from('fake-audio-data');
-      const result = await service.transcribeAudio(
+      await service.transcribeAudio(
         audioBuffer,
         'anamnesis',
         'pt',

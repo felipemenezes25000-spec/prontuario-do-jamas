@@ -122,7 +122,7 @@ describe('TriageService', () => {
         overriddenByNurse: true,
       });
 
-      const result = await service.update('enc-1', { level: 'RED' } as any);
+      await service.update('enc-1', { level: 'RED' } as any);
 
       expect(prisma.encounter.update).toHaveBeenCalledWith({
         where: { id: 'enc-1' },

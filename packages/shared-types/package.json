@@ -14,8 +14,16 @@
   "scripts": {
     "build": "tsc --build",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/",
+    "lint": "cross-env ESLINT_USE_FLAT_CONFIG=false eslint --resolve-plugins-relative-to . src/",
     "clean": "rm -rf dist .turbo"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "cross-env": "^10.1.0",
+    "eslint": "^8.57.1"
+  }
 }

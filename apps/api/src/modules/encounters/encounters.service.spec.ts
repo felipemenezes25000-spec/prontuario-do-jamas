@@ -129,7 +129,7 @@ describe('EncountersService', () => {
         startedAt: new Date(),
       });
 
-      const result = await service.updateStatus('enc-1', tenantId, 'IN_PROGRESS' as any);
+      await service.updateStatus('enc-1', tenantId, 'IN_PROGRESS' as any);
 
       expect(mockPrismaService.encounter.update).toHaveBeenCalledWith({
         where: { id: 'enc-1' },

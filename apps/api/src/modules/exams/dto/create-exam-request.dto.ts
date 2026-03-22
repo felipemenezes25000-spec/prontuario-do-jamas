@@ -6,7 +6,7 @@ import {
   IsOptional,
   IsEnum,
 } from 'class-validator';
-import { ExamType, Priority, ImageModality } from '@prisma/client';
+import { ExamType, ImageModality } from '@prisma/client';
 
 export class CreateExamRequestDto {
   @ApiProperty({ description: 'Patient ID' })

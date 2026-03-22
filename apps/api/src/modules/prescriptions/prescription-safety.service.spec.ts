@@ -6,7 +6,7 @@ import { MedicationRoute } from '@prisma/client';
 
 describe('PrescriptionSafetyService', () => {
   let service: PrescriptionSafetyService;
-  let prisma: PrismaService;
+  let _prisma: PrismaService;
 
   const mockPrisma = {
     prescription: {
@@ -28,7 +28,7 @@ describe('PrescriptionSafetyService', () => {
     }).compile();
 
     service = module.get<PrescriptionSafetyService>(PrescriptionSafetyService);
-    prisma = module.get<PrismaService>(PrismaService);
+    _prisma = module.get<PrismaService>(PrismaService);
 
     jest.clearAllMocks();
   });

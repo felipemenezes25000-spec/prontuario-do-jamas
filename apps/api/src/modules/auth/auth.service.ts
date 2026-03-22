@@ -8,7 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
-import { generateSecret, generateURI, verify as otpVerify, generateSync } from 'otplib';
+import { generateSecret, generateURI, verify as otpVerify } from 'otplib';
 import * as QRCode from 'qrcode';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';

@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
 import { VitalSignsService } from './vital-signs.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -139,10 +138,11 @@ describe('VitalSignsService', () => {
       });
     });
 
-    it('should throw NotFoundException when no vitals found', async () => {
+    it('should return null when no vitals found', async () => {
       mockPrismaService.vitalSigns.findFirst.mockResolvedValue(null);
 
-      await expect(service.getLatest('patient-1')).rejects.toThrow(NotFoundException);
+      const result = await service.getLatest('patient-1');
+      expect(result).toBeNull();
     });
   });
 

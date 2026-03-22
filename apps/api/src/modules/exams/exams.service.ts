@@ -27,7 +27,7 @@ export class ExamsService {
   }
 
   async addResults(id: string, reviewedById: string, dto: AddExamResultDto) {
-    const exam = await this.findById(id);
+    const _exam = await this.findById(id);
 
     return this.prisma.examResult.update({
       where: { id },

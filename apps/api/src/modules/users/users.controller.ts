@@ -22,7 +22,6 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ROLES } from '../../common/constants/roles';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')

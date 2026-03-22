@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole, Prisma } from '@prisma/client';
-import type { TokenPair, AuthResponse } from './auth.service';
+import type { AuthResponse } from './auth.service';
 
 export interface OAuthProfile {
   provider: string;

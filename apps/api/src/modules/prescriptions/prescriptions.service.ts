@@ -6,7 +6,6 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { PrescriptionSafetyService } from './prescription-safety.service';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
-import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 import { CreatePrescriptionItemDto } from './dto/create-prescription-item.dto';
 import { PrescriptionStatus, MedCheckStatus } from '@prisma/client';
 
@@ -155,7 +154,7 @@ export class PrescriptionsService {
     });
   }
 
-  async sign(id: string, doctorId: string) {
+  async sign(id: string, _doctorId: string) {
     const prescription = await this.findById(id);
 
     if (prescription.signedAt) {

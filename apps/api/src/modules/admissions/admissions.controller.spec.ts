@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AdmissionsController } from './admissions.controller';
 import { AdmissionsService } from './admissions.service';
 import { BedsService } from './beds.service';
+import { PdfGeneratorService } from '../documents/pdf-generator.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 
 describe('AdmissionsController', () => {
@@ -41,6 +42,8 @@ describe('AdmissionsController', () => {
     findActive: jest.fn(),
     findById: jest.fn(),
     findByPatient: jest.fn(),
+    findAll: jest.fn(),
+    reverseDischarge: jest.fn(),
   };
 
   const mockBedsService = {
@@ -50,12 +53,20 @@ describe('AdmissionsController', () => {
     updateStatus: jest.fn(),
   };
 
+  const mockPdfGeneratorService = {
+    generatePrescriptionPdf: jest.fn(),
+    generateMedicalCertificatePdf: jest.fn(),
+    generateDischargeSummaryPdf: jest.fn(),
+    generateTissGuidePdf: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AdmissionsController],
       providers: [
         { provide: AdmissionsService, useValue: mockAdmissionsService },
         { provide: BedsService, useValue: mockBedsService },
+        { provide: PdfGeneratorService, useValue: mockPdfGeneratorService },
       ],
     }).compile();
 

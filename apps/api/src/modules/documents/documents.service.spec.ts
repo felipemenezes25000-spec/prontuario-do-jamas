@@ -154,7 +154,7 @@ describe('DocumentsService', () => {
           'Patient: Maria Silva, CPF: 12345678900, MRN: MRN-001, Doctor: Dr. Silva',
       });
 
-      const result = await service.generateFromTemplate(
+      await service.generateFromTemplate(
         'tenant-1',
         'author-1',
         'template-1',

@@ -7,7 +7,6 @@ import {
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { UserRole } from '@prisma/client';
 
 @Injectable()

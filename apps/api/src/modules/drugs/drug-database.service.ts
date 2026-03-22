@@ -196,7 +196,7 @@ export class DrugDatabaseService {
       })),
     ];
 
-    const { interactionsAs1, interactionsAs2, ...drugData } = drug;
+    const { interactionsAs1: _interactionsAs1, interactionsAs2: _interactionsAs2, ...drugData } = drug;
 
     return { ...drugData, interactions };
   }

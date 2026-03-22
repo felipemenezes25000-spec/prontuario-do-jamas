@@ -108,7 +108,7 @@ describe('SurgicalService', () => {
         patientInAt: new Date(),
       });
 
-      const result = await service.updateStatus('surg-1', 'IN_PROGRESS' as any);
+      await service.updateStatus('surg-1', 'IN_PROGRESS' as any);
 
       expect(prisma.surgicalProcedure.update).toHaveBeenCalledWith({
         where: { id: 'surg-1' },

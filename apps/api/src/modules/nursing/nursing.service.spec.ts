@@ -269,7 +269,7 @@ describe('NursingService', () => {
 
       prisma.fluidBalance.create.mockResolvedValue(expectedResult);
 
-      const result = await service.createFluidBalance('nurse-1', dto as any);
+      await service.createFluidBalance('nurse-1', dto as any);
 
       expect(prisma.fluidBalance.create).toHaveBeenCalledWith({
         data: expect.objectContaining({

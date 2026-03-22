@@ -2,10 +2,22 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SoapGeneratorService } from './soap-generator.service';
 import { OPENAI_CLIENT } from './openai.provider';
 import { GeminiProvider } from './gemini.provider';
+import { PatientContextBuilder } from './patient-context.builder';
+import { AiCacheService } from './ai-cache.service';
 
 describe('SoapGeneratorService', () => {
   let service: SoapGeneratorService;
-  let mockOpenAI: any;
+  let mockOpenAI: Record<string, unknown>;
+
+  const mockPatientContextBuilder = {
+    build: jest.fn().mockResolvedValue('Dados do paciente:\nNome: Maria Silva\nAlergias: Dipirona'),
+  };
+
+  const mockAiCache = {
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(undefined),
+    invalidate: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     mockOpenAI = {
@@ -20,12 +32,22 @@ describe('SoapGeneratorService', () => {
       providers: [
         SoapGeneratorService,
         { provide: OPENAI_CLIENT, useValue: mockOpenAI },
-        { provide: GeminiProvider, useValue: { generateText: jest.fn().mockRejectedValue(new Error('Gemini not configured')), generateJson: jest.fn().mockRejectedValue(new Error('Gemini not configured')) } },
+        {
+          provide: GeminiProvider,
+          useValue: {
+            generateText: jest.fn().mockRejectedValue(new Error('Gemini not configured')),
+            generateJson: jest.fn().mockRejectedValue(new Error('Gemini not configured')),
+          },
+        },
+        { provide: PatientContextBuilder, useValue: mockPatientContextBuilder },
+        { provide: AiCacheService, useValue: mockAiCache },
       ],
     }).compile();
 
     service = module.get<SoapGeneratorService>(SoapGeneratorService);
     jest.clearAllMocks();
+    // Default: cache miss
+    mockAiCache.get.mockResolvedValue(null);
   });
 
   describe('generateSOAP', () => {
@@ -53,7 +75,7 @@ describe('SoapGeneratorService', () => {
           { message: { content: JSON.stringify(mockSoapResponse) } },
         ],
       };
-      mockOpenAI.chat.completions.create.mockResolvedValue(mockResponse);
+      (mockOpenAI.chat as Record<string, unknown> & { completions: { create: jest.Mock } }).completions.create.mockResolvedValue(mockResponse);
 
       const patientContext = {
         name: 'Maria Silva',
@@ -70,7 +92,8 @@ describe('SoapGeneratorService', () => {
         'Clinica Medica',
       );
 
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledWith(
+      const create = (mockOpenAI.chat as Record<string, unknown> & { completions: { create: jest.Mock } }).completions.create;
+      expect(create).toHaveBeenCalledWith(
         expect.objectContaining({
           model: 'gpt-4o',
           messages: expect.arrayContaining([
@@ -84,12 +107,12 @@ describe('SoapGeneratorService', () => {
       );
 
       // Verify patient context is in the system prompt
-      const call = mockOpenAI.chat.completions.create.mock.calls[0][0];
-      const systemMsg = call.messages.find((m: any) => m.role === 'system');
+      const call = create.mock.calls[0][0];
+      const systemMsg = call.messages.find((m: { role: string }) => m.role === 'system');
       expect(systemMsg.content).toContain('Dipirona');
       expect(systemMsg.content).toContain('HAS');
       expect(systemMsg.content).toContain('Losartan 50mg');
-      expect(systemMsg.content).toContain('Clinica Medica');
+      expect(systemMsg.content).toContain('Especialidade:');
     });
 
     it('should return all four SOAP sections', async () => {
@@ -98,7 +121,7 @@ describe('SoapGeneratorService', () => {
           { message: { content: JSON.stringify(mockSoapResponse) } },
         ],
       };
-      mockOpenAI.chat.completions.create.mockResolvedValue(mockResponse);
+      (mockOpenAI.chat as Record<string, unknown> & { completions: { create: jest.Mock } }).completions.create.mockResolvedValue(mockResponse);
 
       const result = await service.generateSOAP(
         'Paciente relata dor de cabeca',
@@ -114,7 +137,7 @@ describe('SoapGeneratorService', () => {
     });
 
     it('should handle error with default response', async () => {
-      mockOpenAI.chat.completions.create.mockRejectedValue(
+      (mockOpenAI.chat as Record<string, unknown> & { completions: { create: jest.Mock } }).completions.create.mockRejectedValue(
         new Error('API error'),
       );
 
@@ -137,13 +160,37 @@ describe('SoapGeneratorService', () => {
           { message: { content: JSON.stringify(mockSoapResponse) } },
         ],
       };
-      mockOpenAI.chat.completions.create.mockResolvedValue(mockResponse);
+      (mockOpenAI.chat as Record<string, unknown> & { completions: { create: jest.Mock } }).completions.create.mockResolvedValue(mockResponse);
 
       await service.generateSOAP('test transcription', {});
 
-      const call = mockOpenAI.chat.completions.create.mock.calls[0][0];
-      const systemMsg = call.messages.find((m: any) => m.role === 'system');
-      expect(systemMsg.content).toContain('não disponíveis');
+      const create = (mockOpenAI.chat as Record<string, unknown> & { completions: { create: jest.Mock } }).completions.create;
+      const call = create.mock.calls[0][0];
+      const systemMsg = call.messages.find((m: { role: string }) => m.role === 'system');
+      expect(systemMsg.content).toContain('nao disponiveis');
+    });
+
+    it('should return cached result when available', async () => {
+      mockAiCache.get.mockResolvedValue(mockSoapResponse);
+
+      const result = await service.generateSOAP('Paciente relata dor de cabeca');
+
+      expect(result).toEqual(mockSoapResponse);
+      const create = (mockOpenAI.chat as Record<string, unknown> & { completions: { create: jest.Mock } }).completions.create;
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('should use PatientContextBuilder when patientId is provided', async () => {
+      const mockResponse = {
+        choices: [
+          { message: { content: JSON.stringify(mockSoapResponse) } },
+        ],
+      };
+      (mockOpenAI.chat as Record<string, unknown> & { completions: { create: jest.Mock } }).completions.create.mockResolvedValue(mockResponse);
+
+      await service.generateSOAP('transcricao', undefined, undefined, 'patient-123');
+
+      expect(mockPatientContextBuilder.build).toHaveBeenCalledWith('patient-123');
     });
   });
 });

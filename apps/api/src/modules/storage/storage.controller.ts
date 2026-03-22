@@ -23,7 +23,7 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { StorageService } from './storage.service';
-import { CurrentUser, CurrentTenant } from '../../common/decorators';
+import { CurrentTenant } from '../../common/decorators';
 
 const ALLOWED_LOCAL_TYPES = ['audio', 'documents', 'images'] as const;
 

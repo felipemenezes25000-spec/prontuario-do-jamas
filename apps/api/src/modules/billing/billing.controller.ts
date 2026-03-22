@@ -23,7 +23,6 @@ import { PdfGeneratorService } from '../documents/pdf-generator.service';
 import { CreateBillingDto } from './dto/create-billing.dto';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { BillingStatus } from '@prisma/client';
 
 @ApiTags('Billing')
