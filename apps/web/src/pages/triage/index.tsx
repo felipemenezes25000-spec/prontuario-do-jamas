@@ -6,6 +6,8 @@ import {
   Clock,
   CheckCircle2,
   User,
+  AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +19,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn, getInitials } from '@/lib/utils';
 import { triageLevelColors } from '@/lib/constants';
 import { useTriageQueue } from '@/services/triage.service';
+import { useEvaluateTriggers, type MatchedProtocol } from '@/services/protocols.service';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
 import type { TriageLevel } from '@/types';
@@ -29,16 +32,47 @@ export default function TriagePage() {
   const [painScale, setPainScale] = useState('');
   const [classification, setClassification] = useState<TriageLevel | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [matchedProtocols, setMatchedProtocols] = useState<MatchedProtocol[]>([]);
+  const evaluateTriggers = useEvaluateTriggers();
 
   const waitingQueue = queueData?.data ?? [];
 
-  const handleClassify = () => {
+  const handleClassify = async () => {
     const pain = parseInt(painScale) || 0;
-    if (pain >= 8) setClassification('RED');
-    else if (pain >= 6) setClassification('ORANGE');
-    else if (pain >= 4) setClassification('YELLOW');
-    else if (pain >= 2) setClassification('GREEN');
-    else setClassification('BLUE');
+    let level: TriageLevel;
+    if (pain >= 8) level = 'RED';
+    else if (pain >= 6) level = 'ORANGE';
+    else if (pain >= 4) level = 'YELLOW';
+    else if (pain >= 2) level = 'GREEN';
+    else level = 'BLUE';
+
+    setClassification(level);
+
+    // Evaluate clinical protocols against triage data
+    try {
+      const triageData: Record<string, unknown> = {
+        triageLevel: level,
+        painLevel: pain,
+        chiefComplaint: complaint,
+        onsetTime,
+      };
+      const result = await evaluateTriggers.mutateAsync(triageData);
+      setMatchedProtocols(result.matchedProtocols ?? []);
+    } catch {
+      // Protocol evaluation is non-blocking; silently ignore errors
+      setMatchedProtocols([]);
+    }
+  };
+
+  const CATEGORY_COLORS: Record<string, string> = {
+    SEPSIS: 'border-red-500/40 bg-red-500/10 text-red-400',
+    ACS: 'border-orange-500/40 bg-orange-500/10 text-orange-400',
+    STROKE: 'border-purple-500/40 bg-purple-500/10 text-purple-400',
+    FALL: 'border-amber-500/40 bg-amber-500/10 text-amber-400',
+    DVT: 'border-blue-500/40 bg-blue-500/10 text-blue-400',
+    PAIN: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400',
+    PEDIATRIC: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400',
+    OBSTETRIC: 'border-pink-500/40 bg-pink-500/10 text-pink-400',
   };
 
   if (isLoading) return <PageLoading cards={0} showTable={false} />;
@@ -168,6 +202,71 @@ export default function TriagePage() {
                 <p className="mt-1 text-sm text-muted-foreground animate-fade-in-up stagger-2">Classificação de Manchester</p>
               </CardContent>
             </Card>
+          )}
+
+          {/* Matched Protocol Alerts */}
+          {matchedProtocols.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-400">
+                <ShieldAlert className="h-4 w-4" />
+                Protocolos Ativados ({matchedProtocols.length})
+              </h3>
+              {matchedProtocols.map((mp) => (
+                <Card
+                  key={mp.protocol.id}
+                  className={cn(
+                    'border overflow-hidden',
+                    CATEGORY_COLORS[mp.protocol.category] ?? 'border-border bg-secondary/30',
+                  )}
+                >
+                  <CardContent className="py-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-sm font-semibold flex items-center gap-2">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          {mp.protocol.name}
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {mp.protocol.description}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">
+                        P{mp.protocol.priority}
+                      </Badge>
+                    </div>
+
+                    {(mp.matchedCriteria ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {(mp.matchedCriteria ?? []).map((c, i) => (
+                          <Badge key={i} variant="secondary" className="text-[10px]">
+                            {c.field} {c.operator} {String(c.value)}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    {(mp.recommendedActions ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {(mp.recommendedActions ?? []).map((action, i) => (
+                          <Button
+                            key={i}
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7 border-current"
+                          >
+                            {action.type === 'ALERT' && 'Alertar Equipe'}
+                            {action.type === 'ORDER' && 'Solicitar Exame'}
+                            {action.type === 'NOTIFICATION' && 'Notificar'}
+                            {action.type === 'MEDICATION' && 'Prescrever'}
+                            {!['ALERT', 'ORDER', 'NOTIFICATION', 'MEDICATION'].includes(action.type) && action.type}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
 
           <Button onClick={handleClassify} className="w-full bg-teal-600 hover:bg-teal-500 h-11 font-semibold">

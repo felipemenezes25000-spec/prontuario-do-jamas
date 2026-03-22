@@ -83,8 +83,8 @@ export default function ExamsPage() {
     allExams.filter((e) => {
       if (
         search &&
-        !e.examName.toLowerCase().includes(search.toLowerCase()) &&
-        !e.patientId.toLowerCase().includes(search.toLowerCase())
+        !(e.examName ?? '').toLowerCase().includes(search.toLowerCase()) &&
+        !(e.patientId ?? '').toLowerCase().includes(search.toLowerCase())
       )
         return false;
       if (typeFilter !== 'all' && e.examType !== typeFilter) return false;

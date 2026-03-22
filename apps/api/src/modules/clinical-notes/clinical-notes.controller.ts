@@ -18,6 +18,7 @@ import { ClinicalNotesService } from './clinical-notes.service';
 import { CreateClinicalNoteDto } from './dto/create-clinical-note.dto';
 import { UpdateClinicalNoteDto } from './dto/update-clinical-note.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 
 @ApiTags('Clinical Notes')
@@ -34,6 +35,31 @@ export class ClinicalNotesController {
     @Body() dto: CreateClinicalNoteDto,
   ) {
     return this.clinicalNotesService.create(user.sub, dto);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List clinical notes with filters and pagination' })
+  @ApiResponse({ status: 200, description: 'Paginated list of clinical notes' })
+  async findAll(
+    @CurrentTenant() tenantId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('patientId') patientId?: string,
+    @Query('encounterId') encounterId?: string,
+    @Query('authorId') authorId?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.clinicalNotesService.findAll(tenantId, {
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : limit ? parseInt(limit, 10) : undefined,
+      status,
+      patientId,
+      encounterId,
+      authorId,
+      type,
+    });
   }
 
   @Get('by-encounter/:encounterId')

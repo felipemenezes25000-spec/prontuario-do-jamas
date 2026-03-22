@@ -153,7 +153,7 @@ export function useSaveChecklistBefore() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, checklist }: { id: string; checklist: SafetyChecklist }) => {
-      const { data } = await api.post<SurgicalProcedure>(
+      const { data } = await api.patch<SurgicalProcedure>(
         `/surgical/${id}/checklist/before`,
         checklist,
       );
@@ -169,7 +169,7 @@ export function useSaveChecklistDuring() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, checklist }: { id: string; checklist: SafetyChecklist }) => {
-      const { data } = await api.post<SurgicalProcedure>(
+      const { data } = await api.patch<SurgicalProcedure>(
         `/surgical/${id}/checklist/during`,
         checklist,
       );
@@ -185,7 +185,7 @@ export function useSaveChecklistAfter() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, checklist }: { id: string; checklist: SafetyChecklist }) => {
-      const { data } = await api.post<SurgicalProcedure>(
+      const { data } = await api.patch<SurgicalProcedure>(
         `/surgical/${id}/checklist/after`,
         checklist,
       );
@@ -215,7 +215,7 @@ export function useSaveSurgicalDescription() {
       complications?: string;
       bloodLoss?: number;
     }) => {
-      const { data } = await api.patch<SurgicalProcedure>(`/surgical/${id}`, {
+      const { data } = await api.post<SurgicalProcedure>(`/surgical/${id}/complete`, {
         surgicalDescription: description,
         complications,
         bloodLoss,
@@ -231,8 +231,10 @@ export function useSaveSurgicalDescription() {
 export function useCancelSurgery() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
-      const { data } = await api.post<SurgicalProcedure>(`/surgical/${id}/cancel`, { reason });
+    mutationFn: async ({ id }: { id: string; reason?: string }) => {
+      const { data } = await api.patch<SurgicalProcedure>(`/surgical/${id}/status`, {
+        status: 'CANCELLED',
+      });
       return data;
     },
     onSuccess: (_, vars) => {

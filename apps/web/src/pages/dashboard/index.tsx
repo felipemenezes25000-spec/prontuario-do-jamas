@@ -1,37 +1,25 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Users,
   Stethoscope,
   BedDouble,
   AlertTriangle,
   TrendingUp,
+  TrendingDown,
   Clock,
+  Calendar,
+  Pill,
+  Activity,
+  DollarSign,
+  Timer,
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuthStore } from '@/stores/auth.store';
 import { useDashboardStats } from '@/services/dashboard.service';
 import { useAlerts } from '@/services/alerts.service';
-import { encounterStatusLabels, triageLevelColors, encounterTypeLabels } from '@/lib/constants';
-import { cn, getInitials } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
-
-const TRIAGE_PIE_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
 
 /** Animated number that counts up from 0 to target */
 function AnimatedNumber({ value }: { value: number | string }) {
@@ -45,7 +33,6 @@ function AnimatedNumber({ value }: { value: number | string }) {
     const animate = (now: number) => {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
-      // ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       setDisplay(Math.round(eased * numericVal));
       if (progress < 1) {
@@ -92,67 +79,77 @@ function getFormattedDate(): string {
   });
 }
 
+function TrendBadge({ value, suffix = 'vs ontem' }: { value: number; suffix?: string }) {
+  if (value === 0) return null;
+  const isPositive = value > 0;
+  const Icon = isPositive ? TrendingUp : TrendingDown;
+  return (
+    <div className={cn('flex items-center gap-1 text-xs', isPositive ? 'text-emerald-500' : 'text-red-400')}>
+      <Icon className="h-3 w-3" />
+      {isPositive ? '+' : ''}{value}% {suffix}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
-  const navigate = useNavigate();
   const { data: stats, isLoading, isError, refetch } = useDashboardStats();
   const { data: alertsResponse } = useAlerts({ isActive: true });
   const alerts = alertsResponse?.data ?? [];
 
-  if (isLoading) return <PageLoading cards={4} showTable />;
-  if (isError || !stats) return <PageError onRetry={() => refetch()} />;
-
   const kpiCards = useMemo(
-    () => [
-      {
-        label: 'Pacientes Hoje',
-        value: stats.patientsToday,
-        icon: Users,
-        color: 'text-teal-600 dark:text-teal-400',
-        bgColor: 'bg-teal-500/10',
-        gradient: 'from-teal-500/10 via-teal-500/5 to-transparent',
-        borderAccent: 'border-l-teal-500',
-        trend: '+3 vs ontem',
-      },
-      {
-        label: 'Atendimentos',
-        value: stats.encountersToday,
-        icon: Stethoscope,
-        color: 'text-blue-600 dark:text-blue-400',
-        bgColor: 'bg-blue-500/10',
-        gradient: 'from-blue-500/10 via-blue-500/5 to-transparent',
-        borderAccent: 'border-l-blue-500',
-        trend: '+2 vs ontem',
-      },
-      {
-        label: 'Leitos Ocupados',
-        value: `${Math.round((stats.occupiedBeds / stats.totalBeds) * 100)}%`,
-        subtitle: `${stats.occupiedBeds}/${stats.totalBeds}`,
-        icon: BedDouble,
-        color: 'text-amber-600 dark:text-amber-400',
-        bgColor: 'bg-amber-500/10',
-        gradient: 'from-amber-500/10 via-amber-500/5 to-transparent',
-        borderAccent: 'border-l-amber-500',
-        trend: '2 altas previstas',
-      },
-      {
-        label: 'Alertas Ativos',
-        value: stats.activeAlerts,
-        icon: AlertTriangle,
-        color: 'text-red-600 dark:text-red-400',
-        bgColor: 'bg-red-500/10',
-        gradient: 'from-red-500/10 via-red-500/5 to-transparent',
-        borderAccent: 'border-l-red-500',
-        trend: '1 crítico',
-      },
-    ],
+    () =>
+      stats
+        ? [
+            {
+              label: 'Total Pacientes',
+              value: stats.totalPatients,
+              icon: Users,
+              color: 'text-teal-600 dark:text-teal-400',
+              bgColor: 'bg-teal-500/10',
+              gradient: 'from-teal-500/10 via-teal-500/5 to-transparent',
+              borderAccent: 'border-l-teal-500',
+              change: stats.totalPatientsChange,
+              changeSuffix: 'vs mês anterior',
+            },
+            {
+              label: 'Atendimentos Hoje',
+              value: stats.encountersToday,
+              icon: Stethoscope,
+              color: 'text-blue-600 dark:text-blue-400',
+              bgColor: 'bg-blue-500/10',
+              gradient: 'from-blue-500/10 via-blue-500/5 to-transparent',
+              borderAccent: 'border-l-blue-500',
+              change: stats.encountersTodayChange,
+              changeSuffix: 'vs ontem',
+            },
+            {
+              label: 'Ocupação Leitos',
+              value: `${stats.occupancyRate}%`,
+              subtitle: `${stats.occupiedBeds}/${stats.totalBeds}`,
+              icon: BedDouble,
+              color: 'text-amber-600 dark:text-amber-400',
+              bgColor: 'bg-amber-500/10',
+              gradient: 'from-amber-500/10 via-amber-500/5 to-transparent',
+              borderAccent: 'border-l-amber-500',
+            },
+            {
+              label: 'Alertas Ativos',
+              value: stats.activeAlerts,
+              subtitle: stats.criticalAlerts > 0 ? `${stats.criticalAlerts} críticos` : undefined,
+              icon: AlertTriangle,
+              color: 'text-red-600 dark:text-red-400',
+              bgColor: 'bg-red-500/10',
+              gradient: 'from-red-500/10 via-red-500/5 to-transparent',
+              borderAccent: 'border-l-red-500',
+            },
+          ]
+        : [],
     [stats],
   );
 
-  const triagePieData = stats.triageDistribution.map((item) => ({
-    name: triageLevelColors[item.level]?.label ?? item.level,
-    value: item.count,
-  }));
+  if (isLoading) return <PageLoading cards={4} showTable />;
+  if (isError || !stats) return <PageError onRetry={() => refetch()} />;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -186,14 +183,13 @@ export default function DashboardPage() {
                     <span className="text-3xl font-bold tabular-nums">
                       {typeof kpi.value === 'number' ? <AnimatedNumber value={kpi.value} /> : kpi.value}
                     </span>
-                    {kpi.subtitle && (
+                    {'subtitle' in kpi && kpi.subtitle && (
                       <span className="text-sm text-muted-foreground">{kpi.subtitle}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <TrendingUp className="h-3 w-3" />
-                    {kpi.trend}
-                  </div>
+                  {'change' in kpi && kpi.change !== undefined && (
+                    <TrendBadge value={kpi.change} suffix={'changeSuffix' in kpi ? kpi.changeSuffix : undefined} />
+                  )}
                 </div>
                 <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', kpi.bgColor)}>
                   <kpi.icon className={cn('h-5 w-5', kpi.color)} />
@@ -204,120 +200,112 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        {/* Bar chart: encounters by hour */}
-        <Card className="border-border bg-card lg:col-span-3 card-medical">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium">Atendimentos por Hora</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.encountersByHour}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.5} />
-                  <XAxis dataKey="hour" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} width={30} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--color-foreground)' }}
-                    cursor={{ fill: 'rgba(13,148,136,0.05)' }}
-                  />
-                  <Bar dataKey="count" fill="#0D9488" radius={[4, 4, 0, 0]} name="Atendimentos" />
-                </BarChart>
-              </ResponsiveContainer>
+      {/* Secondary Stats */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-border card-medical">
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10">
+              <Calendar className="h-5 w-5 text-violet-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Agenda Hoje</p>
+              <p className="text-2xl font-bold tabular-nums">
+                <AnimatedNumber value={stats.completedAppointments} />
+                <span className="text-sm font-normal text-muted-foreground">/{stats.scheduledAppointments}</span>
+              </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Pie chart: triage distribution */}
-        <Card className="border-border bg-card lg:col-span-2 card-medical">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium">Classificação de Risco</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={triagePieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {triagePieData.map((_, index) => (
-                      <Cell key={index} fill={TRIAGE_PIE_COLORS[index % TRIAGE_PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: '8px', color: 'var(--color-foreground)' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+        <Card className="border-border card-medical">
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
+              <Pill className="h-5 w-5 text-orange-500" />
             </div>
-            <div className="mt-2 flex flex-wrap justify-center gap-3">
-              {triagePieData.map((item, i) => (
-                <div key={item.name} className="flex items-center gap-1.5 text-xs">
-                  <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TRIAGE_PIE_COLORS[i] }} />
-                  <span className="text-muted-foreground">
-                    {item.name} ({item.value})
-                  </span>
-                </div>
-              ))}
+            <div>
+              <p className="text-sm text-muted-foreground">Prescrições Pendentes</p>
+              <p className="text-2xl font-bold tabular-nums">
+                <AnimatedNumber value={stats.pendingPrescriptions} />
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border card-medical">
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10">
+              <Timer className="h-5 w-5 text-cyan-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Tempo Médio Espera</p>
+              <p className="text-2xl font-bold tabular-nums">
+                <AnimatedNumber value={stats.averageWaitTime} />
+                <span className="text-sm font-normal text-muted-foreground"> min</span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border card-medical">
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+              <DollarSign className="h-5 w-5 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Faturamento Mês</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {stats.revenueThisMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
+              </p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Bottom Row */}
-      <div className="grid gap-4 lg:grid-cols-5">
-        {/* Recent Encounters */}
-        <Card className="border-border bg-card lg:col-span-3 card-medical">
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Triage / Waiting */}
+        <Card className="border-border card-medical">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium">Últimos Atendimentos</CardTitle>
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base font-medium">Status Operacional</CardTitle>
+            </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border">
-              {stats.recentEncounters.map((enc) => {
-                const statusInfo = encounterStatusLabels[enc.status];
-                return (
-                  <button
-                    key={enc.id}
-                    onClick={() => navigate(`/atendimentos/${enc.id}`)}
-                    className="flex w-full items-center gap-3 px-5 py-3 text-left transition-all hover:bg-accent border-l-2 border-l-transparent hover:border-l-primary"
-                  >
-                    <Avatar className="h-9 w-9 shrink-0">
-                      <AvatarFallback className="bg-muted text-xs text-muted-foreground">
-                        {enc.patient ? getInitials(enc.patient.name ?? enc.patient.fullName) : '?'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{enc.patient?.name ?? enc.patient?.fullName}</p>
-                      <p className="truncate text-xs text-muted-foreground">{enc.chiefComplaint}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="secondary" className={cn('text-[10px] text-white', statusInfo?.color)}>
-                        {statusInfo?.label}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground">
-                        {encounterTypeLabels[enc.type]}
-                      </span>
-                    </div>
-                    {enc.triageLevel && (
-                      <div className={cn('h-3 w-3 shrink-0 rounded-full', triageLevelColors[enc.triageLevel]?.bg)} />
-                    )}
-                  </button>
-                );
-              })}
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded bg-yellow-500/10">
+                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                </div>
+                <span className="text-sm">Aguardando Triagem</span>
+              </div>
+              <span className="text-xl font-bold tabular-nums">{stats.waitingTriage}</span>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded bg-blue-500/10">
+                  <Stethoscope className="h-4 w-4 text-blue-500" />
+                </div>
+                <span className="text-sm">Atendimentos Hoje</span>
+              </div>
+              <span className="text-xl font-bold tabular-nums">{stats.encountersToday}</span>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-500/10">
+                  <BedDouble className="h-4 w-4 text-amber-500" />
+                </div>
+                <span className="text-sm">Leitos Ocupados</span>
+              </div>
+              <span className="text-xl font-bold tabular-nums">{stats.occupiedBeds}/{stats.totalBeds}</span>
             </div>
           </CardContent>
         </Card>
 
         {/* Critical Alerts */}
-        <Card className="border-border bg-card lg:col-span-2 card-medical">
+        <Card className="border-border card-medical">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
@@ -325,6 +313,9 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            {alerts.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">Nenhum alerta ativo</p>
+            )}
             {alerts
               .filter((a) => a.severity === 'CRITICAL' || a.severity === 'EMERGENCY')
               .slice(0, 5)
@@ -334,8 +325,8 @@ export default function DashboardPage() {
                   className={cn(
                     'rounded-lg border p-3 text-sm',
                     alert.severity === 'CRITICAL'
-                      ? 'border-red-500/30 bg-red-500/5 clinical-alert-border-critical'
-                      : 'border-amber-500/30 bg-amber-500/5 clinical-alert-border-warning',
+                      ? 'border-red-500/30 bg-red-500/5'
+                      : 'border-amber-500/30 bg-amber-500/5',
                   )}
                 >
                   <div className="flex items-start gap-2">
@@ -355,6 +346,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+            {alerts.filter((a) => a.severity === 'CRITICAL' || a.severity === 'EMERGENCY').length === 0 && alerts.length > 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">Nenhum alerta crítico</p>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -64,11 +64,11 @@ export default function AdminPage() {
   const lgpdRequests = lgpdData?.data ?? [];
 
   const filteredUsers = allUsers.filter((u) =>
-    !userSearch || u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase()),
+    !userSearch || (u.name ?? '').toLowerCase().includes(userSearch.toLowerCase()) || (u.email ?? '').toLowerCase().includes(userSearch.toLowerCase()),
   );
 
   const filteredAudit = auditLog.filter((a) =>
-    !auditSearch || a.user.toLowerCase().includes(auditSearch.toLowerCase()) || a.action.toLowerCase().includes(auditSearch.toLowerCase()),
+    !auditSearch || (a.user ?? '').toLowerCase().includes(auditSearch.toLowerCase()) || (a.action ?? '').toLowerCase().includes(auditSearch.toLowerCase()),
   );
 
   if (isLoading) return <PageLoading cards={0} showTable />;

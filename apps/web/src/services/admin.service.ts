@@ -20,7 +20,7 @@ interface AuditLogFilters {
 }
 
 async function fetchAuditLog(filters?: AuditLogFilters): Promise<PaginatedResponse<AuditLogEntry>> {
-  const { data } = await api.get<PaginatedResponse<AuditLogEntry>>('/admin/audit-log', { params: filters });
+  const { data } = await api.get<PaginatedResponse<AuditLogEntry>>('/audit', { params: filters });
   return data;
 }
 
@@ -43,7 +43,7 @@ export interface LgpdRequest {
 }
 
 async function fetchLgpdRequests(): Promise<PaginatedResponse<LgpdRequest>> {
-  const { data } = await api.get<PaginatedResponse<LgpdRequest>>('/admin/lgpd-requests');
+  const { data } = await api.get<PaginatedResponse<LgpdRequest>>('/lgpd/compliance-report');
   return data;
 }
 

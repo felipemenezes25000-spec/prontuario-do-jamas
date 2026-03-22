@@ -79,19 +79,24 @@ export function VoiceButton({
       setVoiceState('processing');
     } else if (isRecording) {
       setVoiceState('listening');
-    } else if (currentTranscription && voiceState === 'processing') {
-      setVoiceState('complete');
-      onTranscriptionComplete?.(currentTranscription);
-      completeTimeoutRef.current = setTimeout(() => {
-        setVoiceState('idle');
-      }, 2000);
+    } else if (currentTranscription) {
+      setVoiceState((prev) => {
+        if (prev === 'processing') {
+          onTranscriptionComplete?.(currentTranscription);
+          completeTimeoutRef.current = setTimeout(() => {
+            setVoiceState('idle');
+          }, 2000);
+          return 'complete';
+        }
+        return prev;
+      });
     }
     return () => {
       if (completeTimeoutRef.current) {
         clearTimeout(completeTimeoutRef.current);
       }
     };
-  }, [isRecording, isProcessing, error, currentTranscription]);
+  }, [isRecording, isProcessing, error, currentTranscription, onTranscriptionComplete]);
 
   // Partial text callback
   React.useEffect(() => {
@@ -115,24 +120,7 @@ export function VoiceButton({
     };
   }, [isRecording, duration, setDuration]);
 
-  // Keyboard shortcut: Space to toggle recording
-  React.useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (
-        e.code === 'Space' &&
-        !['INPUT', 'TEXTAREA', 'SELECT'].includes(
-          (e.target as HTMLElement).tagName,
-        )
-      ) {
-        e.preventDefault();
-        handleToggle();
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRecording, voiceState]);
-
-  function handleToggle() {
+  const handleToggle = React.useCallback(() => {
     if (voiceState === 'error') {
       reset();
       setVoiceState('idle');
@@ -150,7 +138,24 @@ export function VoiceButton({
     } else if (!isProcessing) {
       startRecording();
     }
-  }
+  }, [voiceState, isRecording, isProcessing, reset, stopRecording, setProcessing, setTranscription, partialText, startRecording]);
+
+  // Keyboard shortcut: Space to toggle recording
+  React.useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (
+        e.code === 'Space' &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes(
+          (e.target as HTMLElement).tagName,
+        )
+      ) {
+        e.preventDefault();
+        handleToggle();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleToggle]);
 
   const stateConfig: Record<
     VoiceState,

@@ -52,14 +52,40 @@ export class BillingService {
     });
   }
 
-  async findByTenant(tenantId: string, pagination: PaginationQueryDto) {
-    const where = { tenantId };
+  async findByTenant(
+    tenantId: string,
+    options: {
+      page?: number;
+      pageSize?: number;
+      status?: string;
+      patientId?: string;
+      insuranceProvider?: string;
+      startDate?: string;
+      endDate?: string;
+    } = {},
+  ) {
+    const page = options.page || 1;
+    const pageSize = options.pageSize || 20;
+    const skip = (page - 1) * pageSize;
+
+    const where: Record<string, unknown> = { tenantId };
+    if (options.status) where.status = options.status;
+    if (options.patientId) where.patientId = options.patientId;
+    if (options.insuranceProvider) {
+      where.insuranceProvider = { contains: options.insuranceProvider, mode: 'insensitive' };
+    }
+    if (options.startDate || options.endDate) {
+      const createdAt: Record<string, Date> = {};
+      if (options.startDate) createdAt.gte = new Date(options.startDate);
+      if (options.endDate) createdAt.lte = new Date(options.endDate);
+      where.createdAt = createdAt;
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.billingEntry.findMany({
         where,
-        skip: pagination.skip,
-        take: pagination.take,
+        skip,
+        take: pageSize,
         orderBy: { createdAt: 'desc' },
         include: {
           patient: { select: { id: true, fullName: true, mrn: true } },
@@ -72,9 +98,9 @@ export class BillingService {
     return {
       data,
       total,
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-      totalPages: Math.ceil(total / pagination.pageSize),
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     };
   }
 

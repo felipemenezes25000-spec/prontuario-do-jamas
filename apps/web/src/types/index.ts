@@ -513,6 +513,8 @@ export interface Prescription {
   isPRN?: boolean;
   signedAt?: string;
   requiresDoubleCheck?: boolean;
+  doubleCheckedAt?: string | null;
+  doubleCheckedBy?: { id: string; name: string } | null;
   items: PrescriptionItem[];
   createdAt: string;
   updatedAt: string;
@@ -1092,14 +1094,21 @@ export interface Notification {
 // ============================================================================
 
 export interface DashboardStats {
-  patientsToday: number;
+  totalPatients: number;
+  totalPatientsChange: number;
   encountersToday: number;
+  encountersTodayChange: number;
   occupiedBeds: number;
   totalBeds: number;
+  occupancyRate: number;
   activeAlerts: number;
-  encountersByHour: { hour: string; count: number }[];
-  triageDistribution: { level: TriageLevel; count: number }[];
-  recentEncounters: Encounter[];
+  criticalAlerts: number;
+  scheduledAppointments: number;
+  completedAppointments: number;
+  pendingPrescriptions: number;
+  waitingTriage: number;
+  averageWaitTime: number;
+  revenueThisMonth: number;
 }
 
 // ============================================================================
@@ -1171,4 +1180,57 @@ export interface AITranscriptionResponse {
   structuredData?: unknown;
   confidence: number;
   processingTimeMs: number;
+}
+
+// ============================================================================
+// Billing Appeals (Glosa)
+// ============================================================================
+
+export type AppealStatus =
+  | 'DRAFT' | 'SUBMITTED' | 'IN_REVIEW'
+  | 'ACCEPTED' | 'PARTIALLY_ACCEPTED' | 'REJECTED' | 'ESCALATED';
+
+export interface BillingAppeal {
+  id: string;
+  tenantId: string;
+  billingEntryId: string;
+  appealNumber: string;
+  status: AppealStatus;
+  glosedItemCodes: string[];
+  glosedAmount: number;
+  appealedAmount: number;
+  recoveredAmount?: number;
+  justification: string;
+  aiJustification?: string;
+  supportingDocs: string[];
+  tissXmlValidation?: unknown;
+  submittedAt?: string;
+  resolvedAt?: string;
+  resolution?: string;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  billingEntry?: BillingEntry;
+  createdBy?: { id: string; name: string; email: string };
+}
+
+export interface CreateAppealDto {
+  billingEntryId: string;
+  glosedItemCodes: string[];
+  glosedAmount: number;
+  appealedAmount: number;
+  justification: string;
+  supportingDocs?: string[];
+}
+
+export interface UpdateAppealStatusDto {
+  status: AppealStatus;
+  resolution?: string;
+  recoveredAmount?: number;
+}
+
+export interface TissValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
 }

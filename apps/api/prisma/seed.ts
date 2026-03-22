@@ -16,6 +16,7 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { seedDrugs } from './seed-drugs';
 
 const prisma = new PrismaClient();
 
@@ -71,12 +72,57 @@ const IDS = {
   rx_camila_psiq: uuidv4(),
   rx_rafael_tarv: uuidv4(),
 
+  // Prescription Items (pre-generated for MedicationCheck FK references)
+  rxItem_maria_losartana: uuidv4(),
+  rxItem_maria_metformina: uuidv4(),
+  rxItem_maria_aas: uuidv4(),
+  rxItem_maria_omeprazol: uuidv4(),
+  rxItem_pedro_furosemida: uuidv4(),
+  rxItem_pedro_enoxaparina: uuidv4(),
+  rxItem_pedro_digoxina: uuidv4(),
+  rxItem_pedro_insulina: uuidv4(),
+  rxItem_gabriel_salbutamol: uuidv4(),
+  rxItem_gabriel_prednisolona: uuidv4(),
+  rxItem_camila_escitalopram: uuidv4(),
+  rxItem_camila_clonazepam: uuidv4(),
+  rxItem_rafael_tdf3tc: uuidv4(),
+  rxItem_rafael_dtg: uuidv4(),
+
   // Document Templates
   tpl_receita_simples: uuidv4(),
   tpl_receita_especial: uuidv4(),
   tpl_atestado: uuidv4(),
   tpl_consentimento: uuidv4(),
   tpl_resumo_alta: uuidv4(),
+
+  // New expanded seed IDs
+  // Surgical Procedures
+  surg_pedro_colec: uuidv4(),
+  surg_lucia_biopsia: uuidv4(),
+  surg_jose_herni: uuidv4(),
+  surg_maria_cateter: uuidv4(),
+  surg_pedro_uti_proc: uuidv4(),
+
+  // Billing Entries
+  bill_maria_cardio: uuidv4(),
+  bill_pedro_uti: uuidv4(),
+  bill_jose_checkup: uuidv4(),
+  bill_ana_prenatal: uuidv4(),
+  bill_lucia_onco: uuidv4(),
+  bill_gabriel_asma: uuidv4(),
+  bill_camila_psiq: uuidv4(),
+  bill_rafael_hiv: uuidv4(),
+
+  // Chemotherapy Protocols
+  proto_ac: uuidv4(),
+  proto_folfox: uuidv4(),
+  proto_chop: uuidv4(),
+
+  // Chemotherapy Cycles
+  cycle_lucia_ac1: uuidv4(),
+  cycle_lucia_ac2: uuidv4(),
+  cycle_lucia_ac3: uuidv4(),
+  cycle_lucia_ac4: uuidv4(),
 } as const;
 
 // ─── Helper: generate fake but valid-format CPF ─────────────────────────────
@@ -140,6 +186,16 @@ function nextMrn(): string {
 
 async function main(): Promise<void> {
   console.log('🏥 VoxPEP — Seeding development database...\n');
+
+  // ─── 0. Cleanup (idempotent re-seed) ─────────────────────────────────────
+  console.log('  → Cleaning existing data...');
+  await prisma.$executeRawUnsafe(`
+    DO $$ DECLARE r RECORD;
+    BEGIN
+      FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '_prisma_migrations')
+      LOOP EXECUTE 'TRUNCATE TABLE "' || r.tablename || '" CASCADE'; END LOOP;
+    END $$;
+  `);
 
   const passwordHash = await bcrypt.hash('VoxPep@2024!', 12);
 
@@ -1207,28 +1263,28 @@ async function main(): Promise<void> {
       items: {
         create: [
           {
-            id: uuidv4(),
+            id: IDS.rxItem_maria_losartana,
             medicationName: 'Losartana Potássica', dose: '50', doseUnit: 'mg',
             route: 'ORAL', frequency: '1x/dia (manhã)', duration: '90 dias', durationUnit: 'DAYS',
             specialInstructions: 'Tomar em jejum pela manhã',
             sortOrder: 1,
           },
           {
-            id: uuidv4(),
+            id: IDS.rxItem_maria_metformina,
             medicationName: 'Metformina', dose: '850', doseUnit: 'mg',
             route: 'ORAL', frequency: '2x/dia (café e jantar)', duration: '90 dias', durationUnit: 'DAYS',
             specialInstructions: 'Tomar durante ou após refeições para reduzir desconforto GI',
             sortOrder: 2,
           },
           {
-            id: uuidv4(),
+            id: IDS.rxItem_maria_aas,
             medicationName: 'Ácido Acetilsalicílico', dose: '100', doseUnit: 'mg',
             route: 'ORAL', frequency: '1x/dia (almoço)', duration: '90 dias', durationUnit: 'DAYS',
             specialInstructions: 'Tomar após almoço',
             sortOrder: 3,
           },
           {
-            id: uuidv4(),
+            id: IDS.rxItem_maria_omeprazol,
             medicationName: 'Omeprazol', dose: '20', doseUnit: 'mg',
             route: 'ORAL', frequency: '1x/dia (jejum)', duration: '90 dias', durationUnit: 'DAYS',
             specialInstructions: 'Tomar 30 minutos antes do café da manhã',
@@ -1249,14 +1305,14 @@ async function main(): Promise<void> {
       items: {
         create: [
           {
-            id: uuidv4(),
+            id: IDS.rxItem_pedro_furosemida,
             medicationName: 'Furosemida', dose: '40', doseUnit: 'mg',
             route: 'IV', frequency: '12/12h', duration: '7 dias', durationUnit: 'DAYS',
             specialInstructions: 'Infundir em 5 minutos. Controlar débito urinário.',
             sortOrder: 1,
           },
           {
-            id: uuidv4(),
+            id: IDS.rxItem_pedro_enoxaparina,
             medicationName: 'Enoxaparina', dose: '40', doseUnit: 'mg',
             route: 'SC', frequency: '1x/dia', duration: '7 dias', durationUnit: 'DAYS',
             specialInstructions: 'Aplicar na região abdominal. Profilaxia TVP.',
@@ -1264,14 +1320,14 @@ async function main(): Promise<void> {
             sortOrder: 2,
           },
           {
-            id: uuidv4(),
+            id: IDS.rxItem_pedro_digoxina,
             medicationName: 'Digoxina', dose: '0.25', doseUnit: 'mg',
             route: 'ORAL', frequency: '1x/dia', duration: '7 dias', durationUnit: 'DAYS',
             specialInstructions: 'Monitorar nível sérico. Atentar para sinais de intoxicação digitálica.',
             sortOrder: 3,
           },
           {
-            id: uuidv4(),
+            id: IDS.rxItem_pedro_insulina,
             medicationName: 'Insulina NPH', dose: '20', doseUnit: 'UI',
             route: 'SC', frequency: '2x/dia (café e jantar)', duration: '7 dias', durationUnit: 'DAYS',
             specialInstructions: 'Ajustar conforme glicemia capilar. Monitorar hipoglicemia.',
@@ -1293,14 +1349,14 @@ async function main(): Promise<void> {
       items: {
         create: [
           {
-            id: uuidv4(),
+            id: IDS.rxItem_gabriel_salbutamol,
             medicationName: 'Salbutamol (nebulização)', dose: '2.5', doseUnit: 'mg',
             route: 'NEBULIZATION', frequency: 'A cada 20 min (3 doses), depois SOS',
             specialInstructions: 'Diluir em 3mL SF 0.9%. Nebulizar com O2 6L/min.',
             sortOrder: 1,
           },
           {
-            id: uuidv4(),
+            id: IDS.rxItem_gabriel_prednisolona,
             medicationName: 'Prednisolona (solução oral)', dose: '20', doseUnit: 'mg',
             route: 'ORAL', frequency: '1x/dia', duration: '5 dias', durationUnit: 'DAYS',
             specialInstructions: 'Tomar pela manhã após café da manhã. Dose: 1mg/kg/dia.',
@@ -1321,7 +1377,7 @@ async function main(): Promise<void> {
       items: {
         create: [
           {
-            id: uuidv4(),
+            id: IDS.rxItem_camila_escitalopram,
             medicationName: 'Escitalopram', dose: '15', doseUnit: 'mg',
             route: 'ORAL', frequency: '1x/dia (manhã)', duration: '90 dias', durationUnit: 'DAYS',
             isControlled: true, controlledSchedule: 'C1',
@@ -1329,7 +1385,7 @@ async function main(): Promise<void> {
             sortOrder: 1,
           },
           {
-            id: uuidv4(),
+            id: IDS.rxItem_camila_clonazepam,
             medicationName: 'Clonazepam', dose: '0.5', doseUnit: 'mg',
             route: 'ORAL', frequency: '1x/dia (noite)', duration: '30 dias', durationUnit: 'DAYS',
             isControlled: true, controlledSchedule: 'B1',
@@ -1351,14 +1407,14 @@ async function main(): Promise<void> {
       items: {
         create: [
           {
-            id: uuidv4(),
+            id: IDS.rxItem_rafael_tdf3tc,
             medicationName: 'Tenofovir/Lamivudina (TDF/3TC)', dose: '300/300', doseUnit: 'mg',
             route: 'ORAL', frequency: '1x/dia', duration: '90 dias', durationUnit: 'DAYS',
             specialInstructions: 'Tomar em horário fixo, preferencialmente à noite.',
             sortOrder: 1,
           },
           {
-            id: uuidv4(),
+            id: IDS.rxItem_rafael_dtg,
             medicationName: 'Dolutegravir (DTG)', dose: '50', doseUnit: 'mg',
             route: 'ORAL', frequency: '1x/dia', duration: '90 dias', durationUnit: 'DAYS',
             specialInstructions: 'Tomar junto com TDF/3TC. Evitar tomar com antiácidos.',
@@ -1816,12 +1872,1220 @@ async function main(): Promise<void> {
     await prisma.consentRecord.create({ data: consent });
   }
 
+  // ─── 14. Additional Vital Signs ────────────────────────────────────────
+
+  console.log('  → Creating additional vital signs...');
+
+  const additionalVitals = [
+    // Ana Beatriz — prenatal vitals over 3 visits
+    { patientId: IDS.anaBeatriz, encounterId: IDS.enc_ana_prenatal, recordedById: IDS.enfPatricia, recordedAt: daysAgo(5), source: 'MANUAL' as const, systolicBP: 118, diastolicBP: 72, heartRate: 88, respiratoryRate: 16, temperature: 36.5, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 99, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 0, weight: 68.5, height: 165 },
+    { patientId: IDS.anaBeatriz, encounterId: IDS.enc_ana_prenatal, recordedById: IDS.enfPatricia, recordedAt: daysAgo(20), source: 'MANUAL' as const, systolicBP: 115, diastolicBP: 70, heartRate: 85, respiratoryRate: 15, temperature: 36.4, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 99, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 0, weight: 67.0, height: 165 },
+    { patientId: IDS.anaBeatriz, encounterId: IDS.enc_ana_prenatal, recordedById: IDS.enfJoao, recordedAt: daysAgo(35), source: 'MANUAL' as const, systolicBP: 112, diastolicBP: 68, heartRate: 82, respiratoryRate: 14, temperature: 36.3, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 99, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 0, weight: 65.5, height: 165, glucoseLevel: 92, glucoseContext: 'FASTING' as const },
+
+    // Lucia — oncology vitals before/after chemo
+    { patientId: IDS.lucia, encounterId: IDS.enc_lucia_onco, recordedById: IDS.enfPatricia, recordedAt: daysAgo(10), source: 'MANUAL' as const, systolicBP: 105, diastolicBP: 65, heartRate: 88, respiratoryRate: 18, temperature: 37.2, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 97, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 3, weight: 58.0, height: 162 },
+    { patientId: IDS.lucia, encounterId: IDS.enc_lucia_onco, recordedById: IDS.enfPatricia, recordedAt: daysAgo(25), source: 'MANUAL' as const, systolicBP: 108, diastolicBP: 68, heartRate: 92, respiratoryRate: 19, temperature: 37.5, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 96, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 4, weight: 59.2, height: 162 },
+    { patientId: IDS.lucia, encounterId: IDS.enc_lucia_onco, recordedById: IDS.enfJoao, recordedAt: daysAgo(40), source: 'MANUAL' as const, systolicBP: 110, diastolicBP: 70, heartRate: 80, respiratoryRate: 16, temperature: 36.8, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 98, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 2, weight: 61.0, height: 162 },
+
+    // Francisco — multiple visits
+    { patientId: IDS.francisco, encounterId: IDS.enc_francisco_neuro, recordedById: IDS.enfJoao, recordedAt: daysAgo(20), source: 'MANUAL' as const, systolicBP: 148, diastolicBP: 90, heartRate: 72, respiratoryRate: 15, temperature: 36.6, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 96, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 0, weight: 70.0, height: 170 },
+    { patientId: IDS.francisco, encounterId: IDS.enc_francisco_neuro, recordedById: IDS.enfJoao, recordedAt: daysAgo(50), source: 'MANUAL' as const, systolicBP: 152, diastolicBP: 94, heartRate: 76, respiratoryRate: 16, temperature: 36.7, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 95, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 0, weight: 71.5, height: 170 },
+    { patientId: IDS.francisco, encounterId: IDS.enc_francisco_neuro, recordedById: IDS.enfPatricia, recordedAt: daysAgo(80), source: 'MANUAL' as const, systolicBP: 146, diastolicBP: 88, heartRate: 70, respiratoryRate: 14, temperature: 36.5, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 97, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 0, weight: 72.0, height: 170 },
+
+    // Camila — psych follow-ups
+    { patientId: IDS.camila, encounterId: IDS.enc_camila_psiq, recordedById: IDS.enfJoao, recordedAt: daysAgo(14), source: 'MANUAL' as const, systolicBP: 112, diastolicBP: 72, heartRate: 80, respiratoryRate: 14, temperature: 36.4, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 99, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 2, weight: 62.0, height: 167 },
+    { patientId: IDS.camila, encounterId: IDS.enc_camila_psiq, recordedById: IDS.enfJoao, recordedAt: daysAgo(45), source: 'MANUAL' as const, systolicBP: 115, diastolicBP: 75, heartRate: 84, respiratoryRate: 15, temperature: 36.6, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 99, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 3, weight: 63.5, height: 167 },
+
+    // Rafael — HIV follow-ups
+    { patientId: IDS.rafael, encounterId: IDS.enc_rafael_infecto, recordedById: IDS.enfJoao, recordedAt: daysAgo(7), source: 'MANUAL' as const, systolicBP: 120, diastolicBP: 78, heartRate: 68, respiratoryRate: 14, temperature: 36.3, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 99, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 0, weight: 78.0, height: 180 },
+    { patientId: IDS.rafael, encounterId: IDS.enc_rafael_infecto, recordedById: IDS.enfJoao, recordedAt: daysAgo(90), source: 'MANUAL' as const, systolicBP: 118, diastolicBP: 76, heartRate: 70, respiratoryRate: 14, temperature: 36.4, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 99, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 0, weight: 77.5, height: 180 },
+
+    // Isabella — neonatal vitals
+    { patientId: IDS.isabella, encounterId: IDS.enc_isabella_neo, recordedById: IDS.enfPatricia, recordedAt: daysAgo(10), source: 'MANUAL' as const, systolicBP: 65, diastolicBP: 40, heartRate: 148, respiratoryRate: 44, temperature: 36.7, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 97, oxygenSupplementation: 'ROOM_AIR' as const, painScale: 0, weight: 2.1, height: 46 },
+    { patientId: IDS.isabella, encounterId: IDS.enc_isabella_neo, recordedById: IDS.enfPatricia, recordedAt: daysAgo(30), source: 'MANUAL' as const, systolicBP: 62, diastolicBP: 38, heartRate: 152, respiratoryRate: 46, temperature: 36.9, temperatureMethod: 'AXILLARY' as const, oxygenSaturation: 95, oxygenSupplementation: 'NASAL_CANNULA' as const, painScale: 0, weight: 1.8, height: 44 },
+  ];
+
+  for (const v of additionalVitals) {
+    await prisma.vitalSigns.create({ data: { id: uuidv4(), ...v } });
+  }
+
+  // ─── 15. Additional Appointments ───────────────────────────────────────
+
+  console.log('  → Creating additional appointments...');
+
+  const additionalAppointments = [
+    // Confirmed appointments
+    { patientId: IDS.pedro, doctorId: IDS.drCarlos, type: 'RETURN' as const, daysOffset: 1, status: 'CONFIRMED' as const, notes: 'Retorno cardiologia — alta UTI prevista' },
+    { patientId: IDS.jose, doctorId: IDS.drRoberto, type: 'PROCEDURE' as const, daysOffset: 3, status: 'CONFIRMED' as const, notes: 'Avaliação pré-operatória herniorrafia' },
+    // In progress
+    { patientId: IDS.lucia, doctorId: IDS.drRoberto, type: 'RETURN' as const, daysOffset: 0, status: 'IN_PROGRESS' as const, notes: 'Consulta oncologia dia hospital' },
+    // Cancelled
+    { patientId: IDS.gabriel, doctorId: IDS.drAna, type: 'RETURN' as const, daysOffset: -1, status: 'CANCELLED' as const, notes: 'Cancelado pelo paciente — reagendado' },
+    { patientId: IDS.maria, doctorId: IDS.drCarlos, type: 'EXAM' as const, daysOffset: -2, status: 'COMPLETED' as const, notes: 'Ecocardiograma — realizado' },
+    // Future week
+    { patientId: IDS.jose, doctorId: IDS.drAna, type: 'FIRST_VISIT' as const, daysOffset: 6, status: 'SCHEDULED' as const, notes: 'Consulta com nutricionista' },
+    { patientId: IDS.francisco, doctorId: IDS.drRoberto, type: 'PROCEDURE' as const, daysOffset: 7, status: 'SCHEDULED' as const, notes: 'Avaliação urológica de rotina' },
+    { patientId: IDS.camila, doctorId: IDS.drAna, type: 'FOLLOW_UP' as const, daysOffset: 4, status: 'CONFIRMED' as const, notes: 'Retorno psiquiatria — ajuste posologia' },
+  ];
+
+  for (const a of additionalAppointments) {
+    const scheduledAt = new Date();
+    scheduledAt.setDate(scheduledAt.getDate() + a.daysOffset);
+    scheduledAt.setHours(8 + Math.floor(Math.random() * 9), Math.random() > 0.5 ? 30 : 0, 0, 0);
+    await prisma.appointment.create({
+      data: {
+        id: uuidv4(),
+        tenantId: IDS.tenant,
+        patientId: a.patientId,
+        doctorId: a.doctorId,
+        type: a.type,
+        status: a.status,
+        scheduledAt,
+        duration: 30,
+        notes: a.notes,
+      },
+    });
+  }
+
+  // ─── 16. Medication Checks ─────────────────────────────────────────────
+
+  console.log('  → Creating medication checks...');
+
+  // Pedro ICU — furosemida 12/12h checks
+  const pedroFurosemidaChecks = [
+    { scheduledAt: hoursAgo(72), checkedAt: hoursAgo(71), status: 'ADMINISTERED' as const, observations: 'Administrado conforme prescrito. DU: 850mL/turno.' },
+    { scheduledAt: hoursAgo(60), checkedAt: hoursAgo(59), status: 'ADMINISTERED' as const, observations: 'Administrado. DU: 720mL. Balanço negativo mantido.' },
+    { scheduledAt: hoursAgo(48), checkedAt: hoursAgo(47), status: 'ADMINISTERED' as const, observations: 'Administrado. PA estável. DU adequado.' },
+    { scheduledAt: hoursAgo(36), checkedAt: hoursAgo(35), status: 'ADMINISTERED' as const, observations: 'Administrado. Edema MMII em regressão.' },
+    { scheduledAt: hoursAgo(24), checkedAt: null, status: 'SCHEDULED' as const },
+  ];
+  for (const c of pedroFurosemidaChecks) {
+    await prisma.medicationCheck.create({
+      data: { id: uuidv4(), prescriptionItemId: IDS.rxItem_pedro_furosemida, nurseId: IDS.enfPatricia, ...c },
+    });
+  }
+
+  // Pedro ICU — enoxaparina 1x/dia
+  const pedroEnoxaChecks = [
+    { scheduledAt: hoursAgo(72), checkedAt: hoursAgo(71), status: 'ADMINISTERED' as const, observations: 'Aplicado região abdominal D. Sem hematoma.' },
+    { scheduledAt: hoursAgo(48), checkedAt: hoursAgo(47), status: 'ADMINISTERED' as const, observations: 'Aplicado região abdominal E. Sem intercorrências.' },
+    { scheduledAt: hoursAgo(24), checkedAt: null, status: 'SCHEDULED' as const },
+  ];
+  for (const c of pedroEnoxaChecks) {
+    await prisma.medicationCheck.create({
+      data: { id: uuidv4(), prescriptionItemId: IDS.rxItem_pedro_enoxaparina, nurseId: IDS.enfJoao, ...c },
+    });
+  }
+
+  // Pedro ICU — insulina 2x/dia
+  const pedroInsulinaChecks = [
+    { scheduledAt: hoursAgo(60), checkedAt: hoursAgo(59), status: 'ADMINISTERED' as const, observations: 'Glicemia pré: 189mg/dL. Administrado 20UI NPH SC.' },
+    { scheduledAt: hoursAgo(48), checkedAt: hoursAgo(46), status: 'DELAYED' as const, observations: 'Atraso de 2h por procedimento. Glicemia 210. Administrado.' },
+    { scheduledAt: hoursAgo(36), checkedAt: hoursAgo(35), status: 'ADMINISTERED' as const, observations: 'Glicemia pré: 165mg/dL. Administrado 20UI.' },
+    { scheduledAt: hoursAgo(24), checkedAt: null, status: 'SCHEDULED' as const },
+  ];
+  for (const c of pedroInsulinaChecks) {
+    await prisma.medicationCheck.create({
+      data: { id: uuidv4(), prescriptionItemId: IDS.rxItem_pedro_insulina, nurseId: IDS.enfPatricia, ...c },
+    });
+  }
+
+  // Gabriel — salbutamol nebulizações
+  const gabrielSalbutamolChecks = [
+    { scheduledAt: hoursAgo(2), checkedAt: hoursAgo(2), status: 'ADMINISTERED' as const, observations: '1a nebulização. SpO2 antes: 93%. Após: 96%.' },
+    { scheduledAt: hoursAgo(1), checkedAt: hoursAgo(1), status: 'ADMINISTERED' as const, observations: '2a nebulização. SpO2 97%. FC 105.' },
+    { scheduledAt: new Date(Date.now() - 20 * 60 * 1000), checkedAt: null, status: 'SCHEDULED' as const },
+  ];
+  for (const c of gabrielSalbutamolChecks) {
+    await prisma.medicationCheck.create({
+      data: { id: uuidv4(), prescriptionItemId: IDS.rxItem_gabriel_salbutamol, nurseId: IDS.enfPatricia, ...c },
+    });
+  }
+
+  // Maria — losartana checks
+  const mariaLosartanaChecks = [
+    { scheduledAt: daysAgo(3), checkedAt: daysAgo(3), status: 'ADMINISTERED' as const, observations: 'PA antes: 138x88. Medicamento administrado.' },
+    { scheduledAt: daysAgo(2), checkedAt: daysAgo(2), status: 'ADMINISTERED' as const },
+    { scheduledAt: daysAgo(1), checkedAt: daysAgo(1), status: 'ADMINISTERED' as const },
+    { scheduledAt: new Date(), checkedAt: null, status: 'SCHEDULED' as const },
+  ];
+  for (const c of mariaLosartanaChecks) {
+    await prisma.medicationCheck.create({
+      data: { id: uuidv4(), prescriptionItemId: IDS.rxItem_maria_losartana, nurseId: IDS.enfJoao, ...c },
+    });
+  }
+
+  // ─── 17. Surgical Procedures ───────────────────────────────────────────
+
+  console.log('  → Creating surgical procedures...');
+
+  await prisma.surgicalProcedure.create({
+    data: {
+      id: IDS.surg_pedro_uti_proc,
+      encounterId: IDS.enc_pedro_uti,
+      patientId: IDS.pedro,
+      tenantId: IDS.tenant,
+      surgeonId: IDS.drRoberto,
+      anesthesiologistId: IDS.drCarlos,
+      scrubNurseId: IDS.enfPatricia,
+      procedureName: 'Toracocentese diagnóstica e terapêutica',
+      procedureCode: '30606019',
+      laterality: 'LEFT',
+      anesthesiaType: 'LOCAL',
+      scheduledAt: daysAgo(2),
+      patientInAt: daysAgo(2),
+      incisionAt: daysAgo(2),
+      sutureAt: daysAgo(2),
+      patientOutAt: daysAgo(2),
+      status: 'COMPLETED',
+      surgicalDescription: 'Toracocentese esquerda realizada com agulha 14G. Drenado 800mL de líquido seroso. Material enviado para citologia e bioquímica. Sem intercorrências. RX pós-procedimento confirmou reexpansão pulmonar adequada.',
+      bloodLoss: 10,
+    },
+  });
+
+  await prisma.surgicalProcedure.create({
+    data: {
+      id: IDS.surg_lucia_biopsia,
+      encounterId: IDS.enc_lucia_onco,
+      patientId: IDS.lucia,
+      tenantId: IDS.tenant,
+      surgeonId: IDS.drRoberto,
+      scrubNurseId: IDS.enfPatricia,
+      procedureName: 'Biópsia de gânglio sentinela por radioisótopo',
+      procedureCode: '20104119',
+      laterality: 'LEFT',
+      anesthesiaType: 'GENERAL',
+      scheduledAt: daysFromNow(14),
+      status: 'SCHEDULED',
+      safetyChecklistBefore: {
+        patientIdentified: true,
+        siteMarked: true,
+        allergyCheck: true,
+        consentSigned: true,
+        bloodAvailable: false,
+        implantCheck: false,
+      },
+    },
+  });
+
+  await prisma.surgicalProcedure.create({
+    data: {
+      id: IDS.surg_jose_herni,
+      encounterId: IDS.enc_jose_geral,
+      patientId: IDS.jose,
+      tenantId: IDS.tenant,
+      surgeonId: IDS.drRoberto,
+      scrubNurseId: IDS.enfPatricia,
+      circulatingNurseId: IDS.enfJoao,
+      procedureName: 'Herniorrafia inguinal unilateral com tela (laparoscópica)',
+      procedureCode: '30721064',
+      laterality: 'RIGHT',
+      anesthesiaType: 'GENERAL',
+      scheduledAt: daysFromNow(10),
+      status: 'SCHEDULED',
+    },
+  });
+
+  await prisma.surgicalProcedure.create({
+    data: {
+      id: IDS.surg_maria_cateter,
+      encounterId: IDS.enc_maria_emergency,
+      patientId: IDS.maria,
+      tenantId: IDS.tenant,
+      surgeonId: IDS.drCarlos,
+      scrubNurseId: IDS.enfPatricia,
+      procedureName: 'Implante de cateter Holter 24h + MAPA 24h',
+      procedureCode: '40301102',
+      laterality: 'NOT_APPLICABLE',
+      anesthesiaType: 'NONE',
+      scheduledAt: hoursAgo(1),
+      patientInAt: hoursAgo(1),
+      patientOutAt: hoursAgo(0),
+      status: 'COMPLETED',
+      surgicalDescription: 'Holter 24h e MAPA instalados para investigação de síncope e avaliação de ritmo cardíaco durante episódio de dor torácica.',
+      bloodLoss: 0,
+    },
+  });
+
+  await prisma.surgicalProcedure.create({
+    data: {
+      id: IDS.surg_pedro_colec,
+      encounterId: IDS.enc_pedro_cirurgia,
+      patientId: IDS.pedro,
+      tenantId: IDS.tenant,
+      surgeonId: IDS.drRoberto,
+      anesthesiologistId: IDS.drCarlos,
+      scrubNurseId: IDS.enfPatricia,
+      circulatingNurseId: IDS.enfJoao,
+      procedureName: 'Herniorrafia inguinal direita com tela (aberta)',
+      procedureCode: '30721056',
+      laterality: 'RIGHT',
+      anesthesiaType: 'SPINAL',
+      scheduledAt: daysAgo(180),
+      patientInAt: daysAgo(180),
+      incisionAt: daysAgo(180),
+      sutureAt: daysAgo(180),
+      patientOutAt: daysAgo(180),
+      status: 'COMPLETED',
+      surgicalDescription: 'Herniorrafia inguinal D com colocação de tela de polipropileno por via anterior (técnica de Lichtenstein). Sem intercorrências. Alta hospitalar D+2.',
+      bloodLoss: 50,
+      complications: 'Seroma local leve no pós-operatório tardio, resolvido espontaneamente.',
+    },
+  });
+
+  // ─── 18. Billing Entries ───────────────────────────────────────────────
+
+  console.log('  → Creating billing entries...');
+
+  await prisma.billingEntry.create({
+    data: {
+      id: IDS.bill_maria_cardio,
+      encounterId: IDS.enc_maria_cardio,
+      tenantId: IDS.tenant,
+      patientId: IDS.maria,
+      insuranceProvider: 'Bradesco Saúde',
+      planType: 'Empresarial Top',
+      guideNumber: 'BS-2024-987654-001',
+      guideType: 'CONSULTATION',
+      items: [
+        { code: '10101012', description: 'Consulta em consultório — cardiologia', quantity: 1, unitValue: 180.00 },
+        { code: '40301102', description: 'Eletrocardiograma de repouso — 12 derivações', quantity: 1, unitValue: 85.00 },
+      ],
+      totalAmount: 265.00,
+      status: 'APPROVED',
+      approvedAmount: 265.00,
+      submittedAt: daysAgo(28),
+      approvedAt: daysAgo(25),
+    },
+  });
+
+  await prisma.billingEntry.create({
+    data: {
+      id: IDS.bill_pedro_uti,
+      encounterId: IDS.enc_pedro_uti,
+      tenantId: IDS.tenant,
+      patientId: IDS.pedro,
+      insuranceProvider: 'Bradesco Saúde',
+      planType: 'Top Nacional Plus',
+      guideNumber: 'BS-2024-111222-003',
+      guideType: 'HOSPITALIZATION',
+      items: [
+        { code: '20101039', description: 'Diária UTI adulto', quantity: 3, unitValue: 1200.00 },
+        { code: '20203012', description: 'Medicamentos UTI — furosemida EV', quantity: 6, unitValue: 45.00 },
+        { code: '20203013', description: 'Medicamentos UTI — enoxaparina 40mg SC', quantity: 3, unitValue: 75.00 },
+        { code: '30606019', description: 'Toracocentese', quantity: 1, unitValue: 450.00 },
+      ],
+      totalAmount: 4620.00,
+      status: 'SUBMITTED',
+      submittedAt: daysAgo(1),
+    },
+  });
+
+  await prisma.billingEntry.create({
+    data: {
+      id: IDS.bill_jose_checkup,
+      encounterId: IDS.enc_jose_geral,
+      tenantId: IDS.tenant,
+      patientId: IDS.jose,
+      insuranceProvider: 'Amil',
+      planType: 'S750',
+      guideNumber: 'AM-2024-123456-001',
+      guideType: 'SADT',
+      items: [
+        { code: '10101012', description: 'Consulta clínica geral', quantity: 1, unitValue: 150.00 },
+        { code: '40301048', description: 'Hemograma completo', quantity: 1, unitValue: 35.00 },
+        { code: '40301153', description: 'Glicemia de jejum', quantity: 1, unitValue: 15.00 },
+        { code: '40301161', description: 'HbA1c', quantity: 1, unitValue: 55.00 },
+        { code: '40301188', description: 'Perfil lipídico completo', quantity: 1, unitValue: 65.00 },
+        { code: '40301242', description: 'Creatinina', quantity: 1, unitValue: 18.00 },
+        { code: '40301197', description: 'TSH ultrassensível', quantity: 1, unitValue: 72.00 },
+      ],
+      totalAmount: 410.00,
+      status: 'PAID',
+      approvedAmount: 410.00,
+      submittedAt: daysAgo(13),
+      approvedAt: daysAgo(10),
+      paidAt: daysAgo(5),
+    },
+  });
+
+  await prisma.billingEntry.create({
+    data: {
+      id: IDS.bill_ana_prenatal,
+      encounterId: IDS.enc_ana_prenatal,
+      tenantId: IDS.tenant,
+      patientId: IDS.anaBeatriz,
+      insuranceProvider: 'SulAmérica',
+      planType: 'Prestige',
+      guideNumber: 'SA-2024-654321-001',
+      guideType: 'CONSULTATION',
+      items: [
+        { code: '10101063', description: 'Consulta pré-natal — obstetrícia', quantity: 1, unitValue: 200.00 },
+        { code: '40901106', description: 'Ultrassonografia obstétrica', quantity: 1, unitValue: 220.00 },
+        { code: '40301048', description: 'Hemograma completo', quantity: 1, unitValue: 35.00 },
+        { code: '40301153', description: 'Glicemia de jejum', quantity: 1, unitValue: 15.00 },
+      ],
+      totalAmount: 470.00,
+      status: 'PENDING',
+    },
+  });
+
+  await prisma.billingEntry.create({
+    data: {
+      id: IDS.bill_lucia_onco,
+      encounterId: IDS.enc_lucia_onco,
+      tenantId: IDS.tenant,
+      patientId: IDS.lucia,
+      insuranceProvider: 'Unimed',
+      planType: 'Alfa Nacional',
+      guideNumber: 'UN-2024-333444-004',
+      guideType: 'SADT',
+      items: [
+        { code: '10101012', description: 'Consulta oncologia', quantity: 1, unitValue: 250.00 },
+        { code: '20401026', description: 'Quimioterapia IV — Doxorrubicina 60mg/m²', quantity: 1, unitValue: 1800.00 },
+        { code: '20401034', description: 'Quimioterapia IV — Ciclofosfamida 600mg/m²', quantity: 1, unitValue: 950.00 },
+        { code: '40301048', description: 'Hemograma completo pré-QT', quantity: 1, unitValue: 35.00 },
+      ],
+      totalAmount: 3035.00,
+      status: 'SUBMITTED',
+      submittedAt: daysAgo(8),
+    },
+  });
+
+  await prisma.billingEntry.create({
+    data: {
+      id: IDS.bill_gabriel_asma,
+      encounterId: IDS.enc_gabriel_asma,
+      tenantId: IDS.tenant,
+      patientId: IDS.gabriel,
+      insuranceProvider: 'Amil',
+      planType: 'S450',
+      guideNumber: 'AM-2024-555666-001',
+      guideType: 'CONSULTATION',
+      items: [
+        { code: '10106062', description: 'Atendimento de emergência pediátrica', quantity: 1, unitValue: 180.00 },
+        { code: '40301048', description: 'Hemograma', quantity: 1, unitValue: 35.00 },
+        { code: '40601110', description: 'Nebulização terapêutica', quantity: 3, unitValue: 45.00 },
+      ],
+      totalAmount: 350.00,
+      status: 'APPROVED',
+      approvedAmount: 350.00,
+      submittedAt: daysAgo(1),
+      approvedAt: new Date(),
+    },
+  });
+
+  await prisma.billingEntry.create({
+    data: {
+      id: IDS.bill_camila_psiq,
+      encounterId: IDS.enc_camila_psiq,
+      tenantId: IDS.tenant,
+      patientId: IDS.camila,
+      insuranceProvider: 'Amil',
+      planType: 'S750',
+      guideNumber: 'AM-2024-888999-002',
+      guideType: 'CONSULTATION',
+      items: [
+        { code: '10101063', description: 'Consulta em psiquiatria', quantity: 1, unitValue: 220.00 },
+      ],
+      totalAmount: 220.00,
+      status: 'APPROVED',
+      approvedAmount: 220.00,
+      submittedAt: daysAgo(12),
+      approvedAt: daysAgo(10),
+    },
+  });
+
+  await prisma.billingEntry.create({
+    data: {
+      id: IDS.bill_rafael_hiv,
+      encounterId: IDS.enc_rafael_infecto,
+      tenantId: IDS.tenant,
+      patientId: IDS.rafael,
+      insuranceProvider: 'Unimed',
+      planType: 'Alfa',
+      guideNumber: 'UN-2024-222333-001',
+      guideType: 'SADT',
+      items: [
+        { code: '10101063', description: 'Consulta em infectologia', quantity: 1, unitValue: 200.00 },
+        { code: '40301048', description: 'Hemograma completo', quantity: 1, unitValue: 35.00 },
+        { code: '40501048', description: 'Carga viral HIV-1 (PCR quantitativo)', quantity: 1, unitValue: 320.00 },
+        { code: '40501056', description: 'Linfócitos T-CD4+ (contagem)', quantity: 1, unitValue: 185.00 },
+      ],
+      totalAmount: 740.00,
+      status: 'PAID',
+      approvedAmount: 740.00,
+      submittedAt: daysAgo(5),
+      approvedAt: daysAgo(3),
+      paidAt: daysAgo(1),
+    },
+  });
+
+  // ─── 19. Additional Clinical Notes ─────────────────────────────────────
+
+  console.log('  → Creating additional clinical notes...');
+
+  const additionalNotes = [
+    // Gabriel — emergency SOAP
+    {
+      encounterId: IDS.enc_gabriel_asma,
+      authorId: IDS.drAna, authorRole: 'DOCTOR' as const,
+      type: 'SOAP' as const, status: 'SIGNED' as const,
+      subjective: 'Criança de 8 anos com episódio agudo de crise asmática. Mãe relata sibilância, dispnéia e tosse seca desde às 14h. Usou inalador domiciliar (salbutamol) 2 doses sem melhora. Nega febre, rinite ou exposição a alérgenos conhecidos. Última crise há 3 meses.',
+      objective: 'Criança em REG, taquipneica, com uso de musculatura acessória. Sibilância expiratória difusa bilateralmente. SpO2 93% em ar ambiente. FC 120 bpm. FR 28 irpm. Peak flow não realizado (idade). Peso: 28.5kg.',
+      assessment: 'Crise asmática moderada (classificação GINA). Gatilho não identificado. Resposta parcial à terapia broncodilatadora inicial.',
+      plan: '1. Salbutamol 2.5mg nebulizado a cada 20 min — 3 doses\n2. Prednisolona 1mg/kg/dia VO por 5 dias\n3. Monitorar SpO2 e FR após cada nebulização\n4. Se SpO2 < 92% ou sem melhora após 3 doses: considerar BI, ipratrópio e avaliação para internação\n5. Orientar família sobre uso correto do inalador',
+      diagnosisCodes: ['J45.0', 'J45.1'],
+      signedAt: hoursAgo(1),
+      signedById: IDS.drAna,
+    },
+
+    // Lucia — oncology evolution note
+    {
+      encounterId: IDS.enc_lucia_onco,
+      authorId: IDS.drRoberto, authorRole: 'DOCTOR' as const,
+      type: 'EVOLUTION' as const, status: 'SIGNED' as const,
+      freeText: 'EVOLUÇÃO ONCOLÓGICA — ' + daysAgo(10).toLocaleDateString('pt-BR') + '\n\nPaciente Lucia F. Costa, 55 anos, portadora de neoplasia de mama (CDI T2N1M0, RE+/RP+/HER2-) em 4o ciclo de AC (doxorrubicina + ciclofosfamida).\n\nSubjetivo: Refere náuseas grau 2 nos primeiros 5 dias após QT, já em resolução. Alopecia grau 2. Nega mucosite, neutropenia febril ou sintomas cardíacos. Fadiga grau 1. Mantém atividade e apetite parcialmente preservados.\n\nObjetivo: BEG, alopecia. ECOG PS 1. Peso: 58kg (perda de 3kg desde início da QT). Mucosa oral sem ulcerações. Hemograma: Hb 10.2, Leucócitos 3800, neutrófilos 2100 (sem neutropenia grave). Plaquetas 185000.\n\nAvaliação: Toxicidade hematológica grau 1. Náuseas controladas. Alopecia esperada. Resposta clínica não avaliável neste momento.\n\nPlano: Manter protocolo AC. 5o ciclo programado para daqui a 14 dias, condicionado ao hemograma. Reforçar suporte antiemético: ondansetrona + dexametasona. Solicitar ecocardiograma (monitoramento cardiotoxicidade doxorrubicina). Encaminhar para suporte nutricional.',
+      diagnosisCodes: ['C50.9', 'Z51.1'],
+      signedAt: daysAgo(10),
+      signedById: IDS.drRoberto,
+    },
+
+    // Pedro — ICU admission note
+    {
+      encounterId: IDS.enc_pedro_uti,
+      authorId: IDS.drCarlos, authorRole: 'DOCTOR' as const,
+      type: 'ADMISSION' as const, status: 'SIGNED' as const,
+      freeText: 'NOTA DE ADMISSÃO — UTI ADULTO — ' + daysAgo(3).toLocaleDateString('pt-BR') + '\n\nPaciente Pedro Henrique Martins, 78 anos, M, admitido na UTI-A-03 por ICC descompensada.\n\nMOTIVO DA INTERNAÇÃO: Dispneia progressiva há 5 dias, com piora em 48h (repouso). Ganho ponderal de 5kg nas últimas 2 semanas. Edema MMII ++/4+. Tosse seca noturna. Ortopneia há 3 dias (2 travesseiros). Relato de não ter tomado furosemida domiciliar nos últimos 4 dias.\n\nHMA: ICC com FEVE 35% (etiologia isquêmica), FA permanente (CHA2DS2-VASc 5), DPOC GOLD C, DRC estágio 3a.\n\nExame de admissão: REG, taquidispneico, sat 88% ar ambiente. PA 100x60mmHg. FC 110 bpm (irregular — FA). FR 28 irpm. Estertores crepitantes bilaterais até 2/3 superiores. Edema MMII +++/4+ bilateral. Fígado palpável 2cm RCE. TVC elevada.\n\nImagem: RX tórax — cardiomegalia, infiltrado bilateral sugestivo de congestão pulmonar, pequeno derrame pleural E.\n\nDiagnóstico: ICC descompensada por não-aderência terapêutica. FA com RV inadequada.\n\nPlano inicial: Furosemida 40mg EV 12/12h + monitorização DU. Restrição hídrica 1000mL/dia. Monitorização PA, FC, sat. Enoxaparina profilaxia. Controle glicêmico. ECG. Eco controle.',
+      diagnosisCodes: ['I50.0', 'I48.2', 'J44.1', 'N18.3'],
+      signedAt: daysAgo(3),
+      signedById: IDS.drCarlos,
+    },
+
+    // Francisco — neurology consultation note
+    {
+      encounterId: IDS.enc_francisco_neuro,
+      authorId: IDS.drAna, authorRole: 'DOCTOR' as const,
+      type: 'CONSULTATION' as const, status: 'SIGNED' as const,
+      subjective: 'Acompanhante (esposa) relata piora cognitiva progressiva há 2 meses: mais esquecido, desorientado em ambiente doméstico, episódios de agitação noturna. Nega alucinações. Alimentação com auxílio. Higiene dependente. Em uso de donepezila 10mg e memantina 20mg.',
+      objective: 'Paciente cooperativo, com dificuldade de manter atenção. MEEM: 14/30 (queda de 3 pontos em 6 meses). CDR 2 (moderado). Linguagem preservada mas com anomia. Marcha cadenciada sem alterações. Sem sinais focais. PA: 148/90 (HAS em controle parcial). Peso estável.',
+      assessment: 'Doença de Alzheimer moderada com progressão cognitiva esperada. HAS com controle subótimo (meta < 130x80).\nPiora recente possivelmente relacionada a estresse familiar e irregularidade de sono.',
+      plan: '1. Manter donepezila 10mg e memantina 20mg\n2. Ajustar anti-hipertensivo: aumentar anlodipino para 10mg\n3. Solicitar: ressonância magnética cerebral controle\n4. Encaminhar para grupo de apoio a cuidadores\n5. Fisioterapia cognitiva — manter\n6. Retorno em 3 meses',
+      diagnosisCodes: ['G30.9', 'I10'],
+      signedAt: daysAgo(20),
+      signedById: IDS.drAna,
+    },
+
+    // Rafael — HIV follow-up SOAP
+    {
+      encounterId: IDS.enc_rafael_infecto,
+      authorId: IDS.drAna, authorRole: 'DOCTOR' as const,
+      type: 'SOAP' as const, status: 'SIGNED' as const,
+      subjective: 'Paciente Rafael Santos, 42 anos, HIV+, em TARV há 6 anos. Boa aderência referida. Nega sintomas oportunistas. Sem queixas gastrointestinais relacionadas ao TARV. Ativo fisicamente. Sono regular.',
+      objective: 'BEG, eutrófico, sem linfoadenomegalia. Exames: CD4+ 680 céls/mm³ (subida de 60 pontos). Carga Viral HIV-1: indetectável (< 50 cópias). TGO/TGP normais. Creatinina: 0.9mg/dL. Glicemia: 88mg/dL.',
+      assessment: 'HIV bem controlado. Carga viral indetectável sustentada. CD4 em ascensão. Sem toxicidade TARV detectável.',
+      plan: '1. Manter TDF/3TC/DTG\n2. Próxima carga viral/CD4 em 6 meses\n3. Vacina HPV (dose 1) — indicada\n4. Rastreio CA colo de útero anal — ANUSCOPIA\n5. Retorno em 6 meses ou SOS',
+      diagnosisCodes: ['B24', 'Z79.899'],
+      signedAt: daysAgo(7),
+      signedById: IDS.drAna,
+    },
+
+    // Maria — emergency evolution note
+    {
+      encounterId: IDS.enc_maria_emergency,
+      authorId: IDS.drCarlos, authorRole: 'DOCTOR' as const,
+      type: 'PROGRESS_NOTE' as const, status: 'SIGNED' as const,
+      freeText: 'EVOLUÇÃO MÉDICA — URGÊNCIA — ' + new Date().toLocaleDateString('pt-BR') + '\n\nPaciente Maria da Silva Santos, 62 anos, admitida com dor torácica opressiva e irradiação para MSE há 3h. PA admissional: 168x102. FC: 98.\n\nECG: Elevação ST V1-V4, padrão de BRE novo → IAMCSST anterior? Protocolo ACS ativado.\nTroponina I: 0.08 ng/mL (elevada). CK-MB: em coleta.\n\nConduta: AAS 300mg VO (1a dose), NTG sublingual 1 comp, Heparina não-fracionada EV bolus + infusão. Morfina SOS. Monitor contínuo.\n\nALERTA: Dipirona CONTRAINDICADA — anafilaxia prévia. AAS administrado apesar de registro de intolerância — benefício supera risco em IAMCSST.\n\nCTH ativado — hemodinâmica notificada para ICPP. Consentimento cirúrgico assinado.',
+      diagnosisCodes: ['I21.0', 'I10', 'E11.9'],
+      signedAt: hoursAgo(2),
+      signedById: IDS.drCarlos,
+    },
+  ];
+
+  for (const n of additionalNotes) {
+    await prisma.clinicalNote.create({ data: { id: uuidv4(), ...n } });
+  }
+
+  // ─── 20. Exam Results ──────────────────────────────────────────────────
+
+  console.log('  → Creating exam results...');
+
+  const examResults = [
+    // Pedro — UTI labs
+    {
+      patientId: IDS.pedro, encounterId: IDS.enc_pedro_uti,
+      examName: 'Hemograma Completo', examCode: '40301048', examType: 'LABORATORY' as const,
+      requestedById: IDS.drCarlos, requestedAt: daysAgo(3),
+      collectedAt: daysAgo(3), completedAt: daysAgo(3),
+      status: 'COMPLETED' as const,
+      labResults: { hb: 10.8, ht: 32, leucocitos: 9800, neutrofilos: 7200, linfocitos: 1800, plaquetas: 210000, vhs: 45 },
+      aiInterpretation: 'Anemia leve normocítica. Leucocitose com neutrofilia — sugere processo infeccioso/inflamatório. Plaquetas normais.',
+    },
+    {
+      patientId: IDS.pedro, encounterId: IDS.enc_pedro_uti,
+      examName: 'Eletrólitos + Função Renal', examCode: '40301153', examType: 'LABORATORY' as const,
+      requestedById: IDS.drCarlos, requestedAt: daysAgo(3),
+      collectedAt: daysAgo(3), completedAt: daysAgo(3),
+      status: 'REVIEWED' as const,
+      labResults: { sodio: 136, potassio: 6.2, cloro: 102, ureia: 68, creatinina: 1.8, tfg: 38, bicarbonato: 20 },
+      reviewedById: IDS.drCarlos, reviewedAt: daysAgo(3),
+      aiInterpretation: 'HIPERCALEMIA GRAVE — K+ 6.2 mEq/L. Valor crítico. Insuficiência renal crônica agudizada (creatinina subiu de 1.5 para 1.8). TFG reduzida. Bicarbonato levemente baixo — acidose metabólica leve.',
+      aiAlerts: [{ type: 'CRITICAL', message: 'Hipercalemia: K+ 6.2 mEq/L. Risco de arritmia.' }],
+    },
+    {
+      patientId: IDS.pedro, encounterId: IDS.enc_pedro_uti,
+      examName: 'BNP (Peptídeo Natriurético)', examCode: '40302058', examType: 'LABORATORY' as const,
+      requestedById: IDS.drCarlos, requestedAt: daysAgo(3),
+      collectedAt: daysAgo(3), completedAt: daysAgo(3),
+      status: 'REVIEWED' as const,
+      labResults: { bnp: 1850, referencia: '< 100 pg/mL' },
+      reviewedById: IDS.drCarlos, reviewedAt: daysAgo(3),
+      aiInterpretation: 'BNP muito elevado (1850 pg/mL). Confirma descompensação de ICC. Valor de referência para alta hospitalar < 300 pg/mL.',
+    },
+    // Pedro — chest X-ray
+    {
+      patientId: IDS.pedro, encounterId: IDS.enc_pedro_uti,
+      examName: 'Radiografia de Tórax PA', examCode: '40901079', examType: 'IMAGING' as const,
+      requestedById: IDS.drCarlos, requestedAt: daysAgo(3),
+      completedAt: daysAgo(3), status: 'REVIEWED' as const,
+      imageModality: 'XRAY' as const,
+      radiologistReport: 'Cardiomegalia com índice cardiotorácico de 0.58. Aumento da trama vascular pulmonar. Infiltrado perihilar bilateral compatible com edema pulmonar. Pequeno derrame pleural esquerdo (obliteração do seio costofrênico). Sem consolidações.',
+      reviewedById: IDS.drCarlos, reviewedAt: daysAgo(3),
+    },
+
+    // Maria — emergency troponin
+    {
+      patientId: IDS.maria, encounterId: IDS.enc_maria_emergency,
+      examName: 'Troponina I de Alta Sensibilidade', examCode: '40302066', examType: 'LABORATORY' as const,
+      requestedById: IDS.drCarlos, requestedAt: hoursAgo(3),
+      collectedAt: hoursAgo(3), completedAt: hoursAgo(2),
+      status: 'REVIEWED' as const,
+      labResults: { troponina_i: 0.08, referencia: '< 0.03 ng/mL', resultado: 'ELEVADO' },
+      reviewedById: IDS.drCarlos, reviewedAt: hoursAgo(2),
+      aiInterpretation: 'Troponina I elevada (0.08 ng/mL). Confirma lesão miocárdica aguda. Contexto clínico + ECG: IAMCSST anterior provável. Indicação de cineangiocoronariografia de urgência.',
+      aiAlerts: [{ type: 'CRITICAL', message: 'Troponina elevada. Suspeita de IAMCSST.' }],
+    },
+    {
+      patientId: IDS.maria, encounterId: IDS.enc_maria_emergency,
+      examName: 'ECG 12 Derivações', examCode: '40301102', examType: 'FUNCTIONAL' as const,
+      requestedById: IDS.drCarlos, requestedAt: hoursAgo(3),
+      completedAt: hoursAgo(3), status: 'REVIEWED' as const,
+      labResults: { ritmo: 'Sinusal', fc: 98, eixo: '+60°', pr: 180, qrs: 95, qt: 400, alteracoes: 'Supradesnível ST V1-V4 (2-3mm). BRE de 3o grau novo' },
+      reviewedById: IDS.drCarlos, reviewedAt: hoursAgo(3),
+    },
+
+    // Jose — checkup labs
+    {
+      patientId: IDS.jose, encounterId: IDS.enc_jose_geral,
+      examName: 'Hemograma Completo', examCode: '40301048', examType: 'LABORATORY' as const,
+      requestedById: IDS.drAna, requestedAt: daysAgo(15),
+      collectedAt: daysAgo(14), completedAt: daysAgo(14),
+      status: 'REVIEWED' as const,
+      labResults: { hb: 14.2, ht: 42, leucocitos: 7200, neutrofilos: 4500, linfocitos: 2100, plaquetas: 230000 },
+      reviewedById: IDS.drAna, reviewedAt: daysAgo(13),
+      aiInterpretation: 'Hemograma normal. Sem anemia ou alterações leucocitárias.',
+    },
+    {
+      patientId: IDS.jose, encounterId: IDS.enc_jose_exame,
+      examName: 'Perfil Lipídico Completo', examCode: '40301188', examType: 'LABORATORY' as const,
+      requestedById: IDS.drAna, requestedAt: daysAgo(15),
+      collectedAt: daysAgo(14), completedAt: daysAgo(14),
+      status: 'REVIEWED' as const,
+      labResults: { colesterol_total: 215, hdl: 42, ldl: 148, triglicerides: 185, vldl: 37, naoHdl: 173 },
+      reviewedById: IDS.drAna, reviewedAt: daysAgo(7),
+      aiInterpretation: 'Dislipidemia: CT bordeline alto, LDL elevado (148mg/dL), HDL baixo para homens (< 40). Triglicérides levemente elevado. Recomendado: mudança no estilo de vida + reavaliação em 3 meses. Considerar estatina se sem melhora.',
+    },
+
+    // Gabriel — asthma CBC
+    {
+      patientId: IDS.gabriel, encounterId: IDS.enc_gabriel_asma,
+      examName: 'Hemograma + Proteína C Reativa', examCode: '40301048', examType: 'LABORATORY' as const,
+      requestedById: IDS.drAna, requestedAt: hoursAgo(2),
+      collectedAt: hoursAgo(2), completedAt: hoursAgo(1),
+      status: 'REVIEWED' as const,
+      labResults: { hb: 13.2, leucocitos: 12500, eosinofilos: 8, neutrofilos: 55, linfocitos: 28, plaquetas: 290000, pcr: 0.8 },
+      reviewedById: IDS.drAna, reviewedAt: hoursAgo(1),
+      aiInterpretation: 'Eosinofilia periférica (8%) compatível com atopia/asma. Leucocitose leve. PCR normal — sem evidência de infecção bacteriana.',
+    },
+
+    // Lucia — tumor markers
+    {
+      patientId: IDS.lucia, encounterId: IDS.enc_lucia_onco,
+      examName: 'Marcadores Tumorais (CA 15-3, CEA)', examCode: '40501307', examType: 'LABORATORY' as const,
+      requestedById: IDS.drRoberto, requestedAt: daysAgo(10),
+      collectedAt: daysAgo(10), completedAt: daysAgo(9),
+      status: 'REVIEWED' as const,
+      labResults: { ca153: 38.5, cea: 4.2, referencia_ca153: '< 31.3 U/mL', referencia_cea: '< 5 ng/mL' },
+      reviewedById: IDS.drRoberto, reviewedAt: daysAgo(9),
+      aiInterpretation: 'CA 15-3 levemente elevado (38.5 U/mL — VR < 31.3). Tendência importante para acompanhamento. CEA dentro da normalidade.',
+    },
+    // Lucia — echocardiogram (pre-chemo)
+    {
+      patientId: IDS.lucia, encounterId: IDS.enc_lucia_onco,
+      examName: 'Ecocardiograma Transtorácico', examCode: '40304361', examType: 'IMAGING' as const,
+      requestedById: IDS.drRoberto, requestedAt: daysAgo(10),
+      completedAt: daysAgo(8), status: 'REVIEWED' as const,
+      imageModality: 'ECHOCARDIOGRAPHY' as const,
+      radiologistReport: 'FEVE: 62% (normal). VE de dimensões normais. Sem alterações segmentares de contratilidade. Função sistólica preservada. Sem derrame pericárdico. Valvas sem alterações significativas. Aorta ascendente sem ectasia.',
+      reviewedById: IDS.drRoberto, reviewedAt: daysAgo(8),
+    },
+
+    // Ana Beatriz — prenatal ultrasound
+    {
+      patientId: IDS.anaBeatriz, encounterId: IDS.enc_ana_prenatal,
+      examName: 'Ultrassonografia Obstétrica com Doppler', examCode: '40901114', examType: 'IMAGING' as const,
+      requestedById: IDS.drAna, requestedAt: daysAgo(5),
+      completedAt: daysAgo(5), status: 'REVIEWED' as const,
+      imageModality: 'ULTRASOUND' as const,
+      radiologistReport: 'Gestação única, tópica, de 32 semanas e 2 dias (DUM). Feto em apresentação cefálica. BCF: 142 bpm. ILA: 14,5 cm (normal). Peso fetal estimado: 1.820g (P48 — Hadlock). Placenta posterior grau I. Doppler umbilical: relação S/D 2.8 (normal). Doppler ACM normal. Colo uterino: 3,8 cm.',
+      reviewedById: IDS.drAna, reviewedAt: daysAgo(4),
+      aiInterpretation: 'Gestação de 32 semanas. Crescimento fetal adequado (P48). Parâmetros Doppler normais. ILA normal. Sem sinais de sofrimento fetal.',
+    },
+
+    // Rafael — HIV labs
+    {
+      patientId: IDS.rafael, encounterId: IDS.enc_rafael_infecto,
+      examName: 'Carga Viral HIV-1 (PCR Quantitativo)', examCode: '40501048', examType: 'MICROBIOLOGICAL' as const,
+      requestedById: IDS.drAna, requestedAt: daysAgo(7),
+      collectedAt: daysAgo(7), completedAt: daysAgo(5),
+      status: 'REVIEWED' as const,
+      labResults: { resultado: 'Indetectável', limite_deteccao: '< 50 cópias/mL', tecnica: 'Abbott RealTime HIV-1' },
+      reviewedById: IDS.drAna, reviewedAt: daysAgo(5),
+      aiInterpretation: 'Carga viral indetectável. Excelente resposta ao TARV com TDF/3TC/DTG. Aderência confirmada laboratorialmente.',
+    },
+    {
+      patientId: IDS.rafael, encounterId: IDS.enc_rafael_infecto,
+      examName: 'Contagem de Linfócitos T-CD4+', examCode: '40501056', examType: 'LABORATORY' as const,
+      requestedById: IDS.drAna, requestedAt: daysAgo(7),
+      collectedAt: daysAgo(7), completedAt: daysAgo(5),
+      status: 'REVIEWED' as const,
+      labResults: { cd4: 680, porcentagem_cd4: 38, cd8: 890, relacao_cd4_cd8: 0.76 },
+      reviewedById: IDS.drAna, reviewedAt: daysAgo(5),
+      aiInterpretation: 'CD4+ 680 céls/mm³ — progressão positiva (+60 células em 6 meses). Relação CD4/CD8 em recuperação.',
+    },
+
+    // Francisco — brain MRI
+    {
+      patientId: IDS.francisco, encounterId: IDS.enc_francisco_neuro,
+      examName: 'Ressonância Magnética do Crânio', examCode: '40901203', examType: 'IMAGING' as const,
+      requestedById: IDS.drAna, requestedAt: daysAgo(20),
+      completedAt: daysAgo(18), status: 'REVIEWED' as const,
+      imageModality: 'MRI' as const,
+      radiologistReport: 'Atrofia cortical difusa de predomínio parieto-temporal bilateral, mais pronunciada à esquerda. Alargamento sulcal e ventricular compatível com a atrofia. Lesões de substância branca periventricular (Fazekas 2). Hipocampos com volume reduzido bilateralmente. Sem lesões expansivas, isquemia aguda ou hemorragia.',
+      reviewedById: IDS.drAna, reviewedAt: daysAgo(17),
+      aiInterpretation: 'Padrão de atrofia cortical compatível com doença de Alzheimer moderada. Hipocampos atrofiados confirma o diagnóstico clínico.',
+    },
+    {
+      patientId: IDS.francisco, encounterId: IDS.enc_francisco_neuro,
+      examName: 'Eletrólitos e Função Renal', examCode: '40301153', examType: 'LABORATORY' as const,
+      requestedById: IDS.drAna, requestedAt: daysAgo(20),
+      collectedAt: daysAgo(20), completedAt: daysAgo(19),
+      status: 'REVIEWED' as const,
+      labResults: { sodio: 139, potassio: 4.8, creatinina: 1.9, ureia: 55, tfg: 38, glicemia: 92 },
+      reviewedById: IDS.drAna, reviewedAt: daysAgo(19),
+      aiInterpretation: 'DRC estágio 3b. TFG 38 mL/min — ajuste de doses de medicamentos necessário. Eletrólitos normais.',
+    },
+  ];
+
+  for (const e of examResults) {
+    await prisma.examResult.create({ data: { id: uuidv4(), ...e } });
+  }
+
+  // ─── 21. Nursing Processes ─────────────────────────────────────────────
+
+  console.log('  → Creating nursing processes...');
+
+  // Pedro — ICU nursing process
+  const nursingProcessPedro = await prisma.nursingProcess.create({
+    data: {
+      id: uuidv4(),
+      encounterId: IDS.enc_pedro_uti,
+      patientId: IDS.pedro,
+      nurseId: IDS.enfPatricia,
+      status: 'IN_PROGRESS',
+      dataCollectionNotes: 'Paciente Pedro H. Martins, 78 anos, admitido por ICC descompensada. Dispneico em repouso, com SpO2 88% em AA. Edema MMII ++++. Peso 88.5kg. Diurese ausente nas últimas 4h. PA 100x60mmHg. FC 110 (FA). Família presente e ansiosa.',
+    },
+  });
+
+  const dxPedroVolume = await prisma.nursingDiagnosis.create({
+    data: {
+      id: uuidv4(),
+      nursingProcessId: nursingProcessPedro.id,
+      nandaCode: '00026',
+      nandaDomain: 'Domínio 2 — Nutrição',
+      nandaClass: 'Classe 5 — Hidratação',
+      nandaTitle: 'Volume de líquidos excessivo',
+      relatedFactors: ['Comprometimento dos mecanismos de regulação', 'Excesso de ingestão de sódio'],
+      definingCharacteristics: ['Edema', 'Ganho de peso', 'Dispneia', 'Sons respiratórios adventícios', 'Pressão arterial alterada'],
+      status: 'ACTIVE',
+      priority: 'HIGH',
+    },
+  });
+
+  await prisma.nursingOutcome.create({
+    data: {
+      id: uuidv4(),
+      nursingDiagnosisId: dxPedroVolume.id,
+      nocCode: '0601',
+      nocTitle: 'Equilíbrio eletrolítico e ácido-base',
+      baselineScore: 2,
+      targetScore: 4,
+      currentScore: 2,
+      evaluationFrequency: 'A cada 6 horas',
+      indicators: { edema: 'presente ++++', peso: '88.5kg', spo2: '88%', diurese: 'ausente' },
+    },
+  });
+
+  await prisma.nursingIntervention.create({
+    data: {
+      id: uuidv4(),
+      nursingDiagnosisId: dxPedroVolume.id,
+      nicCode: '4120',
+      nicTitle: 'Controle de líquidos',
+      activities: [
+        'Monitorar débito urinário a cada 1 hora',
+        'Controle hídrico rigoroso — balanço a cada 6h',
+        'Pesar diariamente às 6h (mesmo horário, mesma balança)',
+        'Administrar furosemida EV conforme prescrito',
+        'Posicionamento semi-Fowler para reduzir dispneia',
+        'Restrição hídrica 1000mL/24h',
+        'Orientar família sobre restrição',
+      ],
+      status: 'IN_PROGRESS',
+      notes: 'Iniciar balanço às 0h. Notificar médico se DU < 30mL/h por 2h consecutivas.',
+    },
+  });
+
+  const dxPedroBreath = await prisma.nursingDiagnosis.create({
+    data: {
+      id: uuidv4(),
+      nursingProcessId: nursingProcessPedro.id,
+      nandaCode: '00032',
+      nandaDomain: 'Domínio 4 — Atividade/Repouso',
+      nandaClass: 'Classe 4 — Respostas cardiovasculares/pulmonares',
+      nandaTitle: 'Padrão respiratório ineficaz',
+      relatedFactors: ['Ansiedade', 'Dor', 'Fadiga muscular', 'Hiperventilação associada à hipoxia'],
+      definingCharacteristics: ['Dispneia', 'FR 28irpm', 'SpO2 88%', 'Uso de musculatura acessória', 'Ortopneia'],
+      status: 'ACTIVE',
+      priority: 'HIGH',
+    },
+  });
+
+  await prisma.nursingIntervention.create({
+    data: {
+      id: uuidv4(),
+      nursingDiagnosisId: dxPedroBreath.id,
+      nicCode: '3140',
+      nicTitle: 'Manejo das vias aéreas',
+      activities: [
+        'Monitorar SpO2 continuamente — alarme configurado para < 88%',
+        'Oxigenoterapia: cateter nasal 2L/min — titular para SpO2 ≥ 92%',
+        'Posição cabeceira 30-45°',
+        'Ausculta pulmonar a cada 4h',
+        'Preparar material para IOT se deterioração clínica',
+      ],
+      status: 'IN_PROGRESS',
+    },
+  });
+
+  // Gabriel — emergency nursing process
+  const nursingProcessGabriel = await prisma.nursingProcess.create({
+    data: {
+      id: uuidv4(),
+      encounterId: IDS.enc_gabriel_asma,
+      patientId: IDS.gabriel,
+      nurseId: IDS.enfPatricia,
+      status: 'IN_PROGRESS',
+      dataCollectionNotes: 'Criança de 8 anos com crise asmática moderada. Taquipneica, sibilância expiratória difusa. SpO2 93%. Mãe presente. Ansiedade materna elevada.',
+    },
+  });
+
+  const dxGabrielGas = await prisma.nursingDiagnosis.create({
+    data: {
+      id: uuidv4(),
+      nursingProcessId: nursingProcessGabriel.id,
+      nandaCode: '00030',
+      nandaDomain: 'Domínio 4 — Atividade/Repouso',
+      nandaClass: 'Classe 4 — Respostas cardiovasculares/pulmonares',
+      nandaTitle: 'Troca de gases prejudicada',
+      relatedFactors: ['Obstrução das vias aéreas — broncoespasmo', 'Processo inflamatório das vias aéreas'],
+      definingCharacteristics: ['SpO2 93%', 'Taquipneia', 'Sibilância', 'Dispneia'],
+      status: 'ACTIVE',
+      priority: 'HIGH',
+    },
+  });
+
+  await prisma.nursingOutcome.create({
+    data: {
+      id: uuidv4(),
+      nursingDiagnosisId: dxGabrielGas.id,
+      nocCode: '0402',
+      nocTitle: 'Estado respiratório: troca gasosa',
+      baselineScore: 2,
+      targetScore: 4,
+      currentScore: 2,
+      evaluationFrequency: 'Após cada nebulização',
+    },
+  });
+
+  await prisma.nursingIntervention.create({
+    data: {
+      id: uuidv4(),
+      nursingDiagnosisId: dxGabrielGas.id,
+      nicCode: '3350',
+      nicTitle: 'Monitoração respiratória',
+      activities: [
+        'Monitorar SpO2 a cada 15 minutos durante nebulização',
+        'Ausculta pulmonar antes e após cada nebulização',
+        'Preparar nebulizador: salbutamol 2.5mg em 3mL SF 0.9%',
+        'Registrar resposta clínica após cada dose',
+        'Orientar mãe sobre técnica de inalação domiciliar',
+      ],
+      status: 'IN_PROGRESS',
+    },
+  });
+
+  // Maria — emergency nursing process
+  const nursingProcessMaria = await prisma.nursingProcess.create({
+    data: {
+      id: uuidv4(),
+      encounterId: IDS.enc_maria_emergency,
+      patientId: IDS.maria,
+      nurseId: IDS.enfPatricia,
+      status: 'IN_PROGRESS',
+      dataCollectionNotes: 'Paciente Maria S. Santos, 62 anos, admitida com dor torácica grau 8/10. PA 168x102. FC 98. SpO2 95%. ECG com supradesnivelamento ST anterior. Protocolo IAMCSST ativado.',
+    },
+  });
+
+  const dxMariaDor = await prisma.nursingDiagnosis.create({
+    data: {
+      id: uuidv4(),
+      nursingProcessId: nursingProcessMaria.id,
+      nandaCode: '00132',
+      nandaDomain: 'Domínio 12 — Conforto',
+      nandaClass: 'Classe 1 — Conforto físico',
+      nandaTitle: 'Dor aguda',
+      relatedFactors: ['Agentes lesivos biológicos — isquemia miocárdica'],
+      definingCharacteristics: ['Relato verbal de dor 8/10', 'Expressão facial de dor', 'Taquicardia', 'Hipertensão'],
+      status: 'ACTIVE',
+      priority: 'HIGH',
+    },
+  });
+
+  await prisma.nursingIntervention.create({
+    data: {
+      id: uuidv4(),
+      nursingDiagnosisId: dxMariaDor.id,
+      nicCode: '1400',
+      nicTitle: 'Controle da dor',
+      activities: [
+        'Monitorar dor com escala numérica a cada 30 min',
+        'Administrar morfina SOS conforme prescrição',
+        'Posicionamento: decúbito semi-Fowler',
+        'Monitorização cardíaca contínua',
+        'Acesso venoso periférico calibroso (G18) — ambos os membros',
+        'Coleta de sangue para troponina seriada',
+        'Preparar paciente para cateterismo de urgência',
+      ],
+      status: 'IN_PROGRESS',
+    },
+  });
+
+  // ─── 22. Nursing Notes ─────────────────────────────────────────────────
+
+  console.log('  → Creating nursing notes...');
+
+  const nursingNotes = [
+    // Pedro — ICU nursing evolution notes
+    {
+      encounterId: IDS.enc_pedro_uti, nurseId: IDS.enfPatricia,
+      type: 'EVOLUTION' as const, shift: 'MORNING' as const,
+      content: 'EVOLUÇÃO DE ENFERMAGEM — MANHÃ — UTI-A-03\n\nPaciente Pedro H. Martins, 78 anos, 2o DIH por ICC descompensada.\n\nEstado geral: REG, consciente, orientado, queixando-se de dispneia leve.\nSinais vitais: PA 108/68, FC 96 (FA), SpO2 92% (cateter nasal 2L), FR 22, T 36.8°C.\nEdema MMII ++/4+ (melhora de ontem +++). Sem estertores crepitantes neste turno.\nDiurese acumulada 720mL (turno 7-13h). Balanço hídrico: -480mL.\nFurosemida 40mg EV administrada às 7h30 sem intercorrências.\nEnoxaparina 40mg SC aplicada em abdome.\nAccesso venoso central funcionante. Sem sinais flogísticos locais.\nBocal e higiene oral realizados. Curativo de acesso sem alterações.\nFamília orientada sobre melhora do quadro.',
+      signedAt: hoursAgo(6),
+    },
+    {
+      encounterId: IDS.enc_pedro_uti, nurseId: IDS.enfJoao,
+      type: 'EVOLUTION' as const, shift: 'AFTERNOON' as const,
+      content: 'EVOLUÇÃO DE ENFERMAGEM — TARDE — UTI-A-03\n\nPaciente em REG, cooperativo. Dispneia leve em repouso.\nPA 110/70, FC 94 (FA), SpO2 93% (cateter nasal 2L), FR 20.\nEdema MMII ++/4+ estável.\nDiurese 650mL (turno 13-19h). Balanço -320mL.\nAdministração de furosemida 40mg EV 19h (próxima dose).\nGlicemia capilar 19h: 168 mg/dL — insulina NPH 20UI SC aplicada.\nPaciente relatou melhora da dispneia em relação à admissão.',
+      signedAt: hoursAgo(4),
+    },
+    {
+      encounterId: IDS.enc_pedro_uti, nurseId: IDS.enfPatricia,
+      type: 'OBSERVATION' as const, shift: 'MORNING' as const,
+      content: 'OBSERVAÇÃO ESPECIAL — 10h30\n\nHipercalemia grave (K+ 6.2 mEq/L) identificada em exame laboratorial. Médico Dr. Carlos Eduardo notificado imediatamente. ECG realizado — sem alterações agudas (sem tent T, sem BRE). Iniciado protocolo de hipercalemia: gluconato de cálcio EV 1g + bicarbonato de sódio 8,4% 50mL EV. Monitorização cardíaca intensificada. Coleta de novo eletrólito em 2h.',
+    },
+    // Gabriel — emergency nursing
+    {
+      encounterId: IDS.enc_gabriel_asma, nurseId: IDS.enfPatricia,
+      type: 'ADMISSION' as const, shift: 'AFTERNOON' as const,
+      content: 'ADMISSÃO DE ENFERMAGEM — EMERGÊNCIA PEDIÁTRICA\n\nCriança Gabriel S. Lima, 8 anos, trazida pela mãe com crise asmática. Dispneia, sibilância e tosse seca há ~6h. Usou inalador domiciliar sem alívio.\n\nTriagem Manchester: Nível AMARELO. PA 100/65, FC 120, FR 28, SpO2 93%, T 36.8°C. Peso: 28.5kg.\n\nAcesso venoso periférico G22 em membro superior esquerdo.\nNebulização 1a dose: salbutamol 2.5mg em 3mL SF 0.9%. Início às 15h20.\nMãe orientada sobre procedimento e evolução esperada.',
+      signedAt: hoursAgo(2),
+    },
+    {
+      encounterId: IDS.enc_gabriel_asma, nurseId: IDS.enfPatricia,
+      type: 'PROCEDURE' as const, shift: 'AFTERNOON' as const,
+      content: 'REGISTRO DE PROCEDIMENTO — Nebulização terapêutica\n\nHorário: 15h20 — 1a nebulização (salbutamol 2.5mg)\nSpO2 antes: 93% | depois: 96%\nFC antes: 120 | depois: 108\nAusculta: sibilância difusa → melhora parcial (sibilância leve)\nGabriel tolerou bem o procedimento. Cooperativo.\n\nHorário: 15h40 — 2a nebulização (salbutamol 2.5mg)\nSpO2 antes: 96% | depois: 98%\nFC: 105\nAusculta: esparsos sibilos expiratórios\nMelhora clínica evidente. Criança menos taquipneica.',
+    },
+    // Maria — emergency nursing
+    {
+      encounterId: IDS.enc_maria_emergency, nurseId: IDS.enfPatricia,
+      type: 'ADMISSION' as const, shift: 'MORNING' as const,
+      content: 'ADMISSÃO DE ENFERMAGEM — URGÊNCIA CARDIOLÓGICA\n\nPaciente Maria da Silva Santos, 62 anos, admitida com dor torácica opressiva irradiando para MSE há 3h. Sudorese fria. Náusea.\n\nPA: 168x102 mmHg. FC: 98 bpm. SpO2: 95% (AR). FR: 22. T: 36.8°C.\n\nECG imediato realizado e encaminhado ao cardiologista de plantão. Eletrodos de monitorização contínua instalados.\nAcesso venoso periférico G18 em MSE.\nSolicitado acesso venoso contralateral.\nAleRTA: Paciente tem ALERGIA GRAVE a dipirona (anafilaxia). Identificado pulseira de alerta e flag no prontuário.\nFamiliar notificado e presente.',
+      signedAt: hoursAgo(2),
+    },
+    {
+      encounterId: IDS.enc_maria_emergency, nurseId: IDS.enfJoao,
+      type: 'PROCEDURE' as const, shift: 'MORNING' as const,
+      content: 'REGISTRO DE PROCEDIMENTO — Coleta de exames urgência\n\nColetados conforme protocolos de dor torácica:\n- Troponina I de alta sensibilidade (1a coleta)\n- CK-MB massa\n- Hemograma completo\n- Coagulograma (TTPA, TP/RNI)\n- Eletrólitos (Na, K, Mg, Ca)\n- Função renal (ureia, creatinina)\n- Glicemia\n\nAll amostras enviadas ao laboratório às 08h45. Resultado troponina recebido às 09h30: 0.08 ng/mL (ELEVADO — valor crítico). Médico Dr. Carlos Eduardo imediatamente notificado. Protocolo IAMCSST confirmado.',
+    },
+    // ICU handoff note
+    {
+      encounterId: IDS.enc_pedro_uti, nurseId: IDS.enfJoao,
+      type: 'HANDOFF' as const, shift: 'NIGHT' as const,
+      content: 'PASSAGEM DE PLANTÃO — TURNO NOTURNO — UTI-A-03\n\nPedro H. Martins, 78A, 2o DIH ICC descompensada + FA crônica + DRC 3a.\n\nESTADO ATUAL: Estável, melhora progressiva. Dispneia leve em repouso.\nPENDÊNCIAS:\n- Furosemida 40mg EV às 01h e 07h\n- Insulina NPH 20UI SC às 07h (glicemia capilar pré)\n- Repetir eletrólitos às 06h (hipercalemia em resolução)\n- Pesar às 06h\n- ECG às 06h\n\nALERTAS: Hipercalemia em tratamento. Monitorizar ritmo cardíaco continuamente. Notificar médico se K+ > 5.5 nos novos exames.\n\nFamiliar Helena Martins (esposa): informada sobre estabilização. Tel: (11) 97321-0987.',
+    },
+  ];
+
+  for (const n of nursingNotes) {
+    await prisma.nursingNote.create({ data: { id: uuidv4(), ...n } });
+  }
+
+  // ─── 23. Fluid Balances ────────────────────────────────────────────────
+
+  console.log('  → Creating fluid balances...');
+
+  // Pedro — 3 days of ICU fluid balance
+  const pedroDayFluidBalances = [
+    {
+      recordedAt: daysAgo(3), period: '24h — Dia 1 internação',
+      intakeOral: 300, intakeIV: 950, intakeOther: 0, intakeTotal: 1250,
+      outputUrine: 580, outputDrain: 0, outputEmesis: 120, outputStool: 0, outputOther: 0, outputTotal: 700,
+      balance: 550, cumulativeBalance24h: 550,
+    },
+    {
+      recordedAt: daysAgo(2), period: '24h — Dia 2 internação',
+      intakeOral: 400, intakeIV: 880, intakeOther: 0, intakeTotal: 1280,
+      outputUrine: 1250, outputDrain: 0, outputEmesis: 0, outputStool: 100, outputOther: 0, outputTotal: 1350,
+      balance: -70, cumulativeBalance24h: 480,
+    },
+    {
+      recordedAt: daysAgo(1), period: '24h — Dia 3 internação',
+      intakeOral: 500, intakeIV: 800, intakeOther: 0, intakeTotal: 1300,
+      outputUrine: 1650, outputDrain: 0, outputEmesis: 0, outputStool: 0, outputOther: 0, outputTotal: 1650,
+      balance: -350, cumulativeBalance24h: 130,
+      aiAlert: 'Balanço negativo acumulado em melhora. Meta: atingir balanço -500mL/dia.',
+    },
+  ];
+
+  for (const fb of pedroDayFluidBalances) {
+    await prisma.fluidBalance.create({
+      data: {
+        id: uuidv4(),
+        encounterId: IDS.enc_pedro_uti,
+        patientId: IDS.pedro,
+        nurseId: IDS.enfPatricia,
+        ...fb,
+      },
+    });
+  }
+
+  // Gabriel — today's fluid balance
+  await prisma.fluidBalance.create({
+    data: {
+      id: uuidv4(),
+      encounterId: IDS.enc_gabriel_asma,
+      patientId: IDS.gabriel,
+      nurseId: IDS.enfPatricia,
+      recordedAt: new Date(),
+      period: 'Turno tarde — emergência',
+      intakeOral: 150, intakeIV: 100, intakeOther: 0, intakeTotal: 250,
+      outputUrine: 80, outputDrain: 0, outputEmesis: 0, outputStool: 0, outputOther: 0, outputTotal: 80,
+      balance: 170,
+    },
+  });
+
+  // Maria — emergency fluid balance
+  await prisma.fluidBalance.create({
+    data: {
+      id: uuidv4(),
+      encounterId: IDS.enc_maria_emergency,
+      patientId: IDS.maria,
+      nurseId: IDS.enfJoao,
+      recordedAt: new Date(),
+      period: 'Turno manhã — urgência',
+      intakeOral: 0, intakeIV: 500, intakeOther: 0, intakeTotal: 500,
+      outputUrine: 200, outputDrain: 0, outputEmesis: 0, outputStool: 0, outputOther: 0, outputTotal: 200,
+      balance: 300,
+    },
+  });
+
+  // ─── 24. Additional Document Templates ─────────────────────────────────
+
+  console.log('  → Creating additional document templates...');
+
+  const additionalTemplates = [
+    {
+      tenantId: IDS.tenant,
+      name: 'Encaminhamento Especialidade',
+      type: 'ENCAMINHAMENTO' as const,
+      category: 'referral',
+      content: `{{hospital_header}}\n\nENCaminHAMENTO MÉDICO\n\nEncaminho o(a) paciente {{patient_name}}, {{patient_age}} anos, CPF {{patient_cpf}}, para avaliação por {{specialty}}.\n\nMOTIVO: {{referral_reason}}\n\nHIPÓTESE DIAGNÓSTICA: {{diagnosis}}\n\nINFORMAÇÕES RELEVANTES:\n{{clinical_info}}\n\nMEDICAMENTOS EM USO:\n{{medications}}\n\n{{city}}, {{full_date}}.\n\n{{doctor_signature}}\n{{doctor_crm}}`,
+      isActive: true,
+      createdById: IDS.admRicardo,
+    },
+    {
+      tenantId: IDS.tenant,
+      name: 'Laudo Médico Pericial',
+      type: 'LAUDO' as const,
+      category: 'report',
+      content: `{{hospital_header}}\n\nLAUDO MÉDICO\n\nNome: {{patient_name}}\nData de nascimento: {{patient_birthdate}}\nCPF: {{patient_cpf}}\n\nO(A) paciente acima identificado(a) encontra-se sob cuidados médicos nesta instituição, com o seguinte diagnóstico:\n\nDIAGNÓSTICO(S):\n{{diagnoses}}\n\nESTADO CLÍNICO ATUAL:\n{{clinical_status}}\n\nCAPACIDADE FUNCIONAL:\n{{functional_capacity}}\n\nOBSERVAÇÕES:\n{{observations}}\n\n{{city}}, {{full_date}}.\n\n{{doctor_signature}}\n{{doctor_crm}}`,
+      isActive: true,
+      createdById: IDS.admRicardo,
+    },
+    {
+      tenantId: IDS.tenant,
+      name: 'Declaração de Comparecimento',
+      type: 'DECLARACAO' as const,
+      category: 'certificate',
+      content: `{{hospital_header}}\n\nDECLARAÇÃO DE COMPARECIMENTO\n\nDeclaro que o(a) Sr(a). {{patient_name}}, portador(a) do CPF {{patient_cpf}}, esteve presente nesta instituição no dia {{date}}, no período {{period}}, para atendimento médico.\n\nEsta declaração é emitida a pedido do(a) interessado(a) para os fins que se fizerem necessários.\n\n{{city}}, {{full_date}}.\n\n_______________________________\nAssinatura e Carimbo\n{{hospital_name}}`,
+      isActive: true,
+      createdById: IDS.admRicardo,
+    },
+  ];
+
+  for (const t of additionalTemplates) {
+    await prisma.documentTemplate.create({ data: { id: uuidv4(), ...t } });
+  }
+
+  // ─── 25. Chemotherapy Protocols & Cycles ───────────────────────────────
+
+  console.log('  → Creating chemotherapy protocols and cycles...');
+
+  await prisma.chemotherapyProtocol.create({
+    data: {
+      id: IDS.proto_ac,
+      tenantId: IDS.tenant,
+      name: 'AC (Doxorrubicina + Ciclofosfamida)',
+      nameEn: 'AC (Adriamycin + Cyclophosphamide)',
+      regimen: 'AC',
+      indication: 'Câncer de mama adjuvante/neoadjuvante. RE+/RP+/HER2-, estágios I-III.',
+      drugs: [
+        { name: 'Doxorrubicina (Adriamicina)', dose: 60, unit: 'mg/m²', route: 'IV', day: 1, infusionTime: 15, notes: 'Infundir em 15 min. Vesicante — acesso venoso central preferencial.' },
+        { name: 'Ciclofosfamida', dose: 600, unit: 'mg/m²', route: 'IV', day: 1, infusionTime: 60, notes: 'Hidratação vigorosa antes e durante.' },
+      ],
+      premedications: [
+        { name: 'Ondansetrona', dose: '8mg EV', timing: '30 min antes da QT' },
+        { name: 'Dexametasona', dose: '20mg EV', timing: '30 min antes da QT' },
+        { name: 'Ranitidina', dose: '50mg EV', timing: '30 min antes da QT' },
+      ],
+      cycleDays: 21,
+      maxCycles: 4,
+      emetogenicRisk: 'HIGH',
+      notes: 'Monitorar função cardíaca (ECO/MUGA antes e após 4 ciclos). Dose cumulativa máxima de doxorrubicina: 550mg/m². Hemograma com diferencial antes de cada ciclo. Não iniciar se neutrófilos < 1500.',
+    },
+  });
+
+  await prisma.chemotherapyProtocol.create({
+    data: {
+      id: IDS.proto_folfox,
+      tenantId: IDS.tenant,
+      name: 'FOLFOX (Oxaliplatina + 5-FU + Leucovorina)',
+      nameEn: 'FOLFOX (Oxaliplatin + 5-FU + Leucovorin)',
+      regimen: 'FOLFOX-6',
+      indication: 'Câncer colorretal metastático ou adjuvante (estágio III). Segunda linha após FOLFIRI.',
+      drugs: [
+        { name: 'Oxaliplatina', dose: 85, unit: 'mg/m²', route: 'IV', day: 1, infusionTime: 120, notes: 'Infundir em 2h. Não misturar com soluções alcalinas.' },
+        { name: 'Leucovorina', dose: 400, unit: 'mg/m²', route: 'IV', day: 1, infusionTime: 120, notes: 'Infundir concomitantemente com oxaliplatina em Y.' },
+        { name: '5-Fluorouracil (bolus)', dose: 400, unit: 'mg/m²', route: 'IV', day: 1, infusionTime: 0, notes: 'Bolus EV após leucovorina.' },
+        { name: '5-Fluorouracil (infusão contínua)', dose: 2400, unit: 'mg/m²', route: 'IV', day: '1-2', infusionTime: 46 * 60, notes: 'Infusão contínua 46h via bomba de infusão portátil.' },
+      ],
+      cycleDays: 14,
+      maxCycles: 12,
+      emetogenicRisk: 'MODERATE',
+    },
+  });
+
+  await prisma.chemotherapyProtocol.create({
+    data: {
+      id: IDS.proto_chop,
+      tenantId: IDS.tenant,
+      name: 'R-CHOP (Rituximabe + CHOP)',
+      nameEn: 'R-CHOP (Rituximab + Cyclophosphamide + Doxorubicin + Vincristine + Prednisone)',
+      regimen: 'R-CHOP-21',
+      indication: 'Linfoma não-Hodgkin difuso de grandes células B (DLBCL). CD20+. Primeira linha.',
+      drugs: [
+        { name: 'Rituximabe', dose: 375, unit: 'mg/m²', route: 'IV', day: 1, infusionTime: 240, notes: 'Pré-medicar com antialérgico. Iniciar infusão lentamente.' },
+        { name: 'Ciclofosfamida', dose: 750, unit: 'mg/m²', route: 'IV', day: 1, infusionTime: 60 },
+        { name: 'Doxorrubicina', dose: 50, unit: 'mg/m²', route: 'IV', day: 1, infusionTime: 15 },
+        { name: 'Vincristina', dose: 1.4, unit: 'mg/m² (máx 2mg)', route: 'IV', day: 1, infusionTime: 10 },
+        { name: 'Prednisona', dose: 100, unit: 'mg/dia VO', route: 'ORAL', day: '1-5', infusionTime: 0 },
+      ],
+      cycleDays: 21,
+      maxCycles: 6,
+      emetogenicRisk: 'HIGH',
+    },
+  });
+
+  // Lucia's AC cycles (4 completed, based on encounter history)
+  const luciaCycles = [
+    {
+      id: IDS.cycle_lucia_ac1,
+      cycleNumber: 1, status: 'COMPLETED' as const,
+      scheduledDate: daysAgo(84), startedAt: daysAgo(84), completedAt: daysAgo(83),
+      bsa: 1.62, weight: 62.0, height: 162,
+      toxicities: { nausea: 2, alopecia: 1, fatigue: 1, neutropenia: 0 },
+      labResults: { hb: 12.8, leucocitos: 8200, neutrofilos: 5800, plaquetas: 195000 },
+      doctorNotes: 'Ciclo 1 AC administrado sem intercorrências. Náuseas grau 2 no D+1 a D+5, controladas com ondansetrona. Tolerado bem.',
+    },
+    {
+      id: IDS.cycle_lucia_ac2,
+      cycleNumber: 2, status: 'COMPLETED' as const,
+      scheduledDate: daysAgo(63), startedAt: daysAgo(63), completedAt: daysAgo(62),
+      bsa: 1.60, weight: 60.5, height: 162,
+      toxicities: { nausea: 2, alopecia: 2, fatigue: 2, neutropenia: 1 },
+      labResults: { hb: 11.5, leucocitos: 6200, neutrofilos: 3500, plaquetas: 178000 },
+      doctorNotes: 'Ciclo 2 AC. Alopecia grau 2 iniciada. Neutropenia grau 1 (neutrófilos 1500-2000). Atraso de 3 dias por recuperação. Dose mantida.',
+    },
+    {
+      id: IDS.cycle_lucia_ac3,
+      cycleNumber: 3, status: 'COMPLETED' as const,
+      scheduledDate: daysAgo(42), startedAt: daysAgo(42), completedAt: daysAgo(41),
+      bsa: 1.59, weight: 59.0, height: 162,
+      toxicities: { nausea: 2, alopecia: 2, fatigue: 2, neutropenia: 1, mucositis: 1 },
+      labResults: { hb: 10.8, leucocitos: 7100, neutrofilos: 4200, plaquetas: 188000 },
+      doctorNotes: 'Ciclo 3 AC. Mucosite oral grau 1 — orientado colutório. Fadiga grau 2 persistente. Boa resposta clínica.',
+    },
+    {
+      id: IDS.cycle_lucia_ac4,
+      cycleNumber: 4, status: 'COMPLETED' as const,
+      scheduledDate: daysAgo(21), startedAt: daysAgo(21), completedAt: daysAgo(20),
+      bsa: 1.57, weight: 58.0, height: 162,
+      toxicities: { nausea: 2, alopecia: 2, fatigue: 1, neutropenia: 0 },
+      labResults: { hb: 10.2, leucocitos: 3800, neutrofilos: 2100, plaquetas: 185000 },
+      doctorNotes: 'Ciclo 4/4 AC (último ciclo). Tolerado. Ecocardiograma pós-AC: FEVE 62% (sem cardiotoxicidade). Transição para fase hormonal: tamoxifeno 20mg/dia. Aguardar recuperação medular para hormonioterapia.',
+      nurseNotes: 'Infusão realizada sem complicações. Port-a-cath funcionante. Paciente orientada sobre término do AC e início de tamoxifeno.',
+    },
+  ];
+
+  for (const cycle of luciaCycles) {
+    await prisma.chemotherapyCycle.create({
+      data: {
+        ...cycle,
+        tenantId: IDS.tenant,
+        patientId: IDS.lucia,
+        encounterId: IDS.enc_lucia_onco,
+        protocolId: IDS.proto_ac,
+      },
+    });
+  }
+
   // ─── Done ──────────────────────────────────────────────────────────────
 
   console.log('\n✅ Seed completed successfully!');
   console.log('   Created:');
   console.log('   - 1 Tenant (Hospital São Lucas)');
   console.log('   - 8 Users (3 doctors, 2 nurses, 1 pharmacist, 1 admin, 1 receptionist)');
+  console.log('   - 3 Doctor Profiles + 1 Nurse Profile');
   console.log('   - 10 Patients with rich clinical histories');
   console.log('   - 10 Social Histories');
   console.log('   - 12 Family Histories');
@@ -1830,15 +3094,26 @@ async function main(): Promise<void> {
   console.log('   - 7 Allergies');
   console.log('   - 15 Chronic Conditions');
   console.log('   - 15 Encounters');
-  console.log('   - 16 Vital Sign records');
+  console.log('   - 30+ Vital Sign records');
   console.log('   - 5 Prescriptions with 14 items');
-  console.log('   - 4 Clinical Notes');
+  console.log('   - 17 Medication Checks');
+  console.log('   - 10 Clinical Notes (original + 6 additional)');
   console.log('   - 30 Beds (10 UTI + 20 Enfermaria)');
-  console.log('   - 10 Appointments');
+  console.log('   - 18 Appointments (10 original + 8 additional)');
   console.log('   - 7 Clinical Alerts');
-  console.log('   - 5 Document Templates');
+  console.log('   - 8 Document Templates (5 original + 3 additional)');
+  console.log('   - 5 Surgical Procedures');
+  console.log('   - 8 Billing Entries with TISS data');
+  console.log('   - 16 Exam Results (lab + imaging)');
+  console.log('   - 3 Nursing Processes with 5 diagnoses, 3 outcomes, 5 interventions');
+  console.log('   - 8 Nursing Notes');
+  console.log('   - 5 Fluid Balance records');
+  console.log('   - 3 Chemotherapy Protocols + 4 Lucia AC Cycles');
   console.log('   - 8 LGPD Data Retention Policies');
   console.log('   - 6 LGPD Consent Records');
+
+  // ─── Drug Database ─────────────────────────────────────────────────────
+  await seedDrugs(prisma);
 }
 
 main()

@@ -399,6 +399,7 @@ enum CheckStatus {
 
 enum MedCheckStatus {
   SCHEDULED
+  FIRST_CHECK
   ADMINISTERED
   DELAYED
   MISSED
@@ -884,7 +885,12 @@ model Tenant {
   surgicalProcedures    SurgicalProcedure[]
   consentRecords        ConsentRecord[]
   dataRetentionPolicies DataRetentionPolicy[]
-  digitalSignatures     DigitalSignature[]
+  digitalSignatures       DigitalSignature[]
+  chemotherapyProtocols   ChemotherapyProtocol[]
+  chemotherapyCycles      ChemotherapyCycle[]
+  billingAppeals          BillingAppeal[]
+  clinicalProtocols       ClinicalProtocol[]
+  drugs                   Drug[]
 
   @@index([slug])
   @@index([cnpj])
@@ -965,6 +971,7 @@ model User {
   appointments              Appointment[]
   fluidBalances             FluidBalance[]
   digitalSignatures         DigitalSignature[]  @relation("DigitalSignatureSigner")
+  billingAppeals            BillingAppeal[]     @relation("AppealCreator")
 
   @@unique([oauthProvider, oauthProviderId])
   @@index([tenantId, email])
@@ -1125,6 +1132,7 @@ model Patient {
   surgicalProcedures  SurgicalProcedure[]
   voiceTranscriptions VoiceTranscription[]
   bedsOccupied        Bed[]               @relation("BedPatient")
+  chemotherapyCycles  ChemotherapyCycle[]
 
   @@unique([tenantId, mrn])
   @@index([tenantId, cpf])
@@ -1317,6 +1325,7 @@ model Encounter {
   nursingProcesses    NursingProcess[]
   nursingNotes        NursingNote[]
   appointments        Appointment[]
+  chemotherapyCycles  ChemotherapyCycle[]
 
   @@index([tenantId, status])
   @@index([tenantId, patientId])
@@ -2197,9 +2206,10 @@ model BillingEntry {
   createdAt           DateTime      @default(now()) @map("created_at")
   updatedAt           DateTime      @updatedAt @map("updated_at")
 
-  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  patient   Patient   @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  encounter Encounter       @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient   Patient         @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  appeals   BillingAppeal[]
 
   @@index([tenantId, status])
   @@map("billing_entries")
@@ -2332,4 +2342,211 @@ model DigitalSignature {
   @@index([prescriptionId])
   @@index([signerId])
   @@map("digital_signatures")
+}
+
+// ============================================================================
+// BLOCK 2 — CHEMOTHERAPY MODULE
+// ============================================================================
+
+enum ChemoCycleStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  SUSPENDED
+  CANCELLED
+}
+
+model ChemotherapyProtocol {
+  id              String   @id @default(uuid()) @map("id")
+  tenantId        String   @map("tenant_id")
+  name            String   @map("name")
+  nameEn          String?  @map("name_en")
+  regimen         String   @map("regimen")
+  indication      String   @map("indication")
+  drugs           Json     @map("drugs")           // Array of { name, dose, unit, route, day, infusionTime }
+  premedications  Json?    @map("premedications")  // Array of { name, dose, timing }
+  cycleDays       Int      @map("cycle_days")
+  maxCycles       Int      @map("max_cycles")
+  emetogenicRisk  String?  @map("emetogenic_risk") // HIGH, MODERATE, LOW, MINIMAL
+  notes           String?  @db.Text @map("notes")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  cycles ChemotherapyCycle[]
+
+  @@index([tenantId])
+  @@map("chemotherapy_protocols")
+}
+
+model ChemotherapyCycle {
+  id              String           @id @default(uuid()) @map("id")
+  tenantId        String           @map("tenant_id")
+  patientId       String           @map("patient_id")
+  encounterId     String?          @map("encounter_id")
+  protocolId      String           @map("protocol_id")
+  cycleNumber     Int              @map("cycle_number")
+  status          ChemoCycleStatus @default(PLANNED) @map("status")
+  scheduledDate   DateTime         @map("scheduled_date")
+  startedAt       DateTime?        @map("started_at")
+  completedAt     DateTime?        @map("completed_at")
+  bsa             Float?           @map("bsa")         // Body Surface Area (m²)
+  weight          Float?           @map("weight")      // kg
+  height          Float?           @map("height")      // cm
+  adjustedDoses   Json?            @map("adjusted_doses")
+  toxicities      Json?            @map("toxicities")  // CTCAE grades
+  labResults      Json?            @map("lab_results")
+  nurseNotes      String?          @db.Text @map("nurse_notes")
+  doctorNotes     String?          @db.Text @map("doctor_notes")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  tenant    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient   Patient               @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  encounter Encounter?            @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  protocol  ChemotherapyProtocol  @relation(fields: [protocolId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, patientId])
+  @@index([protocolId])
+  @@map("chemotherapy_cycles")
+}
+
+// ============================================================================
+// BLOCK 4 — BILLING APPEALS (GLOSA)
+// ============================================================================
+
+enum AppealStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  ACCEPTED
+  PARTIALLY_ACCEPTED
+  REJECTED
+  ESCALATED
+}
+
+model BillingAppeal {
+  id                  String       @id @default(uuid()) @map("id")
+  tenantId            String       @map("tenant_id")
+  billingEntryId      String       @map("billing_entry_id")
+  appealNumber        String       @map("appeal_number")
+  status              AppealStatus @default(DRAFT) @map("status")
+  glosedItemCodes     String[]     @map("glosed_item_codes")
+  glosedAmount        Decimal      @map("glosed_amount")
+  appealedAmount      Decimal      @map("appealed_amount")
+  recoveredAmount     Decimal?     @map("recovered_amount")
+  justification       String       @db.Text @map("justification")
+  aiJustification     String?      @db.Text @map("ai_justification")
+  supportingDocs      String[]     @map("supporting_docs")
+  tissXmlValidation   Json?        @map("tiss_xml_validation")
+  submittedAt         DateTime?    @map("submitted_at")
+  resolvedAt          DateTime?    @map("resolved_at")
+  resolution          String?      @db.Text @map("resolution")
+  createdById         String       @map("created_by_id")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  billingEntry BillingEntry @relation(fields: [billingEntryId], references: [id], onDelete: Restrict)
+  createdBy    User         @relation("AppealCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status])
+  @@index([billingEntryId])
+  @@map("billing_appeals")
+}
+
+// ============================================================================
+// BLOCK 6 — CLINICAL PROTOCOLS ENGINE
+// ============================================================================
+
+model ClinicalProtocol {
+  id              String   @id @default(uuid()) @map("id")
+  tenantId        String   @map("tenant_id")
+  name            String   @map("name")
+  nameEn          String?  @map("name_en")
+  description     String   @db.Text @map("description")
+  triggerCriteria Json     @map("trigger_criteria") // { field, operator, value }[]
+  actions         Json     @map("actions")          // { type, params }[]
+  category        String   @map("category")         // SEPSIS, ACS, STROKE, FALL, etc.
+  priority        Int      @default(0) @map("priority")
+  isActive        Boolean  @default(true) @map("is_active")
+  version         Int      @default(1) @map("version")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, isActive])
+  @@index([category])
+  @@map("clinical_protocols")
+}
+
+// ============================================================================
+// BLOCK 8 — DRUG DATABASE
+// ============================================================================
+
+model Drug {
+  id                  String   @id @default(uuid()) @map("id")
+  tenantId            String?  @map("tenant_id")   // null = global/system drug
+  name                String   @map("name")
+  nameEn              String?  @map("name_en")
+  activeIngredient    String   @map("active_ingredient")
+  atcCode             String?  @map("atc_code")
+  therapeuticClass    String   @map("therapeutic_class")
+  pharmaceuticalForm  String   @map("pharmaceutical_form")
+  concentration       String   @map("concentration")
+  manufacturer        String?  @map("manufacturer")
+  registrationAnvisa  String?  @map("registration_anvisa")
+  isControlled        Boolean  @default(false) @map("is_controlled")
+  controlType         String?  @map("control_type")  // PORTARIA_344_A1, A2, B1, B2, C1, etc.
+  isAntimicrobial     Boolean  @default(false) @map("is_antimicrobial")
+  isHighAlert         Boolean  @default(false) @map("is_high_alert")
+  maxDosePerDay       String?  @map("max_dose_per_day")
+  defaultRoute        String?  @map("default_route")
+  defaultFrequency    String?  @map("default_frequency")
+  renalAdjustment     Boolean  @default(false) @map("renal_adjustment")
+  hepaticAdjustment   Boolean  @default(false) @map("hepatic_adjustment")
+  pregnancyCategory   String?  @map("pregnancy_category") // A, B, C, D, X
+  beersListCriteria   String?  @map("beers_list_criteria")
+  pediatricUse        Boolean  @default(true) @map("pediatric_use")
+  geriatricCaution    Boolean  @default(false) @map("geriatric_caution")
+  dilutionInfo        String?  @db.Text @map("dilution_info")
+  administrationNotes String?  @db.Text @map("administration_notes")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  tenant              Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  interactionsAs1     DrugInteraction[] @relation("DrugInteraction1")
+  interactionsAs2     DrugInteraction[] @relation("DrugInteraction2")
+
+  @@index([tenantId])
+  @@index([activeIngredient])
+  @@index([atcCode])
+  @@index([name])
+  @@map("drugs")
+}
+
+model DrugInteraction {
+  id              String   @id @default(uuid()) @map("id")
+  drug1Id         String   @map("drug1_id")
+  drug2Id         String   @map("drug2_id")
+  severity        String   @map("severity")        // SEVERE, MODERATE, MILD
+  mechanism       String   @map("mechanism")
+  effect          String   @db.Text @map("effect")
+  effectEn        String?  @db.Text @map("effect_en")
+  management      String?  @db.Text @map("management")
+  managementEn    String?  @db.Text @map("management_en")
+  evidence        String?  @map("evidence")        // HIGH, MODERATE, LOW
+  source          String?  @map("source")          // ANVISA, MICROMEDEX, UPTODATE
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  drug1 Drug @relation("DrugInteraction1", fields: [drug1Id], references: [id], onDelete: Cascade)
+  drug2 Drug @relation("DrugInteraction2", fields: [drug2Id], references: [id], onDelete: Cascade)
+
+  @@unique([drug1Id, drug2Id])
+  @@index([drug1Id])
+  @@index([drug2Id])
+  @@map("drug_interactions")
 }

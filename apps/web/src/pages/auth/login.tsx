@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Mail, Lock, Eye, EyeOff, Stethoscope } from 'lucide-react';
+import { startAuthentication } from '@simplewebauthn/browser';
+import { Mail, Lock, Eye, EyeOff, Stethoscope, Fingerprint } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth.store';
 import { loginApi, isMfaChallenge, detectSSOApi, meApi } from '@/services/auth.service';
+import { webauthnLoginOptionsApi, webauthnLoginVerifyApi } from '@/services/webauthn.service';
 import { cn } from '@/lib/utils';
 
 const loginSchema = z.object({
@@ -128,6 +130,32 @@ export default function LoginPage() {
     }
   };
 
+  const handleBiometricLogin = useCallback(async () => {
+    const emailValue = prompt('Digite seu email para login biométrico:');
+    if (!emailValue) return;
+
+    setIsLoading(true);
+    try {
+      const options = await webauthnLoginOptionsApi(emailValue);
+      const authResp = await startAuthentication({ optionsJSON: options as never });
+      const result = await webauthnLoginVerifyApi(
+        emailValue,
+        authResp as unknown as Record<string, unknown>,
+      );
+      login(result.user, result.accessToken, result.refreshToken);
+      toast.success('Bem-vindo ao VoxPEP!');
+      navigate('/dashboard');
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        toast.error('Autenticação cancelada');
+      } else {
+        toast.error('Falha na autenticação biométrica. Verifique seu email ou use senha.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [login, navigate]);
+
   const handleSSOLogin = (provider: string) => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
     window.location.href = `${apiUrl}/api/v1/auth/sso/${provider}`;
@@ -223,6 +251,20 @@ export default function LoginPage() {
                 <MicrosoftIcon className="h-5 w-5 mr-3" />
                 Entrar com Microsoft
               </Button>
+
+              {/* WebAuthn Biometric Login — only show if browser supports it */}
+              {typeof window !== 'undefined' && window.PublicKeyCredential && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleBiometricLogin}
+                  disabled={isLoading}
+                  className="w-full h-11 bg-secondary/50 border-border hover:bg-secondary hover:border-primary/30 text-foreground transition-all"
+                >
+                  <Fingerprint className="h-5 w-5 mr-3 text-teal-600 dark:text-teal-400" />
+                  Entrar com Biometria
+                </Button>
+              )}
             </div>
 
             {/* SSO Detection Banner */}

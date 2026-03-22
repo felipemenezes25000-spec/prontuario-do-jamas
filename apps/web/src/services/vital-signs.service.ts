@@ -22,9 +22,9 @@ export function useVitalSigns(patientId: string) {
     queryKey: vitalSignsKeys.byPatient(patientId),
     queryFn: async () => {
       const { data } = await api.get<PaginatedResponse<VitalSigns>>(
-        `/patients/${patientId}/vital-signs`,
+        `/vital-signs/patient/${patientId}`,
       );
-      return data.data;
+      return data?.data ?? [];
     },
     enabled: !!patientId,
   });
@@ -35,7 +35,7 @@ export function useEncounterVitalSigns(encounterId: string) {
     queryKey: vitalSignsKeys.byEncounter(encounterId),
     queryFn: async () => {
       const { data } = await api.get<VitalSigns[]>(
-        `/encounters/${encounterId}/vital-signs`,
+        `/vital-signs/by-encounter/${encounterId}`,
       );
       return data;
     },
@@ -48,7 +48,7 @@ export function useLatestVitalSigns(patientId: string) {
     queryKey: vitalSignsKeys.latest(patientId),
     queryFn: async () => {
       const { data } = await api.get<VitalSigns>(
-        `/patients/${patientId}/vital-signs/latest`,
+        `/vital-signs/patient/${patientId}/latest`,
       );
       return data;
     },

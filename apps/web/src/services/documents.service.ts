@@ -97,20 +97,6 @@ export function useCreateDocument() {
   });
 }
 
-export function useUpdateDocument() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<ClinicalDocument> & { id: string }) => {
-      const { data } = await api.patch<ClinicalDocument>(`/documents/${id}`, updates);
-      return data;
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: documentKeys.detail(vars.id) });
-      qc.invalidateQueries({ queryKey: documentKeys.lists() });
-    },
-  });
-}
-
 export function useSignDocument() {
   const qc = useQueryClient();
   return useMutation({
@@ -125,28 +111,8 @@ export function useSignDocument() {
   });
 }
 
-export function useVoidDocument() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { data } = await api.post<ClinicalDocument>(`/documents/${id}/void`, { reason });
-      return data;
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: documentKeys.detail(vars.id) });
-      qc.invalidateQueries({ queryKey: documentKeys.all });
-    },
-  });
-}
-
-export function useGenerateDocumentPdf() {
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await api.post<{ pdfUrl: string }>(`/documents/${id}/generate-pdf`);
-      return data;
-    },
-  });
-}
+// useVoidDocument: backend has no /documents/:id/void route — use sign or create a new doc with VOIDED status via POST /documents
+// useGenerateDocumentPdf: backend has no /documents/:id/generate-pdf route — feature not yet implemented on the API
 
 export function useDeleteDocument() {
   const qc = useQueryClient();
@@ -168,7 +134,7 @@ export function useDocumentTemplates(filters?: TemplateFilters) {
   return useQuery({
     queryKey: documentKeys.templateList(filters),
     queryFn: async () => {
-      const { data } = await api.get<DocumentTemplate[]>('/documents/templates', {
+      const { data } = await api.get<DocumentTemplate[]>('/document-templates', {
         params: filters,
       });
       return data;
@@ -180,7 +146,7 @@ export function useDocumentTemplate(id: string) {
   return useQuery({
     queryKey: documentKeys.templateDetail(id),
     queryFn: async () => {
-      const { data } = await api.get<DocumentTemplate>(`/documents/templates/${id}`);
+      const { data } = await api.get<DocumentTemplate>(`/document-templates/${id}`);
       return data;
     },
     enabled: !!id,
@@ -191,7 +157,7 @@ export function useCreateDocumentTemplate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (template: Partial<DocumentTemplate>) => {
-      const { data } = await api.post<DocumentTemplate>('/documents/templates', template);
+      const { data } = await api.post<DocumentTemplate>('/document-templates', template);
       return data;
     },
     onSuccess: () => {
@@ -204,7 +170,7 @@ export function useUpdateDocumentTemplate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<DocumentTemplate> & { id: string }) => {
-      const { data } = await api.patch<DocumentTemplate>(`/documents/templates/${id}`, updates);
+      const { data } = await api.patch<DocumentTemplate>(`/document-templates/${id}`, updates);
       return data;
     },
     onSuccess: (_, vars) => {
@@ -218,7 +184,7 @@ export function useDeleteDocumentTemplate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(`/documents/templates/${id}`);
+      await api.delete(`/document-templates/${id}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: documentKeys.templates() });
@@ -241,8 +207,8 @@ export function useGenerateFromTemplate() {
       variables?: Record<string, string>;
     }) => {
       const { data } = await api.post<ClinicalDocument>(
-        `/documents/templates/${templateId}/generate`,
-        { patientId, encounterId, variables },
+        '/documents/generate-from-template',
+        { templateId, patientId, encounterId, variables },
       );
       return data;
     },

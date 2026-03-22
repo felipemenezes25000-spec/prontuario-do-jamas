@@ -26,6 +26,36 @@ export class AlertsService {
     });
   }
 
+  async findAll(
+    tenantId: string,
+    filters: { isActive?: boolean; patientId?: string; encounterId?: string; severity?: string; page?: number; limit?: number },
+  ) {
+    const where: Record<string, unknown> = { tenantId };
+    if (filters.isActive !== undefined) where.isActive = filters.isActive;
+    if (filters.patientId) where.patientId = filters.patientId;
+    if (filters.encounterId) where.encounterId = filters.encounterId;
+    if (filters.severity) where.severity = filters.severity;
+
+    const limit = filters.limit ?? 20;
+    const page = filters.page ?? 1;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.prisma.clinicalAlert.findMany({
+        where,
+        orderBy: [{ severity: 'asc' }, { triggeredAt: 'desc' }],
+        include: {
+          patient: { select: { id: true, fullName: true, mrn: true } },
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.clinicalAlert.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
   async findActive(tenantId: string) {
     return this.prisma.clinicalAlert.findMany({
       where: { tenantId, isActive: true },

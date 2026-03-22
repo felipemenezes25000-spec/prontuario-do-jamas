@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,6 +26,29 @@ import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 @Controller('alerts')
 export class AlertsController {
   constructor(private readonly alertsService: AlertsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List alerts with filters' })
+  @ApiResponse({ status: 200, description: 'Paginated alerts list' })
+  async findAll(
+    @CurrentTenant() tenantId: string,
+    @Query('isActive') isActive?: string,
+    @Query('patientId') patientId?: string,
+    @Query('encounterId') encounterId?: string,
+    @Query('severity') severity?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.alertsService.findAll(tenantId, {
+      isActive: isActive !== undefined ? isActive === 'true' : undefined,
+      patientId,
+      encounterId,
+      severity,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: pageSize ? parseInt(pageSize, 10) : limit ? parseInt(limit, 10) : undefined,
+    });
+  }
 
   @Post()
   @ApiOperation({ summary: 'Create a clinical alert' })

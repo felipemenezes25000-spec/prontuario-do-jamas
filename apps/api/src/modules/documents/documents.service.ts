@@ -6,9 +6,52 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 
+export interface FindAllDocumentsOptions {
+  patientId?: string;
+  encounterId?: string;
+  type?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 @Injectable()
 export class DocumentsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findAll(tenantId: string, options: FindAllDocumentsOptions = {}) {
+    const { patientId, encounterId, type, status, page = 1, pageSize = 20 } = options;
+    const where: Record<string, unknown> = { tenantId };
+
+    if (patientId) where.patientId = patientId;
+    if (encounterId) where.encounterId = encounterId;
+    if (type) where.type = type;
+    if (status) where.status = status;
+
+    const skip = (page - 1) * pageSize;
+
+    const [data, total] = await Promise.all([
+      this.prisma.clinicalDocument.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          patient: { select: { id: true, fullName: true, mrn: true } },
+          author: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.clinicalDocument.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
 
   async create(tenantId: string, authorId: string, dto: CreateDocumentDto) {
     return this.prisma.clinicalDocument.create({

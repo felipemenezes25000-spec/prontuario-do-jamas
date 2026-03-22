@@ -46,21 +46,30 @@ export class EncountersService {
     if (query.type) {
       where.type = query.type;
     }
-    if (query.dateFrom || query.dateTo) {
+
+    // Resolve date aliases: startDate -> dateFrom, endDate -> dateTo
+    const dateFrom = query.dateFrom ?? query.startDate;
+    const dateTo = query.dateTo ?? query.endDate;
+
+    if (dateFrom || dateTo) {
       where.createdAt = {};
-      if (query.dateFrom) {
-        (where.createdAt as Record<string, unknown>).gte = new Date(query.dateFrom);
+      if (dateFrom) {
+        (where.createdAt as Record<string, unknown>).gte = new Date(dateFrom);
       }
-      if (query.dateTo) {
-        (where.createdAt as Record<string, unknown>).lte = new Date(query.dateTo);
+      if (dateTo) {
+        (where.createdAt as Record<string, unknown>).lte = new Date(dateTo);
       }
     }
+
+    // Support `limit` as alias for pageSize
+    const pageSize = query.limit ?? query.pageSize;
+    const skip = (query.page - 1) * pageSize;
 
     const [data, total] = await Promise.all([
       this.prisma.encounter.findMany({
         where,
-        skip: query.skip,
-        take: query.take,
+        skip,
+        take: pageSize,
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
@@ -87,8 +96,8 @@ export class EncountersService {
       data,
       total,
       page: query.page,
-      pageSize: query.pageSize,
-      totalPages: Math.ceil(total / query.pageSize),
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     };
   }
 

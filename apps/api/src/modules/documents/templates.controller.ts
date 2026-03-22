@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -13,6 +14,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { TemplatesService } from './templates.service';
 import { CreateTemplateDto, UpdateTemplateDto } from './dto/create-template.dto';
@@ -39,9 +41,18 @@ export class TemplatesController {
 
   @Get()
   @ApiOperation({ summary: 'List all templates for tenant' })
+  @ApiQuery({ name: 'type', required: false, description: 'Filter by document type' })
+  @ApiQuery({ name: 'category', required: false, description: 'Filter by category' })
+  @ApiQuery({ name: 'isActive', required: false, description: 'Filter by active status' })
   @ApiResponse({ status: 200, description: 'List of templates' })
-  async findAll(@CurrentTenant() tenantId: string) {
-    return this.templatesService.findAll(tenantId);
+  async findAll(
+    @CurrentTenant() tenantId: string,
+    @Query('type') type?: string,
+    @Query('category') category?: string,
+    @Query('isActive') isActive?: string,
+  ) {
+    const isActiveParsed = isActive === undefined ? undefined : isActive === 'true';
+    return this.templatesService.findAll(tenantId, { type, category, isActive: isActiveParsed });
   }
 
   @Get(':id')

@@ -223,10 +223,10 @@ describe('LoginPage', () => {
     expect(screen.getByText('Esqueceu a senha?')).toBeInTheDocument();
   });
 
-  it('renders demo credentials hint', () => {
+  it('renders demo mode button', () => {
     render(<LoginPage />);
     expect(
-      screen.getByText('Demo: carlos@voxpep.com / admin123'),
+      screen.getByText(/Entrar em modo Demo/i),
     ).toBeInTheDocument();
   });
 });

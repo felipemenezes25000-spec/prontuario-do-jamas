@@ -29,6 +29,12 @@ const processQueue = (error: unknown, token: string | null = null) => {
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Map frontend 'limit' param to API's 'pageSize'
+    if (config.params?.limit !== undefined) {
+      config.params.pageSize = config.params.limit;
+      delete config.params.limit;
+    }
+
     const stored = localStorage.getItem('voxpep-auth');
     if (stored) {
       try {

@@ -40,14 +40,21 @@ export class UsersController {
   }
 
   @Get()
-  @Roles(ROLES.SYSTEM_ADMIN, ROLES.TENANT_ADMIN)
   @ApiOperation({ summary: 'List users in current tenant' })
   @ApiResponse({ status: 200, description: 'Paginated list of users' })
   async findAll(
     @CurrentTenant() tenantId: string,
-    @Query() pagination: PaginationQueryDto,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('role') role?: string,
+    @Query('search') search?: string,
   ) {
-    return this.usersService.findAll(tenantId, pagination);
+    return this.usersService.findAll(tenantId, {
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+      role,
+      search,
+    });
   }
 
   @Get(':id')

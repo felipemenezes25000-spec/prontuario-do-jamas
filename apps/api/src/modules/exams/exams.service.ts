@@ -43,6 +43,47 @@ export class ExamsService {
     });
   }
 
+  async findAll(
+    tenantId: string,
+    options: { page?: number; pageSize?: number; status?: string; patientId?: string },
+  ) {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 20;
+    const skip = (page - 1) * pageSize;
+
+    const where: Record<string, unknown> = {
+      patient: { tenantId },
+    };
+    if (options.status) {
+      where.status = options.status;
+    }
+    if (options.patientId) {
+      where.patientId = options.patientId;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.examResult.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          patient: { select: { id: true, fullName: true, mrn: true } },
+          requestedBy: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.examResult.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
   async findById(id: string) {
     const exam = await this.prisma.examResult.findUnique({
       where: { id },

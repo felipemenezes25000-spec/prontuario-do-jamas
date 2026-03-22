@@ -35,22 +35,38 @@ export class AppointmentsService {
     if (query.doctorId) where.doctorId = query.doctorId;
     if (query.patientId) where.patientId = query.patientId;
     if (query.status) where.status = query.status;
+    if (query.type) where.type = query.type;
 
-    if (query.dateFrom || query.dateTo) {
+    // Resolve date aliases: startDate -> dateFrom, endDate -> dateTo
+    const dateFrom = query.dateFrom ?? query.startDate;
+    const dateTo = query.dateTo ?? query.endDate;
+
+    // Single exact date filter
+    if (query.date) {
+      const start = new Date(query.date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(query.date);
+      end.setHours(23, 59, 59, 999);
+      where.scheduledAt = { gte: start, lte: end };
+    } else if (dateFrom || dateTo) {
       where.scheduledAt = {};
-      if (query.dateFrom) {
-        (where.scheduledAt as Record<string, unknown>).gte = new Date(query.dateFrom);
+      if (dateFrom) {
+        (where.scheduledAt as Record<string, unknown>).gte = new Date(dateFrom);
       }
-      if (query.dateTo) {
-        (where.scheduledAt as Record<string, unknown>).lte = new Date(query.dateTo);
+      if (dateTo) {
+        (where.scheduledAt as Record<string, unknown>).lte = new Date(dateTo);
       }
     }
+
+    // Support `limit` as alias for pageSize
+    const pageSize = query.limit ?? query.pageSize;
+    const skip = (query.page - 1) * pageSize;
 
     const [data, total] = await Promise.all([
       this.prisma.appointment.findMany({
         where,
-        skip: query.skip,
-        take: query.take,
+        skip,
+        take: pageSize,
         orderBy: { scheduledAt: 'asc' },
         include: {
           patient: { select: { id: true, fullName: true, mrn: true, phone: true } },
@@ -64,8 +80,8 @@ export class AppointmentsService {
       data,
       total,
       page: query.page,
-      pageSize: query.pageSize,
-      totalPages: Math.ceil(total / query.pageSize),
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     };
   }
 

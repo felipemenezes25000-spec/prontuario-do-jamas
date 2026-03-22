@@ -19,3 +19,5 @@ export {
   EncounterSkeleton,
   DashboardSkeleton,
 } from './loading-skeleton';
+export { SafetyValidationForm, DoubleCheckActions } from './prescription-safety-panel';
+export { DocumentPrefill } from './document-prefill';

@@ -64,10 +64,10 @@ export function useMedicationChecks(filters?: MedicationCheckFilters) {
     queryKey: nursingKeys.medicationChecks(filters),
     queryFn: async () => {
       const { data } = await api.get<PaginatedResponse<MedicationCheck>>(
-        '/nursing/medication-checks',
+        '/prescriptions/medication-checks',
         { params: filters },
       );
-      return data.data;
+      return data?.data ?? [];
     },
   });
 }
@@ -77,7 +77,7 @@ export function useAdministerMedication() {
   return useMutation({
     mutationFn: async ({ id, notes }: { id: string; notes?: string }) => {
       const { data } = await api.post<MedicationCheck>(
-        `/nursing/medication-checks/${id}/administer`,
+        `/nursing/medication-administrations/${id}/administer`,
         { notes },
       );
       return data;
@@ -93,7 +93,7 @@ export function useSkipMedication() {
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
       const { data } = await api.post<MedicationCheck>(
-        `/nursing/medication-checks/${id}/skip`,
+        `/nursing/medication-administrations/${id}/skip`,
         { reason },
       );
       return data;
@@ -113,8 +113,7 @@ export function useNursingProcesses(encounterId: string) {
     queryKey: nursingKeys.processByEncounter(encounterId),
     queryFn: async () => {
       const { data } = await api.get<NursingProcess[]>(
-        `/nursing/processes`,
-        { params: { encounterId } },
+        `/nursing/by-encounter/${encounterId}`,
       );
       return data;
     },
@@ -127,8 +126,7 @@ export function usePatientNursingProcesses(patientId: string) {
     queryKey: nursingKeys.processByPatient(patientId),
     queryFn: async () => {
       const { data } = await api.get<NursingProcess[]>(
-        `/nursing/processes`,
-        { params: { patientId } },
+        `/nursing/processes/patient/${patientId}/active`,
       );
       return data;
     },
@@ -184,8 +182,7 @@ export function useNursingNotes(encounterId: string) {
     queryKey: nursingKeys.notesByEncounter(encounterId),
     queryFn: async () => {
       const { data } = await api.get<NursingNote[]>(
-        `/nursing/notes`,
-        { params: { encounterId } },
+        `/nursing/by-encounter/${encounterId}`,
       );
       return data;
     },
@@ -215,8 +212,7 @@ export function useFluidBalance(encounterId: string) {
     queryKey: nursingKeys.fluidBalanceByEncounter(encounterId),
     queryFn: async () => {
       const { data } = await api.get<FluidBalance[]>(
-        `/nursing/fluid-balance`,
-        { params: { encounterId } },
+        `/nursing/by-encounter/${encounterId}`,
       );
       return data;
     },
@@ -229,8 +225,7 @@ export function usePatientFluidBalance(patientId: string) {
     queryKey: nursingKeys.fluidBalanceByPatient(patientId),
     queryFn: async () => {
       const { data } = await api.get<FluidBalance[]>(
-        `/nursing/fluid-balance`,
-        { params: { patientId } },
+        `/nursing/by-patient/${patientId}`,
       );
       return data;
     },

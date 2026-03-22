@@ -109,6 +109,57 @@ export class SurgicalService {
     });
   }
 
+  async findAll(
+    tenantId: string,
+    options: {
+      patientId?: string;
+      surgeonId?: string;
+      status?: string;
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ) {
+    const page = options.page || 1;
+    const pageSize = options.pageSize || 20;
+    const skip = (page - 1) * pageSize;
+
+    const where: Record<string, unknown> = { tenantId };
+
+    if (options.patientId) where.patientId = options.patientId;
+    if (options.surgeonId) where.surgeonId = options.surgeonId;
+    if (options.status) where.status = options.status;
+    if (options.startDate || options.endDate) {
+      const scheduledAt: Record<string, Date> = {};
+      if (options.startDate) scheduledAt.gte = new Date(options.startDate);
+      if (options.endDate) scheduledAt.lte = new Date(options.endDate);
+      where.scheduledAt = scheduledAt;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.surgicalProcedure.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { scheduledAt: 'desc' },
+        include: {
+          patient: { select: { id: true, fullName: true, mrn: true } },
+          surgeon: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.surgicalProcedure.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
   async findByDate(tenantId: string, date: string) {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);

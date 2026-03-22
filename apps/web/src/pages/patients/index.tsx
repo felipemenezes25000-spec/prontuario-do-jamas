@@ -169,7 +169,7 @@ export default function PatientsListPage() {
                       </td>
                       <td className="hidden px-4 py-3 xl:table-cell">
                         <div className="flex flex-wrap gap-1">
-                          {patient.tags.slice(0, 2).map((tag) => {
+                          {(patient.tags ?? []).slice(0, 2).map((tag) => {
                             const tagColors: Record<string, string> = {
                               diabético: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
                               hipertenso: 'bg-red-500/15 text-red-400 border-red-500/20',
@@ -191,9 +191,9 @@ export default function PatientsListPage() {
                               </Badge>
                             );
                           })}
-                          {patient.tags.length > 2 && (
+                          {(patient.tags ?? []).length > 2 && (
                             <Badge variant="secondary" className="bg-secondary text-[10px] text-muted-foreground">
-                              +{patient.tags.length - 2}
+                              +{(patient.tags ?? []).length - 2}
                             </Badge>
                           )}
                         </div>

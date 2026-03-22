@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrescriptionSafetyService } from './prescription-safety.service';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 import { CreatePrescriptionItemDto } from './dto/create-prescription-item.dto';
@@ -11,7 +12,10 @@ import { PrescriptionStatus, MedCheckStatus } from '@prisma/client';
 
 @Injectable()
 export class PrescriptionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly safetyService: PrescriptionSafetyService,
+  ) {}
 
   async create(tenantId: string, doctorId: string, dto: CreatePrescriptionDto) {
     const { items, ...prescriptionData } = dto;
@@ -50,6 +54,46 @@ export class PrescriptionsService {
 
       return prescription;
     });
+  }
+
+  async findAll(
+    tenantId: string,
+    options: { page?: number; pageSize?: number; status?: string; patientId?: string },
+  ) {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 20;
+    const skip = (page - 1) * pageSize;
+
+    const where: Record<string, unknown> = { tenantId };
+    if (options.status) {
+      where.status = options.status;
+    }
+    if (options.patientId) {
+      where.patientId = options.patientId;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.prescription.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          items: { orderBy: { sortOrder: 'asc' } },
+          doctor: { select: { id: true, name: true } },
+          patient: { select: { id: true, fullName: true, mrn: true } },
+        },
+      }),
+      this.prisma.prescription.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async findByEncounter(encounterId: string) {
@@ -118,6 +162,35 @@ export class PrescriptionsService {
       throw new BadRequestException('Prescription is already signed');
     }
 
+    // Validate safety for each medication item before signing
+    const safetyErrors: string[] = [];
+    for (const item of prescription.items) {
+      if (item.medicationName) {
+        const result = this.safetyService.validateSafety({
+          medicationName: item.medicationName!,
+          activeIngredient: item.activeIngredient ?? undefined,
+          concentration: item.concentration ?? undefined,
+          route: item.route ?? undefined,
+          frequency: item.frequency ?? undefined,
+        });
+        safetyErrors.push(...result.errors);
+      }
+    }
+
+    if (safetyErrors.length > 0) {
+      throw new BadRequestException({
+        message: 'Prescription has safety validation errors that must be resolved before signing',
+        errors: safetyErrors,
+      });
+    }
+
+    // Check if double-check is required but not yet done
+    if (prescription.requiresDoubleCheck && !prescription.doubleCheckedAt) {
+      throw new BadRequestException(
+        'This prescription requires double-check before signing. A nurse or pharmacist must complete the double-check first.',
+      );
+    }
+
     return this.prisma.prescription.update({
       where: { id },
       data: {
@@ -152,6 +225,68 @@ export class PrescriptionsService {
     return this.prisma.prescriptionItem.delete({
       where: { id: itemId },
     });
+  }
+
+  async findMedicationChecks(
+    tenantId: string,
+    options: {
+      status?: string;
+      wardId?: string;
+      nurseId?: string;
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ) {
+    const page = options.page || 1;
+    const pageSize = options.pageSize || 50;
+    const skip = (page - 1) * pageSize;
+
+    const where: Record<string, unknown> = {
+      prescriptionItem: {
+        prescription: { tenantId },
+      },
+    };
+
+    if (options.status) {
+      where.status = options.status;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.medicationCheck.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { scheduledAt: 'asc' },
+        include: {
+          prescriptionItem: {
+            select: {
+              id: true,
+              medicationName: true,
+              dose: true,
+              route: true,
+              frequency: true,
+              prescription: {
+                select: {
+                  id: true,
+                  patientId: true,
+                  patient: { select: { id: true, fullName: true, mrn: true } },
+                },
+              },
+            },
+          },
+          nurse: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.medicationCheck.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async checkMedication(

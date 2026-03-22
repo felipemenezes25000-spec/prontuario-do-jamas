@@ -47,9 +47,23 @@ export class BillingController {
   @ApiResponse({ status: 200, description: 'Paginated billing entries' })
   async findByTenant(
     @CurrentTenant() tenantId: string,
-    @Query() pagination: PaginationQueryDto,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+    @Query('patientId') patientId?: string,
+    @Query('insuranceProvider') insuranceProvider?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
-    return this.billingService.findByTenant(tenantId, pagination);
+    return this.billingService.findByTenant(tenantId, {
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+      status,
+      patientId,
+      insuranceProvider,
+      startDate,
+      endDate,
+    });
   }
 
   @Get('summary')

@@ -4,7 +4,6 @@ import type {
   Admission,
   Bed,
   BedTransfer,
-  PaginatedResponse,
   CreateAdmissionDto,
   CreateBedTransferDto,
   BedStatus,
@@ -50,13 +49,11 @@ export const admissionKeys = {
 // Admissions
 // ============================================================================
 
-export function useAdmissions(filters?: AdmissionFilters) {
+export function useAdmissions(_filters?: AdmissionFilters) {
   return useQuery({
-    queryKey: admissionKeys.list(filters),
+    queryKey: admissionKeys.list(_filters),
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Admission>>('/admissions', {
-        params: filters,
-      });
+      const { data } = await api.get<Admission[]>('/admissions/active');
       return data;
     },
   });
@@ -77,7 +74,7 @@ export function useCreateAdmission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (admission: CreateAdmissionDto) => {
-      const { data } = await api.post<Admission>('/admissions', admission);
+      const { data } = await api.post<Admission>('/admissions/admit', admission);
       return data;
     },
     onSuccess: () => {
@@ -97,6 +94,29 @@ export function useUpdateAdmission() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: admissionKeys.lists() });
       qc.invalidateQueries({ queryKey: admissionKeys.detail(vars.id) });
+    },
+  });
+}
+
+export function useReverseDischarge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      admissionId,
+      reason,
+    }: {
+      admissionId: string;
+      reason: string;
+    }) => {
+      const { data } = await api.post<Admission>(
+        `/admissions/${admissionId}/reverse-discharge`,
+        { reason },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: admissionKeys.all });
+      qc.invalidateQueries({ queryKey: admissionKeys.beds() });
     },
   });
 }
@@ -143,7 +163,7 @@ export function useBeds(filters?: BedFilters) {
   return useQuery({
     queryKey: admissionKeys.bedList(filters),
     queryFn: async () => {
-      const { data } = await api.get<Bed[]>('/beds', { params: filters });
+      const { data } = await api.get<Bed[]>('/admissions/beds/all', { params: filters });
       return data;
     },
   });
@@ -153,8 +173,11 @@ export function useBed(id: string) {
   return useQuery({
     queryKey: admissionKeys.bedDetail(id),
     queryFn: async () => {
-      const { data } = await api.get<Bed>(`/beds/${id}`);
-      return data;
+      const { data } = await api.get<Bed>(`/admissions/beds/all`);
+      // API doesn't expose single bed GET — filter client-side
+      const bed = (Array.isArray(data) ? data : []).find((b: Bed) => b.id === id);
+      if (!bed) throw new Error(`Bed ${id} not found`);
+      return bed;
     },
     enabled: !!id,
   });
@@ -164,7 +187,7 @@ export function useUpdateBedStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: BedStatus }) => {
-      const { data } = await api.patch<Bed>(`/beds/${id}/status`, { status });
+      const { data } = await api.patch<Bed>(`/admissions/beds/${id}/status`, { status });
       return data;
     },
     onSuccess: () => {
@@ -181,10 +204,11 @@ export function useBedTransfers(admissionId: string) {
   return useQuery({
     queryKey: admissionKeys.transfers(admissionId),
     queryFn: async () => {
-      const { data } = await api.get<BedTransfer[]>(
-        `/admissions/${admissionId}/transfers`,
+      // No dedicated transfers listing endpoint — retrieve from admission detail
+      const { data } = await api.get<Admission & { bedTransfers?: BedTransfer[] }>(
+        `/admissions/${admissionId}`,
       );
-      return data;
+      return data.bedTransfers ?? [];
     },
     enabled: !!admissionId,
   });
@@ -195,7 +219,7 @@ export function useRequestBedTransfer() {
   return useMutation({
     mutationFn: async (transfer: CreateBedTransferDto) => {
       const { data } = await api.post<BedTransfer>(
-        `/admissions/${transfer.admissionId}/transfers`,
+        `/admissions/${transfer.admissionId}/transfer`,
         transfer,
       );
       return data;
@@ -210,9 +234,9 @@ export function useRequestBedTransfer() {
 export function useApproveBedTransfer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ transferId }: { transferId: string }) => {
+    mutationFn: async ({ admissionId }: { admissionId: string }) => {
       const { data } = await api.post<BedTransfer>(
-        `/beds/transfers/${transferId}/approve`,
+        `/admissions/${admissionId}/transfer`,
       );
       return data;
     },
@@ -226,9 +250,9 @@ export function useApproveBedTransfer() {
 export function useExecuteBedTransfer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ transferId }: { transferId: string }) => {
+    mutationFn: async ({ admissionId }: { admissionId: string }) => {
       const { data } = await api.post<BedTransfer>(
-        `/beds/transfers/${transferId}/execute`,
+        `/admissions/${admissionId}/transfer`,
       );
       return data;
     },

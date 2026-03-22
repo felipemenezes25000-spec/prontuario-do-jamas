@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,11 +18,16 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { PrescriptionsService } from './prescriptions.service';
+import { PrescriptionSafetyService } from './prescription-safety.service';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 import { CreatePrescriptionItemDto } from './dto/create-prescription-item.dto';
+import { ValidateSafetyDto } from './dto/validate-safety.dto';
+import { GenerateScheduleDto } from './dto/generate-schedule.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 import { MedCheckStatus } from '@prisma/client';
 
@@ -29,7 +35,10 @@ import { MedCheckStatus } from '@prisma/client';
 @ApiBearerAuth('access-token')
 @Controller('prescriptions')
 export class PrescriptionsController {
-  constructor(private readonly prescriptionsService: PrescriptionsService) {}
+  constructor(
+    private readonly prescriptionsService: PrescriptionsService,
+    private readonly prescriptionSafetyService: PrescriptionSafetyService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new prescription with items' })
@@ -40,6 +49,44 @@ export class PrescriptionsController {
     @Body() dto: CreatePrescriptionDto,
   ) {
     return this.prescriptionsService.create(tenantId, user.sub, dto);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List prescriptions with filters and pagination' })
+  @ApiResponse({ status: 200, description: 'Paginated list of prescriptions' })
+  async findAll(
+    @CurrentTenant() tenantId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+    @Query('patientId') patientId?: string,
+  ) {
+    return this.prescriptionsService.findAll(tenantId, {
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      status,
+      patientId,
+    });
+  }
+
+  @Get('medication-checks')
+  @ApiOperation({ summary: 'List medication checks (for nursing dashboard)' })
+  @ApiResponse({ status: 200, description: 'Paginated medication checks' })
+  async findMedicationChecks(
+    @CurrentTenant() tenantId: string,
+    @Query('status') status?: string,
+    @Query('wardId') wardId?: string,
+    @Query('nurseId') nurseId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.prescriptionsService.findMedicationChecks(tenantId, {
+      status,
+      wardId,
+      nurseId,
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+    });
   }
 
   @Get('by-encounter/:encounterId')
@@ -151,5 +198,56 @@ export class PrescriptionsController {
     },
   ) {
     return this.prescriptionsService.checkMedication(itemId, user.sub, data);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Block 5 — Prescription Safety Rules
+  // ──────────────────────────────────────────────────────────────────────────
+
+  @Post('validate-safety')
+  @ApiOperation({ summary: 'Validate prescription against all safety rules (Portaria 344/98, RDC 471/2021, high-alert)' })
+  @ApiResponse({ status: 200, description: 'Safety validation result' })
+  async validateSafety(
+    @Body() dto: ValidateSafetyDto,
+  ) {
+    return this.prescriptionSafetyService.validateSafety(dto);
+  }
+
+  @Post('generate-schedule')
+  @ApiOperation({ summary: 'Generate automatic medication schedule (aprazamento) for next 24h' })
+  @ApiResponse({ status: 200, description: 'Generated schedule' })
+  async generateSchedule(
+    @Body() dto: GenerateScheduleDto,
+  ) {
+    return this.prescriptionSafetyService.generateSchedule(dto);
+  }
+
+  @Post(':id/first-check')
+  @UseGuards(RolesGuard)
+  @Roles('NURSE', 'NURSE_TECH', 'PHARMACIST')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
+  @ApiOperation({ summary: 'Mark prescription as first-checked (enfermeiro)' })
+  @ApiResponse({ status: 200, description: 'First check completed' })
+  @ApiResponse({ status: 403, description: 'Only nurses/pharmacists allowed' })
+  async firstCheck(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.prescriptionSafetyService.firstCheck(id, user.sub, user.role);
+  }
+
+  @Post(':id/double-check')
+  @UseGuards(RolesGuard)
+  @Roles('NURSE', 'NURSE_TECH', 'PHARMACIST')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
+  @ApiOperation({ summary: 'Mark prescription as double-checked by second nurse/pharmacist' })
+  @ApiResponse({ status: 200, description: 'Double check completed' })
+  @ApiResponse({ status: 403, description: 'Only nurses/pharmacists allowed' })
+  @ApiResponse({ status: 400, description: 'First check must be done first / Same person cannot double-check' })
+  async doubleCheck(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.prescriptionSafetyService.doubleCheck(id, user.sub, user.role);
   }
 }

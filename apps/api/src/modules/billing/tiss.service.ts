@@ -269,6 +269,103 @@ export class TissService {
   }
 
   /**
+   * Validate TISS XML structure and required fields.
+   * Returns validation result with errors and warnings.
+   */
+  validateTissXml(xml: string): {
+    valid: boolean;
+    errors: string[];
+    warnings: string[];
+  } {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!xml || typeof xml !== 'string' || xml.trim().length === 0) {
+      errors.push('XML vazio ou invalido');
+      return { valid: false, errors, warnings };
+    }
+
+    // Check basic XML structure
+    const trimmed = xml.trim();
+    if (!trimmed.startsWith('<?xml') && !trimmed.startsWith('<')) {
+      errors.push('Documento nao possui estrutura XML valida');
+    }
+
+    // Check for matching opening/closing tags (basic well-formedness)
+    const openTags = trimmed.match(/<[a-zA-Z][^/> ]*/g) ?? [];
+    const closeTags = trimmed.match(/<\/[a-zA-Z][^>]*/g) ?? [];
+    if (openTags.length === 0) {
+      errors.push('Nenhuma tag XML encontrada no documento');
+    }
+
+    // Check for self-closing correctness — ensure tags without self-close have a matching close
+    const selfClosing = (trimmed.match(/\/>/g) ?? []).length;
+    if (openTags.length - selfClosing > closeTags.length) {
+      errors.push(
+        'Estrutura XML malformada: tags abertas sem fechamento correspondente',
+      );
+    }
+
+    // Validate required TISS fields
+    const requiredFields: Array<{ tag: string; label: string }> = [
+      { tag: 'numeroGuiaPrestador', label: 'Numero da Guia do Prestador (guiaPrestador)' },
+      { tag: 'registroANS', label: 'Registro ANS' },
+      { tag: 'dataAtendimento', label: 'Data de Atendimento' },
+    ];
+
+    for (const field of requiredFields) {
+      const regex = new RegExp(`<[^>]*${field.tag}[^>]*>`, 'i');
+      if (!regex.test(trimmed)) {
+        errors.push(`Campo obrigatorio ausente: ${field.label}`);
+      }
+    }
+
+    // Check for procedures section
+    const hasProcedures =
+      /procedimento|codigoProcedimento/i.test(trimmed);
+    if (!hasProcedures) {
+      errors.push('Secao de procedimentos ausente');
+    }
+
+    // Warnings for optional but recommended fields
+    const recommendedFields: Array<{ tag: string; label: string }> = [
+      { tag: 'CNES', label: 'Codigo CNES do prestador' },
+      { tag: 'nomeBeneficiario', label: 'Nome do beneficiario' },
+      { tag: 'numeroCarteira', label: 'Numero da carteira' },
+      { tag: 'CBOS', label: 'Codigo CBOS do profissional' },
+      { tag: 'versaoPadrao', label: 'Versao do padrao TISS' },
+    ];
+
+    for (const field of recommendedFields) {
+      const regex = new RegExp(`<[^>]*${field.tag}[^>]*>`, 'i');
+      if (!regex.test(trimmed)) {
+        warnings.push(`Campo recomendado ausente: ${field.label}`);
+      }
+    }
+
+    // Check TISS version
+    const versionMatch = trimmed.match(/versaoPadrao[^>]*>([^<]+)</);
+    if (versionMatch) {
+      const version = versionMatch[1].trim();
+      if (!version.startsWith('4.')) {
+        warnings.push(
+          `Versao TISS "${version}" detectada. A versao recomendada e 4.x`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `TISS XML validation completed: ${errors.length} errors, ${warnings.length} warnings`,
+    );
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+    };
+  }
+
+  /**
    * Escape special XML characters to prevent injection
    */
   private escapeXml(value: string): string {

@@ -12,6 +12,7 @@ const SSOCallbackPage = lazy(() => import('@/pages/auth/sso-callback'));
 const DashboardPage = lazy(() => import('@/pages/dashboard'));
 const PatientsListPage = lazy(() => import('@/pages/patients'));
 const PatientDetailPage = lazy(() => import('@/pages/patients/[id]'));
+const PatientNewPage = lazy(() => import('@/pages/patients/new'));
 const EncountersListPage = lazy(() => import('@/pages/encounters'));
 const EncounterPage = lazy(() => import('@/pages/encounters/[id]'));
 const TriagePage = lazy(() => import('@/pages/triage'));
@@ -25,6 +26,7 @@ const ReportsPage = lazy(() => import('@/pages/reports'));
 const SettingsPage = lazy(() => import('@/pages/settings'));
 const AdminPage = lazy(() => import('@/pages/admin'));
 const PharmacyPage = lazy(() => import('@/pages/pharmacy'));
+const ChemotherapyPage = lazy(() => import('@/pages/chemotherapy'));
 
 function PageLoader() {
   return (
@@ -99,6 +101,7 @@ export function AppRoutes() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<SuspenseWrap><DashboardPage /></SuspenseWrap>} />
         <Route path="pacientes" element={<SuspenseWrap><PatientsListPage /></SuspenseWrap>} />
+        <Route path="pacientes/novo" element={<SuspenseWrap><PatientNewPage /></SuspenseWrap>} />
         <Route path="pacientes/:id" element={<SuspenseWrap><PatientDetailPage /></SuspenseWrap>} />
         <Route path="atendimentos" element={<SuspenseWrap><EncountersListPage /></SuspenseWrap>} />
         <Route path="atendimentos/:id" element={<SuspenseWrap><EncounterPage /></SuspenseWrap>} />
@@ -109,6 +112,7 @@ export function AppRoutes() {
         <Route path="centro-cirurgico" element={<SuspenseWrap><SurgicalPage /></SuspenseWrap>} />
         <Route path="exames" element={<SuspenseWrap><ExamsPage /></SuspenseWrap>} />
         <Route path="farmacia" element={<SuspenseWrap><PharmacyPage /></SuspenseWrap>} />
+        <Route path="quimioterapia" element={<SuspenseWrap><ChemotherapyPage /></SuspenseWrap>} />
         <Route path="faturamento" element={<SuspenseWrap><BillingPage /></SuspenseWrap>} />
         <Route path="relatorios" element={<SuspenseWrap><ReportsPage /></SuspenseWrap>} />
         <Route path="configuracoes" element={<SuspenseWrap><SettingsPage /></SuspenseWrap>} />

@@ -11,6 +11,9 @@ import {
   Download,
   Check,
   Loader2,
+  ClipboardList,
+  Plus,
+  Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { cn, getInitials } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth.store';
 import { toast } from 'sonner';
@@ -37,6 +41,26 @@ import {
   mfaRegenerateBackupApi,
   type MfaSetupResponse,
 } from '@/services/auth.service';
+import { WebAuthnSetup } from '@/components/auth/webauthn-setup';
+import {
+  useProtocols,
+  useCreateProtocol,
+  useUpdateProtocol,
+  useToggleProtocol,
+  type ClinicalProtocol,
+  type CreateProtocolDto,
+  type TriggerCriterion,
+  type ProtocolAction,
+} from '@/services/protocols.service';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 type MfaSetupStep = 'idle' | 'qrcode' | 'verify' | 'backup-codes' | 'disable';
 
@@ -76,8 +100,111 @@ export default function SettingsPage() {
   // TODO: Fetch actual mfaEnabled from profile API. Using a local flag for now.
   const [mfaEnabled, setMfaEnabled] = useState(false);
 
+  // Protocols state
+  const { data: protocols = [], isLoading: protocolsLoading } = useProtocols();
+  const createProtocol = useCreateProtocol();
+  const updateProtocol = useUpdateProtocol();
+  const toggleProtocol = useToggleProtocol();
+  const [protocolDialogOpen, setProtocolDialogOpen] = useState(false);
+  const [editingProtocol, setEditingProtocol] = useState<ClinicalProtocol | null>(null);
+  const [protocolForm, setProtocolForm] = useState<CreateProtocolDto>({
+    name: '',
+    description: '',
+    category: 'SEPSIS',
+    triggerCriteria: [{ field: '', operator: 'eq', value: '' }],
+    actions: [{ type: 'ALERT', params: { message: '' } }],
+    priority: 0,
+    isActive: true,
+  });
+
+  const PROTOCOL_CATEGORIES: Record<string, string> = {
+    SEPSIS: 'Sepse',
+    ACS: 'Sindrome Coronariana Aguda',
+    STROKE: 'AVC',
+    FALL: 'Queda',
+    DVT: 'TVP',
+    PAIN: 'Dor',
+    PEDIATRIC: 'Pediatria',
+    OBSTETRIC: 'Obstetricia',
+  };
+
   const handleSave = () => {
     toast.success('Configurações salvas com sucesso!');
+  };
+
+  const handleOpenCreateProtocol = () => {
+    setEditingProtocol(null);
+    setProtocolForm({
+      name: '',
+      description: '',
+      category: 'SEPSIS',
+      triggerCriteria: [{ field: '', operator: 'eq', value: '' }],
+      actions: [{ type: 'ALERT', params: { message: '' } }],
+      priority: 0,
+      isActive: true,
+    });
+    setProtocolDialogOpen(true);
+  };
+
+  const handleOpenEditProtocol = (protocol: ClinicalProtocol) => {
+    setEditingProtocol(protocol);
+    setProtocolForm({
+      name: protocol.name,
+      description: protocol.description,
+      category: protocol.category,
+      triggerCriteria: protocol.triggerCriteria as TriggerCriterion[],
+      actions: protocol.actions as ProtocolAction[],
+      priority: protocol.priority,
+      isActive: protocol.isActive,
+    });
+    setProtocolDialogOpen(true);
+  };
+
+  const handleSaveProtocol = async () => {
+    try {
+      if (editingProtocol) {
+        await updateProtocol.mutateAsync({ id: editingProtocol.id, ...protocolForm });
+        toast.success('Protocolo atualizado com sucesso!');
+      } else {
+        await createProtocol.mutateAsync(protocolForm);
+        toast.success('Protocolo criado com sucesso!');
+      }
+      setProtocolDialogOpen(false);
+    } catch {
+      toast.error('Erro ao salvar protocolo.');
+    }
+  };
+
+  const handleToggleProtocol = async (id: string) => {
+    try {
+      await toggleProtocol.mutateAsync(id);
+      toast.success('Status do protocolo alterado.');
+    } catch {
+      toast.error('Erro ao alterar status do protocolo.');
+    }
+  };
+
+  const addTriggerCriterion = () => {
+    setProtocolForm((prev) => ({
+      ...prev,
+      triggerCriteria: [...prev.triggerCriteria, { field: '', operator: 'eq' as const, value: '' }],
+    }));
+  };
+
+  const removeTriggerCriterion = (index: number) => {
+    setProtocolForm((prev) => ({
+      ...prev,
+      triggerCriteria: prev.triggerCriteria.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateTriggerCriterion = (index: number, updates: Partial<TriggerCriterion>) => {
+    setProtocolForm((prev) => ({
+      ...prev,
+      triggerCriteria: prev.triggerCriteria.map((c, i) =>
+        i === index ? { ...c, ...updates } : c,
+      ),
+    }));
   };
 
   // ===== MFA handlers =====
@@ -184,6 +311,9 @@ export default function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="aparencia" className="text-xs data-[state=active]:bg-teal-600">
             <Palette className="mr-1.5 h-3.5 w-3.5" /> Aparência
+          </TabsTrigger>
+          <TabsTrigger value="protocolos" className="text-xs data-[state=active]:bg-teal-600">
+            <ClipboardList className="mr-1.5 h-3.5 w-3.5" /> Protocolos
           </TabsTrigger>
         </TabsList>
 
@@ -547,6 +677,13 @@ export default function SettingsPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* WebAuthn / Biometric Authentication */}
+          <Card className="mt-4 border-border bg-card">
+            <CardContent className="pt-6">
+              <WebAuthnSetup />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Voz */}
@@ -677,6 +814,216 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Protocolos Clinicos */}
+        <TabsContent value="protocolos" className="mt-4">
+          <Card className="border-border bg-card">
+            <CardContent className="space-y-4 pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium flex items-center gap-2">
+                    <ClipboardList className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    Protocolos Clinicos
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Gerencie protocolos de alerta automatico para triagem e atendimentos.
+                  </p>
+                </div>
+                <Button onClick={handleOpenCreateProtocol} className="bg-teal-600 hover:bg-teal-500" size="sm">
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Novo Protocolo
+                </Button>
+              </div>
+
+              <Separator className="bg-secondary" />
+
+              {protocolsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : protocols.length === 0 ? (
+                <div className="flex flex-col items-center py-8">
+                  <ClipboardList className="h-8 w-8 text-muted-foreground" />
+                  <p className="mt-2 text-sm text-muted-foreground">Nenhum protocolo cadastrado</p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-secondary/30">
+                        <TableHead className="text-xs">Nome</TableHead>
+                        <TableHead className="text-xs">Categoria</TableHead>
+                        <TableHead className="text-xs text-center">Prioridade</TableHead>
+                        <TableHead className="text-xs text-center">Status</TableHead>
+                        <TableHead className="text-xs text-right">Acoes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {protocols.map((protocol) => (
+                        <TableRow key={protocol.id} className="hover:bg-secondary/20">
+                          <TableCell className="text-sm font-medium">{protocol.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs border-teal-500/30 text-teal-600 dark:text-teal-400">
+                              {PROTOCOL_CATEGORIES[protocol.category] ?? protocol.category}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center text-sm">{protocol.priority}</TableCell>
+                          <TableCell className="text-center">
+                            <Switch
+                              checked={protocol.isActive}
+                              onCheckedChange={() => handleToggleProtocol(protocol.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenEditProtocol(protocol)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Protocol Dialog */}
+          <Dialog open={protocolDialogOpen} onOpenChange={setProtocolDialogOpen}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingProtocol ? 'Editar Protocolo' : 'Novo Protocolo'}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-2">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Nome</Label>
+                  <Input
+                    value={protocolForm.name}
+                    onChange={(e) => setProtocolForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Ex: Protocolo de Sepse"
+                    className="bg-secondary/30 border-border"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Descricao</Label>
+                  <Input
+                    value={protocolForm.description}
+                    onChange={(e) => setProtocolForm((prev) => ({ ...prev, description: e.target.value }))}
+                    placeholder="Descreva o protocolo..."
+                    className="bg-secondary/30 border-border"
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Categoria</Label>
+                    <Select
+                      value={protocolForm.category}
+                      onValueChange={(v) => setProtocolForm((prev) => ({ ...prev, category: v }))}
+                    >
+                      <SelectTrigger className="bg-secondary/30 border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(PROTOCOL_CATEGORIES).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Prioridade</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={protocolForm.priority ?? 0}
+                      onChange={(e) => setProtocolForm((prev) => ({ ...prev, priority: parseInt(e.target.value) || 0 }))}
+                      className="bg-secondary/30 border-border"
+                    />
+                  </div>
+                </div>
+
+                <Separator className="bg-secondary" />
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Criterios de Disparo</Label>
+                    <Button variant="ghost" size="sm" onClick={addTriggerCriterion} className="text-xs h-7">
+                      <Plus className="mr-1 h-3 w-3" /> Adicionar
+                    </Button>
+                  </div>
+                  {protocolForm.triggerCriteria.map((criterion, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        placeholder="Campo"
+                        value={criterion.field}
+                        onChange={(e) => updateTriggerCriterion(idx, { field: e.target.value })}
+                        className="flex-1 text-xs bg-secondary/30 border-border"
+                      />
+                      <Select
+                        value={criterion.operator}
+                        onValueChange={(v) => updateTriggerCriterion(idx, { operator: v as TriggerCriterion['operator'] })}
+                      >
+                        <SelectTrigger className="w-20 text-xs bg-secondary/30 border-border">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="eq">=</SelectItem>
+                          <SelectItem value="neq">!=</SelectItem>
+                          <SelectItem value="gt">&gt;</SelectItem>
+                          <SelectItem value="gte">&gt;=</SelectItem>
+                          <SelectItem value="lt">&lt;</SelectItem>
+                          <SelectItem value="lte">&lt;=</SelectItem>
+                          <SelectItem value="contains">contem</SelectItem>
+                          <SelectItem value="in">em</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        placeholder="Valor"
+                        value={String(criterion.value)}
+                        onChange={(e) => updateTriggerCriterion(idx, { value: e.target.value })}
+                        className="flex-1 text-xs bg-secondary/30 border-border"
+                      />
+                      {protocolForm.triggerCriteria.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeTriggerCriterion(idx)}
+                          className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
+                        >
+                          &times;
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button variant="outline" onClick={() => setProtocolDialogOpen(false)} className="border-border">
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSaveProtocol}
+                    disabled={createProtocol.isPending || updateProtocol.isPending}
+                    className="bg-teal-600 hover:bg-teal-500"
+                  >
+                    {(createProtocol.isPending || updateProtocol.isPending) && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    {editingProtocol ? 'Salvar' : 'Criar'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
       </Tabs>
     </div>

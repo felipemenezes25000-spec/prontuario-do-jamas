@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTemplateDto, UpdateTemplateDto } from './dto/create-template.dto';
 
@@ -18,15 +19,23 @@ export class TemplatesService {
         type: dto.type,
         category: dto.category,
         content: dto.content,
-        variables: (dto.variables as any) ?? undefined,
+        variables: dto.variables !== undefined ? (dto.variables as unknown as Prisma.InputJsonValue) : undefined,
         isDefault: dto.isDefault ?? false,
       },
     });
   }
 
-  async findAll(tenantId: string) {
+  async findAll(tenantId: string, options: { type?: string; category?: string; isActive?: boolean } = {}) {
+    const { type, category } = options;
+    // Default to showing only active templates unless caller explicitly passes isActive=false
+    const isActive = options.isActive !== undefined ? options.isActive : true;
+
+    const where: Record<string, unknown> = { tenantId, isActive };
+    if (type) where.type = type;
+    if (category) where.category = category;
+
     return this.prisma.documentTemplate.findMany({
-      where: { tenantId, isActive: true },
+      where,
       orderBy: [{ type: 'asc' }, { name: 'asc' }],
       include: {
         createdBy: { select: { id: true, name: true } },
@@ -53,7 +62,14 @@ export class TemplatesService {
     await this.findById(id);
     return this.prisma.documentTemplate.update({
       where: { id },
-      data: dto as any,
+      data: {
+        name: dto.name,
+        category: dto.category,
+        content: dto.content,
+        variables: dto.variables !== undefined ? (dto.variables as unknown as Prisma.InputJsonValue) : undefined,
+        isActive: dto.isActive,
+        isDefault: dto.isDefault,
+      },
     });
   }
 

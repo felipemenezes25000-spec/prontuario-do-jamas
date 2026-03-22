@@ -34,6 +34,10 @@ import { QueuesModule } from './modules/queues/queues.module';
 import { LgpdModule } from './modules/lgpd/lgpd.module';
 import { DigitalSignatureModule } from './modules/digital-signature/digital-signature.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ChemotherapyModule } from './modules/chemotherapy/chemotherapy.module';
+import { DrugsModule } from './modules/drugs/drugs.module';
+import { ProtocolsModule } from './modules/protocols/protocols.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 
 @Module({
   imports: [
@@ -67,6 +71,10 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     LgpdModule,
     DigitalSignatureModule,
     DashboardModule,
+    ChemotherapyModule,
+    DrugsModule,
+    ProtocolsModule,
+    IntegrationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

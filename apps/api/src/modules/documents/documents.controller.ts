@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Param,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -12,9 +13,13 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
+import { DocumentType } from '@prisma/client';
 import { DocumentsService } from './documents.service';
+import { DocumentReplicationService } from './document-replication.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
+import { SuggestFromHistoryDto } from './dto/suggest-from-history.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
@@ -23,7 +28,34 @@ import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 @ApiBearerAuth('access-token')
 @Controller('documents')
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly replicationService: DocumentReplicationService,
+  ) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List documents with filters and pagination' })
+  @ApiResponse({ status: 200, description: 'Paginated list of documents' })
+  async findAll(
+    @CurrentTenant() tenantId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('limit') limit?: string,
+    @Query('patientId') patientId?: string,
+    @Query('encounterId') encounterId?: string,
+    @Query('type') type?: string,
+    @Query('status') status?: string,
+  ) {
+    const resolvedPageSize = limit ? parseInt(limit, 10) : pageSize ? parseInt(pageSize, 10) : 20;
+    return this.documentsService.findAll(tenantId, {
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: resolvedPageSize,
+      patientId,
+      encounterId,
+      type,
+      status,
+    });
+  }
 
   @Post()
   @ApiOperation({ summary: 'Create a clinical document' })
@@ -35,6 +67,60 @@ export class DocumentsController {
   ) {
     return this.documentsService.create(tenantId, user.sub, dto);
   }
+
+  // ===========================================================================
+  // Document Replication Endpoints
+  // ===========================================================================
+
+  @Get('replicate/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiQuery({
+    name: 'type',
+    enum: DocumentType,
+    description: 'Document type to replicate metadata from',
+  })
+  @ApiOperation({ summary: 'Get last document metadata for pre-filling' })
+  @ApiResponse({ status: 200, description: 'Document metadata template' })
+  async getLastDocumentMetadata(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @Query('type') type: DocumentType,
+  ) {
+    return this.replicationService.getLastDocumentMetadata(
+      tenantId,
+      patientId,
+      type,
+    );
+  }
+
+  @Get('patient-data/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get aggregated patient common data' })
+  @ApiResponse({ status: 200, description: 'Patient common data' })
+  async getPatientCommonData(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+  ) {
+    return this.replicationService.getPatientCommonData(tenantId, patientId);
+  }
+
+  @Post('suggest')
+  @ApiOperation({ summary: 'Get suggestions from patient document history' })
+  @ApiResponse({ status: 200, description: 'History-based suggestions' })
+  async suggestFromHistory(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: SuggestFromHistoryDto,
+  ) {
+    return this.replicationService.suggestFromHistory(
+      tenantId,
+      dto.patientId,
+      dto.context,
+    );
+  }
+
+  // ===========================================================================
+  // Existing Endpoints
+  // ===========================================================================
 
   @Get('by-patient/:patientId')
   @ApiParam({ name: 'patientId', description: 'Patient UUID' })

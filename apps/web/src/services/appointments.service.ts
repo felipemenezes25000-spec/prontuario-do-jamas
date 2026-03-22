@@ -65,14 +65,14 @@ export function useAppointment(id: string) {
   });
 }
 
-export function useDoctorAppointments(doctorId: string, date?: string) {
+export function useDoctorAppointments(doctorId: string, dateFrom?: string, dateTo?: string) {
   return useQuery({
-    queryKey: appointmentKeys.byDoctor(doctorId, date),
+    queryKey: appointmentKeys.byDoctor(doctorId, dateFrom),
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Appointment>>('/appointments', {
-        params: { doctorId, date },
+      const { data } = await api.get<Appointment[]>(`/appointments/by-doctor/${doctorId}`, {
+        params: { dateFrom, dateTo },
       });
-      return data.data;
+      return data;
     },
     enabled: !!doctorId,
   });
@@ -82,9 +82,7 @@ export function usePatientAppointments(patientId: string) {
   return useQuery({
     queryKey: appointmentKeys.byPatient(patientId),
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<Appointment>>('/appointments', {
-        params: { patientId },
-      });
+      const { data } = await api.get<Appointment[]>(`/appointments/by-patient/${patientId}`);
       return data;
     },
     enabled: !!patientId,
@@ -134,8 +132,8 @@ export function useUpdateAppointmentStatus() {
 export function useConfirmAppointment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, method }: { id: string; method?: string }) => {
-      const { data } = await api.post<Appointment>(`/appointments/${id}/confirm`, { method });
+    mutationFn: async ({ id }: { id: string; method?: string }) => {
+      const { data } = await api.patch<Appointment>(`/appointments/${id}/confirm`);
       return data;
     },
     onSuccess: () => {
@@ -148,7 +146,9 @@ export function useCancelAppointment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
-      const { data } = await api.post<Appointment>(`/appointments/${id}/cancel`, { reason });
+      const { data } = await api.patch<Appointment>(`/appointments/${id}/cancel`, {
+        cancellationReason: reason,
+      });
       return data;
     },
     onSuccess: () => {
@@ -169,7 +169,7 @@ export function useRescheduleAppointment() {
       scheduledAt: string;
       duration?: number;
     }) => {
-      const { data } = await api.post<Appointment>(`/appointments/${id}/reschedule`, {
+      const { data } = await api.patch<Appointment>(`/appointments/${id}/reschedule`, {
         scheduledAt,
         duration,
       });

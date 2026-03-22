@@ -5,7 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 describe('DigitalSignatureService', () => {
   let service: DigitalSignatureService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let prisma: Record<string, Record<string, jest.Mock>>;
 
   const tenantId = 'tenant-1';

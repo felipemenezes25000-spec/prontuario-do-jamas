@@ -190,6 +190,22 @@ export default function EncounterPage() {
 
   // ── AI Calls ─────────────────────────────────────────────
 
+  const fetchCopilotSuggestions = useCallback(async (transcription: string) => {
+    if (!id) return;
+    setIsLoadingCopilot(true);
+    try {
+      const { data } = await api.post<{ suggestions: CopilotSuggestion[] }>(
+        '/ai/copilot/suggestions',
+        { encounterId: id, transcription },
+      );
+      setCopilotSuggestions(data.suggestions ?? []);
+    } catch {
+      // Copilot is non-critical
+    } finally {
+      setIsLoadingCopilot(false);
+    }
+  }, [id]);
+
   const handleGenerateSoap = useCallback(
     async (transcription: string) => {
       if (!transcription || isGeneratingSoap) return;
@@ -215,24 +231,8 @@ export default function EncounterPage() {
         setIsGeneratingSoap(false);
       }
     },
-    [encounter?.patientId, id, isGeneratingSoap],
+    [encounter?.patientId, id, isGeneratingSoap, fetchCopilotSuggestions],
   );
-
-  const fetchCopilotSuggestions = async (transcription: string) => {
-    if (!id) return;
-    setIsLoadingCopilot(true);
-    try {
-      const { data } = await api.post<{ suggestions: CopilotSuggestion[] }>(
-        '/ai/copilot/suggestions',
-        { encounterId: id, transcription },
-      );
-      setCopilotSuggestions(data.suggestions);
-    } catch {
-      // Copilot is non-critical
-    } finally {
-      setIsLoadingCopilot(false);
-    }
-  };
 
   const handleParsePrescription = async () => {
     if (!voice.currentTranscription) return;
@@ -630,7 +630,7 @@ export default function EncounterPage() {
                         {presc.status === 'ACTIVE' ? 'Ativa' : presc.status === 'DRAFT' ? 'Rascunho' : presc.status}
                       </Badge>
                     </div>
-                    {presc.items.map((item) => (
+                    {(presc.items ?? []).map((item) => (
                       <Card
                         key={item.id}
                         className={cn(
@@ -865,7 +865,7 @@ export default function EncounterPage() {
                 <CardContent>
                   {patientPrescriptions.length > 0 ? (
                     <div className="space-y-1.5">
-                      {patientPrescriptions.flatMap((p) => p.items).map((item) => (
+                      {patientPrescriptions.flatMap((p) => p.items ?? []).map((item) => (
                         <div key={item.id} className="flex items-center gap-2 text-xs">
                           <div className={cn('h-1.5 w-1.5 rounded-full', item.isHighAlert ? 'bg-red-400' : 'bg-teal-400')} />
                           <span className="text-muted-foreground">
@@ -1063,9 +1063,9 @@ export default function EncounterPage() {
                   )}
                 >
                   <p className="font-medium">{warning.message}</p>
-                  {warning.items.length > 0 && (
+                  {(warning.items ?? []).length > 0 && (
                     <p className="mt-1 text-muted-foreground">
-                      Envolvidos: {warning.items.join(', ')}
+                      Envolvidos: {(warning.items ?? []).join(', ')}
                     </p>
                   )}
                 </div>

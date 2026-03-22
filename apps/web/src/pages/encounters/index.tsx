@@ -26,23 +26,23 @@ export default function EncountersListPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const { data: encountersData, isLoading, isError, refetch } = useEncounters();
-  const allEncounters = encountersData?.data ?? [];
 
-  const filtered = useMemo(() => {
-    if (statusFilter === 'all') return allEncounters;
+  const { allEncounters, filtered } = useMemo(() => {
+    const all = encountersData?.data ?? [];
+    if (statusFilter === 'all') return { allEncounters: all, filtered: all };
     if (statusFilter === 'active') {
-      return allEncounters.filter((e) =>
+      return { allEncounters: all, filtered: all.filter((e) =>
         ['IN_PROGRESS', 'IN_TRIAGE', 'ON_HOLD'].includes(e.status),
-      );
+      )};
     }
     if (statusFilter === 'waiting') {
-      return allEncounters.filter((e) => e.status === 'WAITING' || e.status === 'SCHEDULED');
+      return { allEncounters: all, filtered: all.filter((e) => e.status === 'WAITING' || e.status === 'SCHEDULED') };
     }
     if (statusFilter === 'completed') {
-      return allEncounters.filter((e) => e.status === 'COMPLETED' || e.status === 'CANCELLED');
+      return { allEncounters: all, filtered: all.filter((e) => e.status === 'COMPLETED' || e.status === 'CANCELLED') };
     }
-    return allEncounters;
-  }, [statusFilter, allEncounters]);
+    return { allEncounters: all, filtered: all };
+  }, [statusFilter, encountersData]);
 
   if (isLoading) return <PageLoading cards={0} showTable />;
   if (isError) return <PageError onRetry={() => refetch()} />;

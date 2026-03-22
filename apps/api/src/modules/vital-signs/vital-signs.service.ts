@@ -137,11 +137,7 @@ export class VitalSignsService {
       },
     });
 
-    if (!latest) {
-      throw new NotFoundException(`No vital signs found for patient "${patientId}"`);
-    }
-
-    return latest;
+    return latest ?? null;
   }
 
   async getTrends(patientId: string, count = 20) {

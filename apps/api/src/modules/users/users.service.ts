@@ -40,14 +40,35 @@ export class UsersService {
     return result;
   }
 
-  async findAll(tenantId: string, pagination: PaginationQueryDto) {
-    const where = { tenantId };
+  async findAll(
+    tenantId: string,
+    options: {
+      page?: number;
+      pageSize?: number;
+      role?: string;
+      search?: string;
+    } = {},
+  ) {
+    const page = options.page || 1;
+    const pageSize = options.pageSize || 20;
+    const skip = (page - 1) * pageSize;
+
+    const where: Record<string, unknown> = { tenantId };
+    if (options.role) {
+      where.role = options.role;
+    }
+    if (options.search) {
+      where.OR = [
+        { name: { contains: options.search, mode: 'insensitive' } },
+        { email: { contains: options.search, mode: 'insensitive' } },
+      ];
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
-        skip: pagination.skip,
-        take: pagination.take,
+        skip,
+        take: pageSize,
         orderBy: { name: 'asc' },
         select: {
           id: true,
@@ -64,7 +85,7 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
 
-    return { data, total, page: pagination.page, pageSize: pagination.pageSize };
+    return { data, total, page, pageSize };
   }
 
   async findById(id: string) {

@@ -38,6 +38,30 @@ export class SurgicalController {
     return this.surgicalService.schedule(tenantId, dto);
   }
 
+  @Get()
+  @ApiOperation({ summary: 'List surgical procedures with filters' })
+  @ApiResponse({ status: 200, description: 'Paginated surgical procedures' })
+  async findAll(
+    @CurrentTenant() tenantId: string,
+    @Query('patientId') patientId?: string,
+    @Query('surgeonId') surgeonId?: string,
+    @Query('status') status?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.surgicalService.findAll(tenantId, {
+      patientId,
+      surgeonId,
+      status,
+      startDate,
+      endDate,
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+    });
+  }
+
   @Get('by-date')
   @ApiOperation({ summary: 'Get surgical procedures by date' })
   @ApiQuery({ name: 'date', required: true, description: 'Date in ISO format (YYYY-MM-DD)', example: '2026-03-22' })

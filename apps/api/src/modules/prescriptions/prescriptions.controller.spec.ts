@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrescriptionsController } from './prescriptions.controller';
 import { PrescriptionsService } from './prescriptions.service';
+import { PrescriptionSafetyService } from './prescription-safety.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 
 describe('PrescriptionsController', () => {
@@ -40,6 +41,12 @@ describe('PrescriptionsController', () => {
       controllers: [PrescriptionsController],
       providers: [
         { provide: PrescriptionsService, useValue: mockPrescriptionsService },
+        { provide: PrescriptionSafetyService, useValue: {
+          validateSafety: jest.fn(),
+          generateSchedule: jest.fn(),
+          firstCheck: jest.fn(),
+          doubleCheck: jest.fn(),
+        }},
       ],
     }).compile();
 

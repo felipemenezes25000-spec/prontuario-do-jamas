@@ -186,7 +186,7 @@ export default function PatientDetailPage() {
             <CardContent>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Paciente {patient.gender === 'F' ? 'feminina' : 'masculino'}, {age} anos,
-                com histórico de {conditions.map((c) => c.cidDescription).join(', ') || 'sem condições crônicas registradas'}.
+                com histórico de {conditions.map((c) => c.cidDescription).filter(Boolean).join(', ') || 'sem condições crônicas registradas'}.
                 {allergies.length > 0
                   ? ` Alergias conhecidas: ${allergies.map((a) => `${a.substance} (${severityLabels[a.severity] ?? a.severity})`).join(', ')}.`
                   : ' Sem alergias conhecidas.'}
@@ -446,7 +446,7 @@ export default function PatientDetailPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {presc.items.map((item) => (
+                      {(presc.items ?? []).map((item) => (
                         <div
                           key={item.id}
                           className={cn(

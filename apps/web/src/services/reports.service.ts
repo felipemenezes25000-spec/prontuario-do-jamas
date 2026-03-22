@@ -11,9 +11,10 @@ export interface ReportSummary {
   chartData: ReportChartPoint[];
 }
 
-async function fetchReportSummary(reportId: string): Promise<ReportSummary> {
-  const { data } = await api.get<ReportSummary>(`/reports/${reportId}/summary`);
-  return data;
+async function fetchReportSummary(_reportId: string): Promise<ReportSummary> {
+  // No /reports controller exists in the API. Use /dashboard/stats instead.
+  const { data } = await api.get<ReportSummary>('/dashboard/stats');
+  return data ?? { chartData: [] };
 }
 
 export function useReportSummary(reportId: string | null) {

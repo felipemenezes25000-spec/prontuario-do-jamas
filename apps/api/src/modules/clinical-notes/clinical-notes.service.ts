@@ -36,6 +36,70 @@ export class ClinicalNotesService {
     });
   }
 
+  async findAll(
+    tenantId: string,
+    options: {
+      page?: number;
+      pageSize?: number;
+      status?: string;
+      patientId?: string;
+      encounterId?: string;
+      authorId?: string;
+      type?: string;
+    },
+  ) {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 20;
+    const skip = (page - 1) * pageSize;
+
+    const where: Record<string, unknown> = {
+      encounter: { tenantId },
+    };
+    if (options.status) {
+      where.status = options.status;
+    }
+    if (options.encounterId) {
+      where.encounterId = options.encounterId;
+    }
+    if (options.authorId) {
+      where.authorId = options.authorId;
+    }
+    if (options.type) {
+      where.type = options.type;
+    }
+    if (options.patientId) {
+      where.encounter = { ...where.encounter as Record<string, unknown>, patientId: options.patientId };
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.clinicalNote.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          author: { select: { id: true, name: true, role: true } },
+          signedBy: { select: { id: true, name: true } },
+          encounter: {
+            select: {
+              id: true,
+              patient: { select: { id: true, fullName: true, mrn: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.clinicalNote.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
   async findByEncounter(encounterId: string) {
     return this.prisma.clinicalNote.findMany({
       where: { encounterId },

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrescriptionsService } from './prescriptions.service';
+import { PrescriptionSafetyService } from './prescription-safety.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 describe('PrescriptionsService', () => {
@@ -63,6 +64,15 @@ describe('PrescriptionsService', () => {
       providers: [
         PrescriptionsService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: PrescriptionSafetyService, useValue: {
+          validateSafety: jest.fn().mockReturnValue({ errors: [], warnings: [], infos: [] }),
+          generateSchedule: jest.fn(),
+          firstCheck: jest.fn(),
+          doubleCheck: jest.fn(),
+          validateControlledSubstance: jest.fn(),
+          validateAntimicrobial: jest.fn(),
+          requiresDoubleCheck: jest.fn(),
+        }},
       ],
     }).compile();
 

@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Param,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -45,6 +46,24 @@ export class ExamsController {
     @Body() dto: AddExamResultDto,
   ) {
     return this.examsService.addResults(id, user.sub, dto);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List exams with filters and pagination' })
+  @ApiResponse({ status: 200, description: 'Paginated list of exams' })
+  async findAll(
+    @CurrentTenant() tenantId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+    @Query('patientId') patientId?: string,
+  ) {
+    return this.examsService.findAll(tenantId, {
+      page: page ? parseInt(page, 10) : undefined,
+      pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      status,
+      patientId,
+    });
   }
 
   @Get('pending')
