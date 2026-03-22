@@ -1,0 +1,2335 @@
+// ============================================================================
+// VoxPEP — Voice-first Electronic Health Records
+// Prisma Schema (PostgreSQL)
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum TenantType {
+  HOSPITAL
+  CLINIC
+  NETWORK
+}
+
+enum TenantPlan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum SbisLevel {
+  NGS1
+  NGS2
+  NONE
+}
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  NURSE
+  NURSE_TECH
+  PHARMACIST
+  RECEPTIONIST
+  LAB_TECH
+  RADIOLOGIST
+  NUTRITIONIST
+  PHYSIO
+  PSYCHOLOGIST
+  SOCIAL_WORKER
+  BILLING
+}
+
+enum Specialty {
+  GENERAL_PRACTICE
+  INTERNAL_MEDICINE
+  CARDIOLOGY
+  DERMATOLOGY
+  ENDOCRINOLOGY
+  GASTROENTEROLOGY
+  GERIATRICS
+  GYNECOLOGY
+  HEMATOLOGY
+  INFECTIOUS_DISEASE
+  NEPHROLOGY
+  NEUROLOGY
+  OBSTETRICS
+  ONCOLOGY
+  OPHTHALMOLOGY
+  ORTHOPEDICS
+  OTOLARYNGOLOGY
+  PEDIATRICS
+  PNEUMOLOGY
+  PSYCHIATRY
+  RADIOLOGY
+  RHEUMATOLOGY
+  UROLOGY
+  ANESTHESIOLOGY
+  EMERGENCY_MEDICINE
+  FAMILY_MEDICINE
+  INTENSIVE_CARE
+  PATHOLOGY
+  PHYSICAL_MEDICINE
+  PLASTIC_SURGERY
+  SPORTS_MEDICINE
+  THORACIC_SURGERY
+  VASCULAR_SURGERY
+  NEUROSURGERY
+  ALLERGY_IMMUNOLOGY
+}
+
+enum Shift {
+  MORNING
+  AFTERNOON
+  NIGHT
+}
+
+enum Gender {
+  M
+  F
+  NB
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  STABLE_UNION
+  OTHER
+}
+
+enum BloodType {
+  A_POS
+  A_NEG
+  B_POS
+  B_NEG
+  AB_POS
+  AB_NEG
+  O_POS
+  O_NEG
+}
+
+enum AllergyType {
+  MEDICATION
+  FOOD
+  ENVIRONMENTAL
+  LATEX
+  CONTRAST
+  OTHER
+}
+
+enum AllergySeverity {
+  MILD
+  MODERATE
+  SEVERE
+  LIFE_THREATENING
+}
+
+enum AllergyStatus {
+  ACTIVE
+  INACTIVE
+  RESOLVED
+  REFUTED
+}
+
+enum AllergySource {
+  PATIENT_REPORT
+  FAMILY_REPORT
+  CLINICAL_TEST
+  MEDICAL_RECORD
+  AI_DETECTED
+}
+
+enum ConditionStatus {
+  ACTIVE
+  INACTIVE
+  RESOLVED
+  REMISSION
+}
+
+enum FamilyRelation {
+  FATHER
+  MOTHER
+  BROTHER
+  SISTER
+  PATERNAL_GRANDFATHER
+  PATERNAL_GRANDMOTHER
+  MATERNAL_GRANDFATHER
+  MATERNAL_GRANDMOTHER
+  SON
+  DAUGHTER
+  UNCLE
+  AUNT
+  COUSIN
+  OTHER
+}
+
+enum SmokingStatus {
+  NEVER
+  FORMER
+  CURRENT
+  PASSIVE
+}
+
+enum AlcoholStatus {
+  NEVER
+  SOCIAL
+  MODERATE
+  HEAVY
+  FORMER
+}
+
+enum DrugUseStatus {
+  NEVER
+  FORMER
+  CURRENT
+}
+
+enum ExerciseLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  ACTIVE
+  VERY_ACTIVE
+}
+
+enum EncounterType {
+  CONSULTATION
+  RETURN_VISIT
+  EMERGENCY
+  HOSPITALIZATION
+  TELEMEDICINE
+  HOME_VISIT
+  DAY_HOSPITAL
+  PROCEDURE
+  PRE_OPERATIVE
+  POST_OPERATIVE
+  LAB_COLLECTION
+  IMAGING
+  VACCINATION
+  NURSING
+  NUTRITION
+  PHYSIOTHERAPY
+  PSYCHOLOGY
+  SOCIAL_WORK
+}
+
+enum EncounterStatus {
+  SCHEDULED
+  WAITING
+  IN_TRIAGE
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  TRANSFERRED
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+  EMERGENCY
+}
+
+enum TriageLevel {
+  RED
+  ORANGE
+  YELLOW
+  GREEN
+  BLUE
+}
+
+enum BillingStatusEnum {
+  PENDING
+  BILLED
+  PAID
+  DENIED
+  APPEALED
+}
+
+enum TranscriptionContext {
+  ANAMNESIS
+  PHYSICAL_EXAM
+  ASSESSMENT
+  PLAN
+  PRESCRIPTION
+  EVOLUTION
+  TRIAGE
+  SURGICAL_DESCRIPTION
+  NURSING_NOTE
+  GENERAL
+}
+
+enum TranscriptionStatus {
+  RECORDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum NoteType {
+  SOAP
+  ADMISSION
+  EVOLUTION
+  DISCHARGE_SUMMARY
+  OPERATIVE_NOTE
+  CONSULTATION
+  PROCEDURE_NOTE
+  PROGRESS_NOTE
+  ADDENDUM
+  CORRECTION
+  TRANSFER
+}
+
+enum NoteStatus {
+  DRAFT
+  FINAL
+  SIGNED
+  COSIGNED
+  AMENDED
+  VOIDED
+}
+
+enum PrescriptionType {
+  MEDICATION
+  EXAM
+  PROCEDURE
+  DIET
+  NURSING
+  SPECIAL_CONTROL
+  ANTIMICROBIAL
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  SUSPENDED
+  EXPIRED
+}
+
+enum MedicationRoute {
+  ORAL
+  SUBLINGUAL
+  RECTAL
+  TOPICAL
+  TRANSDERMAL
+  INHALATION
+  NASAL
+  OPHTHALMIC
+  OTIC
+  VAGINAL
+  IV
+  IM
+  SC
+  ID
+  EPIDURAL
+  INTRATHECAL
+  INTRA_ARTICULAR
+  NEBULIZATION
+  ENTERAL
+  PARENTERAL
+  OTHER
+}
+
+enum DurationUnit {
+  HOURS
+  DAYS
+  WEEKS
+  MONTHS
+  CONTINUOUS
+}
+
+enum ExamType {
+  LABORATORY
+  IMAGING
+  FUNCTIONAL
+  PATHOLOGY
+  GENETIC
+  MICROBIOLOGICAL
+  OTHER
+}
+
+enum ControlledSchedule {
+  A1
+  A2
+  A3
+  B1
+  B2
+  C1
+  C2
+  C3
+  C4
+  C5
+}
+
+enum DoseCheckResult {
+  NORMAL
+  LOW
+  HIGH
+  CRITICAL
+  NOT_CHECKED
+}
+
+enum CheckStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  SUSPENDED
+}
+
+enum MedCheckStatus {
+  SCHEDULED
+  ADMINISTERED
+  DELAYED
+  MISSED
+  REFUSED
+  HELD
+  CANCELLED
+}
+
+enum HeartRhythm {
+  REGULAR
+  IRREGULAR
+  ATRIAL_FIBRILLATION
+  TACHYCARDIC
+  BRADYCARDIC
+  OTHER
+}
+
+enum TemperatureMethod {
+  AXILLARY
+  ORAL
+  RECTAL
+  TYMPANIC
+  TEMPORAL
+  ESOPHAGEAL
+  BLADDER
+}
+
+enum OxygenSupplementation {
+  ROOM_AIR
+  NASAL_CANNULA
+  SIMPLE_MASK
+  VENTURI_MASK
+  NON_REBREATHER
+  HIGH_FLOW
+  CPAP
+  BIPAP
+  MECHANICAL_VENTILATION
+}
+
+enum GlucoseContext {
+  FASTING
+  PRE_MEAL
+  POST_MEAL
+  RANDOM
+  BEDTIME
+}
+
+enum Edema {
+  NONE
+  MILD_1
+  MODERATE_2
+  SEVERE_3
+  ANASARCA_4
+}
+
+enum VitalSource {
+  MANUAL
+  MONITOR
+  DEVICE
+  VOICE
+  AI_EXTRACTED
+}
+
+enum AiTrend {
+  STABLE
+  IMPROVING
+  WORSENING
+  CRITICAL
+  INSUFFICIENT_DATA
+}
+
+enum TriageProtocol {
+  MANCHESTER
+  ESI
+  CANADIAN
+  AUSTRALIAN
+  CUSTOM
+}
+
+enum AdmissionType {
+  ELECTIVE
+  EMERGENCY
+  URGENT
+  TRANSFER
+  OBSERVATION
+  DAY_HOSPITAL
+}
+
+enum IsolationType {
+  CONTACT
+  DROPLET
+  AIRBORNE
+  PROTECTIVE
+  COMBINED
+}
+
+enum DischargeType {
+  MEDICAL_DISCHARGE
+  TRANSFER
+  EVASION
+  DEATH
+  ADMINISTRATIVE
+  AGAINST_MEDICAL_ADVICE
+}
+
+enum BedType {
+  WARD
+  SEMI_PRIVATE
+  PRIVATE
+  ICU
+  NICU
+  PICU
+  ISOLATION
+  OBSERVATION
+  EMERGENCY
+  SURGICAL
+  RECOVERY
+}
+
+enum BedStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+  MAINTENANCE
+  BLOCKED
+}
+
+enum TransferStatus {
+  REQUESTED
+  APPROVED
+  DENIED
+  EXECUTED
+  CANCELLED
+}
+
+enum NursingProcessStatus {
+  IN_PROGRESS
+  COMPLETED
+  REVISED
+  CANCELLED
+}
+
+enum NursingDxStatus {
+  ACTIVE
+  RESOLVED
+  RISK
+}
+
+enum NursingPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum InterventionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  SUSPENDED
+}
+
+enum NursingNoteType {
+  EVOLUTION
+  ADMISSION
+  TRANSFER
+  DISCHARGE
+  INCIDENT
+  PROCEDURE
+  OBSERVATION
+  HANDOFF
+}
+
+enum Laterality {
+  LEFT
+  RIGHT
+  BILATERAL
+  NOT_APPLICABLE
+}
+
+enum AnesthesiaType {
+  GENERAL
+  SPINAL
+  EPIDURAL
+  LOCAL
+  REGIONAL_BLOCK
+  SEDATION
+  COMBINED
+  TOPICAL
+  NONE
+}
+
+enum SurgicalStatus {
+  SCHEDULED
+  PRE_OP
+  IN_PROGRESS
+  RECOVERY
+  COMPLETED
+  CANCELLED
+  POSTPONED
+}
+
+enum ExamStatus {
+  REQUESTED
+  SCHEDULED
+  COLLECTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REVIEWED
+}
+
+enum ImageModality {
+  XRAY
+  CT
+  MRI
+  ULTRASOUND
+  PET
+  SCINTIGRAPHY
+  MAMMOGRAPHY
+  DENSITOMETRY
+  FLUOROSCOPY
+  ANGIOGRAPHY
+  ECHOCARDIOGRAPHY
+  ENDOSCOPY
+  OTHER
+}
+
+enum DocumentType {
+  ATESTADO
+  RECEITA
+  ENCAMINHAMENTO
+  LAUDO
+  DECLARACAO
+  CONSENTIMENTO
+  TERMO_RESPONSABILIDADE
+  RELATORIO
+  PRONTUARIO_RESUMO
+  FICHA_INTERNACAO
+  SUMARIO_ALTA
+  BOLETIM_OCORRENCIA
+  CERTIDAO_OBITO
+  CUSTOM
+}
+
+enum DocumentStatus {
+  DRAFT
+  FINAL
+  SIGNED
+  VOIDED
+}
+
+enum AlertType {
+  ALLERGY
+  DRUG_INTERACTION
+  LAB_CRITICAL
+  VITAL_SIGN
+  FALL_RISK
+  DETERIORATION
+  MEDICATION_DUE
+  DUPLICATE_ORDER
+  DOSE_RANGE
+  AI_PREDICTION
+  SEPSIS_RISK
+  READMISSION_RISK
+  PROTOCOL_DEVIATION
+  SYSTEM
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+  EMERGENCY
+}
+
+enum AlertSource {
+  SYSTEM
+  AI_ENGINE
+  CLINICAL_RULE
+  LAB_INTERFACE
+  DEVICE
+  USER
+}
+
+enum NotificationType {
+  ALERT
+  REMINDER
+  MESSAGE
+  TASK
+  RESULT
+  APPOINTMENT
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  PRINT
+  SIGN
+  PRESCRIBE
+  VOICE_COMMAND
+  AI_SUGGESTION
+  CONSENT_GRANTED
+  CONSENT_REVOKED
+  DATA_ACCESS
+  EMERGENCY_ACCESS
+}
+
+enum ConsentType {
+  LGPD_GENERAL
+  LGPD_SENSITIVE
+  TELEMEDICINE
+  TREATMENT
+  RESEARCH
+  DATA_SHARING
+  MARKETING
+  RECORDING
+  DATA_COLLECTION
+  DATA_PROCESSING
+  VOICE_RECORDING
+  AI_PROCESSING
+}
+
+// LGPD Art. 7 — Legal bases for data processing
+enum LegalBasis {
+  CONSENT                    // Art. 7, I
+  LEGAL_OBLIGATION           // Art. 7, II
+  PUBLIC_POLICY              // Art. 7, III
+  RESEARCH_BASIS             // Art. 7, IV
+  CONTRACT                   // Art. 7, V
+  LEGITIMATE_INTEREST        // Art. 7, IX
+  HEALTH_PROTECTION          // Art. 7, VIII / Art. 11, II, f
+  LIFE_PROTECTION            // Art. 7, VII
+}
+
+enum DataCategory {
+  PERSONAL_IDENTIFICATION
+  HEALTH_RECORDS
+  VOICE_RECORDINGS
+  PRESCRIPTIONS
+  LAB_RESULTS
+  IMAGING
+  BILLING
+  AUDIT_LOGS
+}
+
+enum DataAccessAction {
+  VIEW
+  CREATE
+  UPDATE
+  DELETE
+  EXPORT
+  PRINT
+  SHARE
+}
+
+enum AnonymizationStatus {
+  REQUESTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum DataRequestType {
+  ACCESS
+  RECTIFICATION
+  DELETION
+  PORTABILITY
+  RESTRICTION
+}
+
+enum DataRequestStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DENIED
+}
+
+enum AppointmentType {
+  FIRST_VISIT
+  RETURN
+  FOLLOW_UP
+  PROCEDURE
+  EXAM
+  TELEMEDICINE
+  HOME_VISIT
+  GROUP_SESSION
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum GuideType {
+  CONSULTATION
+  SADT
+  HOSPITALIZATION
+  SUMMARY
+}
+
+enum BillingStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  PARTIALLY_APPROVED
+  DENIED
+  APPEALED
+  PAID
+}
+
+// ============================================================================
+// MODELS
+// ============================================================================
+
+model Tenant {
+  id                    String    @id @default(uuid()) @map("id")
+  name                  String    @map("name")
+  slug                  String    @unique @map("slug")
+  cnpj                  String    @unique @map("cnpj")
+  type                  TenantType @map("type")
+  address               String?   @map("address")
+  city                  String?   @map("city")
+  state                 String?   @map("state")
+  cep                   String?   @map("cep")
+  phone                 String?   @map("phone")
+  email                 String?   @map("email")
+  website               String?   @map("website")
+  logo                  String?   @map("logo")
+  primaryColor          String?   @map("primary_color")
+  secondaryColor        String?   @map("secondary_color")
+  cnesCode              String?   @map("cnes_code")
+  sbisLevel             SbisLevel @default(NONE) @map("sbis_level")
+  maxBeds               Int       @default(0) @map("max_beds")
+  maxUsers              Int       @default(0) @map("max_users")
+  plan                  TenantPlan @default(FREE) @map("plan")
+  subscriptionExpiresAt DateTime? @map("subscription_expires_at")
+  isActive              Boolean   @default(true) @map("is_active")
+  settings              Json?     @map("settings")
+  ssoEnabled            Boolean   @default(false) @map("sso_enabled")
+  ssoProvider           String?   @map("sso_provider")
+  ssoConfig             Json?     @map("sso_config")
+  ssoDomain             String?   @map("sso_domain")
+  ssoAutoProvision      Boolean   @default(false) @map("sso_auto_provision")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  users               User[]
+  patients            Patient[]
+  encounters          Encounter[]
+  beds                Bed[]
+  appointments        Appointment[]
+  billingEntries      BillingEntry[]
+  auditLogs           AuditLog[]
+  alerts              ClinicalAlert[]
+  notifications       Notification[]
+  documents           ClinicalDocument[]
+  documentTemplates   DocumentTemplate[]
+  admissions          Admission[]
+  prescriptions       Prescription[]
+  surgicalProcedures    SurgicalProcedure[]
+  consentRecords        ConsentRecord[]
+  dataRetentionPolicies DataRetentionPolicy[]
+  digitalSignatures     DigitalSignature[]
+
+  @@index([slug])
+  @@index([cnpj])
+  @@index([isActive])
+  @@index([ssoDomain])
+  @@map("tenants")
+}
+
+model User {
+  id              String    @id @default(uuid()) @map("id")
+  tenantId        String    @map("tenant_id")
+  email           String    @unique @map("email")
+  passwordHash    String    @map("password_hash")
+  name            String    @map("name")
+  cpf             String    @unique @map("cpf")
+  phone           String?   @map("phone")
+  role            UserRole  @map("role")
+  avatar          String?   @map("avatar")
+  isActive        Boolean   @default(true) @map("is_active")
+  mfaEnabled      Boolean   @default(false) @map("mfa_enabled")
+  mfaSecret       String?   @map("mfa_secret")
+  mfaBackupCodes  String[]  @map("mfa_backup_codes")
+  lastLoginAt     DateTime? @map("last_login_at")
+  loginCount      Int       @default(0) @map("login_count")
+  preferredDevice String?   @map("preferred_device")
+  voiceProfileId  String?   @map("voice_profile_id")
+  settings          Json?     @map("settings")
+  oauthProvider     String?   @map("oauth_provider")
+  oauthProviderId   String?   @map("oauth_provider_id")
+  oauthProfileData  Json?     @map("oauth_profile_data")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  tenant                    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  doctorProfile             DoctorProfile?
+  nurseProfile              NurseProfile?
+  schedules                 ProfessionalSchedule[]
+  encountersAsDoctor        Encounter[]         @relation("EncounterDoctor")
+  encountersAsNurse         Encounter[]         @relation("EncounterNurse")
+  encountersAsTriageNurse   Encounter[]         @relation("EncounterTriageNurse")
+  clinicalNotes             ClinicalNote[]      @relation("NoteAuthor")
+  signedNotes               ClinicalNote[]      @relation("NoteSigner")
+  cosignedNotes             ClinicalNote[]      @relation("NoteCosigner")
+  prescriptions             Prescription[]      @relation("PrescriptionDoctor")
+  doubleCheckedPrescriptions Prescription[]     @relation("PrescriptionDoubleChecker")
+  dispensedPrescriptions    Prescription[]      @relation("PrescriptionDispenser")
+  vitalSigns                VitalSigns[]
+  voiceTranscriptions       VoiceTranscription[] @relation("TranscriptionUser")
+  editedTranscriptions      VoiceTranscription[] @relation("TranscriptionEditor")
+  triageAssessments         TriageAssessment[]
+  nursingNotes              NursingNote[]
+  nursingProcesses          NursingProcess[]
+  auditLogs                 AuditLog[]
+  notifications             Notification[]
+  allergiesConfirmed        Allergy[]           @relation("AllergyConfirmer")
+  conditionsDiagnosed       ChronicCondition[]  @relation("ConditionDiagnoser")
+  vaccinationsApplied       Vaccination[]
+  admissionsAdmitting       Admission[]         @relation("AdmittingDoctor")
+  admissionsAttending       Admission[]         @relation("AttendingDoctor")
+  bedTransfersRequested     BedTransfer[]       @relation("TransferRequester")
+  bedTransfersApproved      BedTransfer[]       @relation("TransferApprover")
+  bedTransfersExecuted      BedTransfer[]       @relation("TransferExecutor")
+  medicationChecks          MedicationCheck[]
+  surgeonProcedures         SurgicalProcedure[] @relation("Surgeon")
+  firstAssistantProcedures  SurgicalProcedure[] @relation("FirstAssistant")
+  anesthesiologistProcedures SurgicalProcedure[] @relation("Anesthesiologist")
+  scrubNurseProcedures      SurgicalProcedure[] @relation("ScrubNurse")
+  circulatingNurseProcedures SurgicalProcedure[] @relation("CirculatingNurse")
+  examsRequested            ExamResult[]        @relation("ExamRequester")
+  examsReviewed             ExamResult[]        @relation("ExamReviewer")
+  documentsAuthored         ClinicalDocument[]  @relation("DocumentAuthor")
+  documentsSigned           ClinicalDocument[]  @relation("DocumentSigner")
+  templatesCreated          DocumentTemplate[]
+  alertsAcknowledged        ClinicalAlert[]     @relation("AlertAcknowledger")
+  alertsResolved            ClinicalAlert[]     @relation("AlertResolver")
+  dataRequestsProcessed     DataAccessRequest[]
+  appointments              Appointment[]
+  fluidBalances             FluidBalance[]
+  digitalSignatures         DigitalSignature[]  @relation("DigitalSignatureSigner")
+
+  @@unique([oauthProvider, oauthProviderId])
+  @@index([tenantId, email])
+  @@index([tenantId, cpf])
+  @@index([tenantId, role])
+  @@map("users")
+}
+
+model DoctorProfile {
+  id                        String    @id @default(uuid()) @map("id")
+  userId                    String    @unique @map("user_id")
+  crm                       String    @map("crm")
+  crmState                  String    @map("crm_state")
+  specialty                 Specialty @map("specialty")
+  subSpecialties            String[]  @map("sub_specialties")
+  medicalSchool             String?   @map("medical_school")
+  graduationYear            Int?      @map("graduation_year")
+  titlePrefix               String    @default("Dr.") @map("title_prefix")
+  digitalCertificateSerial  String?   @map("digital_certificate_serial")
+  digitalCertificateExpiry  DateTime? @map("digital_certificate_expiry")
+  signatureImage            String?   @map("signature_image")
+  stampImage                String?   @map("stamp_image")
+  consultationDuration      Int       @default(30) @map("consultation_duration")
+  maxDailyPatients          Int       @default(20) @map("max_daily_patients")
+  teleconsultationEnabled   Boolean   @default(false) @map("teleconsultation_enabled")
+  personalBio               String?   @map("personal_bio")
+  prescriptionHeader        String?   @map("prescription_header")
+  favoritesMedications      Json?     @map("favorites_medications")
+  favoritesDiagnoses        Json?     @map("favorites_diagnoses")
+  favoritesExams            Json?     @map("favorites_exams")
+  favoritesTemplates        Json?     @map("favorites_templates")
+  aiPersonalization         Json?     @map("ai_personalization")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("doctor_profiles")
+}
+
+model NurseProfile {
+  id                  String  @id @default(uuid()) @map("id")
+  userId              String  @unique @map("user_id")
+  coren               String  @map("coren")
+  corenState          String  @map("coren_state")
+  specialization      String? @map("specialization")
+  canPrescribeNursing Boolean @default(false) @map("can_prescribe_nursing")
+  shiftPreference     Shift?  @map("shift_preference")
+  certifications      Json?   @map("certifications")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("nurse_profiles")
+}
+
+model ProfessionalSchedule {
+  id               String  @id @default(uuid()) @map("id")
+  professionalId   String  @map("professional_id")
+  dayOfWeek        Int     @map("day_of_week")
+  startTime        String  @map("start_time")
+  endTime          String  @map("end_time")
+  location         String? @map("location")
+  room             String? @map("room")
+  isTelemedicine   Boolean @default(false) @map("is_telemedicine")
+  slotDuration     Int     @default(30) @map("slot_duration")
+  breakStart       String? @map("break_start")
+  breakEnd         String? @map("break_end")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  professional User @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, dayOfWeek])
+  @@map("professional_schedules")
+}
+
+model Patient {
+  id                       String        @id @default(uuid()) @map("id")
+  tenantId                 String        @map("tenant_id")
+  mrn                      String        @map("mrn")
+  fullName                 String        @map("full_name")
+  socialName               String?       @map("social_name")
+  cpf                      String?       @map("cpf")
+  rg                       String?       @map("rg")
+  cns                      String?       @map("cns")
+  birthDate                DateTime      @map("birth_date")
+  gender                   Gender        @map("gender")
+  genderIdentity           String?       @map("gender_identity")
+  pronouns                 String?       @map("pronouns")
+  maritalStatus            MaritalStatus? @map("marital_status")
+  nationality              String        @default("Brasileira") @map("nationality")
+  ethnicity                String?       @map("ethnicity")
+  education                String?       @map("education")
+  occupation               String?       @map("occupation")
+  phone                    String?       @map("phone")
+  phoneSecondary           String?       @map("phone_secondary")
+  email                    String?       @map("email")
+  address                  String?       @map("address")
+  addressNumber            String?       @map("address_number")
+  addressComplement        String?       @map("address_complement")
+  neighborhood             String?       @map("neighborhood")
+  city                     String?       @map("city")
+  state                    String?       @map("state")
+  cep                      String?       @map("cep")
+  photo                    String?       @map("photo")
+  bloodType                BloodType?    @map("blood_type")
+  rhFactor                 String?       @map("rh_factor")
+  organDonor               Boolean       @default(false) @map("organ_donor")
+  advanceDirectives        String?       @map("advance_directives")
+  motherName               String?       @map("mother_name")
+  fatherName               String?       @map("father_name")
+  insuranceProvider        String?       @map("insurance_provider")
+  insurancePlan            String?       @map("insurance_plan")
+  insuranceNumber          String?       @map("insurance_number")
+  insuranceExpiry          DateTime?     @map("insurance_expiry")
+  preferredPharmacy        String?       @map("preferred_pharmacy")
+  preferredLab             String?       @map("preferred_lab")
+  emergencyContactName     String?       @map("emergency_contact_name")
+  emergencyContactPhone    String?       @map("emergency_contact_phone")
+  emergencyContactRelation String?       @map("emergency_contact_relation")
+  isActive                 Boolean       @default(true) @map("is_active")
+  isDeceased               Boolean       @default(false) @map("is_deceased")
+  deceasedAt               DateTime?     @map("deceased_at")
+  causeOfDeath             String?       @map("cause_of_death")
+  consentLGPD              Boolean       @default(false) @map("consent_lgpd")
+  consentLGPDAt            DateTime?     @map("consent_lgpd_at")
+  consentTelemedicine      Boolean       @default(false) @map("consent_telemedicine")
+  tags                     String[]      @map("tags")
+  riskScore                Float?        @map("risk_score")
+  lastVisitAt              DateTime?     @map("last_visit_at")
+  totalVisits              Int           @default(0) @map("total_visits")
+  createdAt                DateTime      @default(now()) @map("created_at")
+  updatedAt                DateTime      @updatedAt @map("updated_at")
+  deletedAt                DateTime?     @map("deleted_at")
+
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  allergies           Allergy[]
+  chronicConditions   ChronicCondition[]
+  familyHistory       FamilyHistory[]
+  surgicalHistory     SurgicalHistory[]
+  socialHistory       SocialHistory?
+  vaccinations        Vaccination[]
+  encounters          Encounter[]
+  vitalSigns          VitalSigns[]
+  admissions          Admission[]
+  appointments        Appointment[]
+  documents           ClinicalDocument[]
+  billingEntries      BillingEntry[]
+  consentRecords      ConsentRecord[]
+  dataAccessRequests  DataAccessRequest[]
+  examResults         ExamResult[]
+  alerts              ClinicalAlert[]
+  prescriptions       Prescription[]
+  fluidBalances       FluidBalance[]
+  nursingProcesses    NursingProcess[]
+  surgicalProcedures  SurgicalProcedure[]
+  voiceTranscriptions VoiceTranscription[]
+  bedsOccupied        Bed[]               @relation("BedPatient")
+
+  @@unique([tenantId, mrn])
+  @@index([tenantId, cpf])
+  @@index([tenantId, fullName])
+  @@index([cns])
+  @@map("patients")
+}
+
+model Allergy {
+  id              String          @id @default(uuid()) @map("id")
+  patientId       String          @map("patient_id")
+  substance       String          @map("substance")
+  type            AllergyType     @map("type")
+  severity        AllergySeverity @map("severity")
+  reaction        String?         @map("reaction")
+  onsetDate       DateTime?       @map("onset_date")
+  confirmedById   String?         @map("confirmed_by_id")
+  status          AllergyStatus   @default(ACTIVE) @map("status")
+  source          AllergySource   @default(PATIENT_REPORT) @map("source")
+  notes           String?         @map("notes")
+  recordedByVoice Boolean         @default(false) @map("recorded_by_voice")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  patient     Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  confirmedBy User?   @relation("AllergyConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId, status])
+  @@map("allergies")
+}
+
+model ChronicCondition {
+  id               String          @id @default(uuid()) @map("id")
+  patientId        String          @map("patient_id")
+  cidCode          String?         @map("cid_code")
+  cidDescription   String?         @map("cid_description")
+  diagnosedAt      DateTime?       @map("diagnosed_at")
+  diagnosedById    String?         @map("diagnosed_by_id")
+  status           ConditionStatus @default(ACTIVE) @map("status")
+  severity         String?         @map("severity")
+  currentTreatment String?         @map("current_treatment")
+  notes            String?         @map("notes")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  patient     Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  diagnosedBy User?   @relation("ConditionDiagnoser", fields: [diagnosedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId, status])
+  @@map("chronic_conditions")
+}
+
+model FamilyHistory {
+  id           String         @id @default(uuid()) @map("id")
+  patientId    String         @map("patient_id")
+  condition    String         @map("condition")
+  cidCode      String?        @map("cid_code")
+  relationship FamilyRelation @map("relationship")
+  ageOfOnset   Int?           @map("age_of_onset")
+  isDeceased   Boolean        @default(false) @map("is_deceased")
+  causeOfDeath String?        @map("cause_of_death")
+  notes        String?        @map("notes")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@map("family_histories")
+}
+
+model SurgicalHistory {
+  id              String    @id @default(uuid()) @map("id")
+  patientId       String    @map("patient_id")
+  procedure       String    @map("procedure")
+  date            DateTime? @map("date")
+  hospital        String?   @map("hospital")
+  surgeon         String?   @map("surgeon")
+  anesthesiaType  String?   @map("anesthesia_type")
+  complications   String?   @map("complications")
+  notes           String?   @map("notes")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@map("surgical_histories")
+}
+
+model SocialHistory {
+  id                String        @id @default(uuid()) @map("id")
+  patientId         String        @unique @map("patient_id")
+  smoking           SmokingStatus @default(NEVER) @map("smoking")
+  smokingDetails    String?       @map("smoking_details")
+  alcohol           AlcoholStatus @default(NEVER) @map("alcohol")
+  alcoholDetails    String?       @map("alcohol_details")
+  drugs             DrugUseStatus @default(NEVER) @map("drugs")
+  drugDetails       String?       @map("drug_details")
+  exercise          ExerciseLevel @default(SEDENTARY) @map("exercise")
+  exerciseDetails   String?       @map("exercise_details")
+  diet              String?       @map("diet")
+  sleep             String?       @map("sleep")
+  stressLevel       Int?          @map("stress_level")
+  sexuallyActive    Boolean?      @map("sexually_active")
+  contraception     String?       @map("contraception")
+  housingCondition  String?       @map("housing_condition")
+  sanitationAccess  Boolean?      @map("sanitation_access")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("social_histories")
+}
+
+model Vaccination {
+  id              String    @id @default(uuid()) @map("id")
+  patientId       String    @map("patient_id")
+  vaccine         String    @map("vaccine")
+  dose            String?   @map("dose")
+  lot             String?   @map("lot")
+  manufacturer    String?   @map("manufacturer")
+  applicationDate DateTime  @map("application_date")
+  nextDoseDate    DateTime? @map("next_dose_date")
+  applicationSite String?   @map("application_site")
+  appliedById     String?   @map("applied_by_id")
+  notes           String?   @map("notes")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appliedBy User?   @relation(fields: [appliedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@map("vaccinations")
+}
+
+model Encounter {
+  id                      String            @id @default(uuid()) @map("id")
+  tenantId                String            @map("tenant_id")
+  patientId               String            @map("patient_id")
+  primaryDoctorId         String?           @map("primary_doctor_id")
+  primaryNurseId          String?           @map("primary_nurse_id")
+  type                    EncounterType     @map("type")
+  status                  EncounterStatus   @default(SCHEDULED) @map("status")
+  priority                Priority          @default(NORMAL) @map("priority")
+  scheduledAt             DateTime?         @map("scheduled_at")
+  startedAt               DateTime?         @map("started_at")
+  completedAt             DateTime?         @map("completed_at")
+  duration                Int?              @map("duration")
+  location                String?           @map("location")
+  room                    String?           @map("room")
+  bed                     String?           @map("bed")
+  chiefComplaint          String?           @map("chief_complaint")
+  chiefComplaintAudio     String?           @map("chief_complaint_audio")
+  triageLevel             TriageLevel?      @map("triage_level")
+  triageScore             Float?            @map("triage_score")
+  triageNurseId           String?           @map("triage_nurse_id")
+  triagedAt               DateTime?         @map("triaged_at")
+  vitalsAtTriage          Json?             @map("vitals_at_triage")
+  isFollowUp              Boolean           @default(false) @map("is_follow_up")
+  previousEncounterId     String?           @map("previous_encounter_id")
+  insuranceAuthorization  String?           @map("insurance_authorization")
+  insuranceGuideNumber    String?           @map("insurance_guide_number")
+  billingStatus           BillingStatusEnum @default(PENDING) @map("billing_status")
+  totalCost               Decimal?          @map("total_cost")
+  patientSatisfactionScore Int?             @map("patient_satisfaction_score")
+  aiSummary               String?           @map("ai_summary")
+  aiSummaryGeneratedAt    DateTime?         @map("ai_summary_generated_at")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+
+  tenant              Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient             Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  primaryDoctor       User?        @relation("EncounterDoctor", fields: [primaryDoctorId], references: [id], onDelete: SetNull)
+  primaryNurse        User?        @relation("EncounterNurse", fields: [primaryNurseId], references: [id], onDelete: SetNull)
+  triageNurse         User?        @relation("EncounterTriageNurse", fields: [triageNurseId], references: [id], onDelete: SetNull)
+  previousEncounter   Encounter?   @relation("EncounterFollowUp", fields: [previousEncounterId], references: [id], onDelete: SetNull)
+  followUpEncounters  Encounter[]  @relation("EncounterFollowUp")
+  clinicalNotes       ClinicalNote[]
+  prescriptions       Prescription[]
+  vitalSigns          VitalSigns[]
+  voiceTranscriptions VoiceTranscription[]
+  triageAssessment    TriageAssessment?
+  admission           Admission?
+  surgicalProcedures  SurgicalProcedure[]
+  examResults         ExamResult[]
+  documents           ClinicalDocument[]
+  billingEntries      BillingEntry[]
+  alerts              ClinicalAlert[]
+  fluidBalances       FluidBalance[]
+  nursingProcesses    NursingProcess[]
+  nursingNotes        NursingNote[]
+  appointments        Appointment[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, patientId])
+  @@index([tenantId, primaryDoctorId])
+  @@index([tenantId, scheduledAt])
+  @@index([patientId, createdAt])
+  @@map("encounters")
+}
+
+model VoiceTranscription {
+  id                     String              @id @default(uuid()) @map("id")
+  encounterId            String?             @map("encounter_id")
+  userId                 String              @map("user_id")
+  patientId              String?             @map("patient_id")
+  audioUrl               String?             @map("audio_url")
+  audioDuration          Float?              @map("audio_duration")
+  audioFormat            String?             @map("audio_format")
+  rawTranscription       String?             @map("raw_transcription")
+  processedTranscription String?             @map("processed_transcription")
+  structuredData         Json?               @map("structured_data")
+  context                TranscriptionContext @map("context")
+  confidence             Float?              @map("confidence")
+  language               String              @default("pt-BR") @map("language")
+  wasEdited              Boolean             @default(false) @map("was_edited")
+  editedAt               DateTime?           @map("edited_at")
+  editedById             String?             @map("edited_by_id")
+  processingStatus       TranscriptionStatus @default(RECORDING) @map("processing_status")
+  processingTimeMs       Int?                @map("processing_time_ms")
+  createdAt              DateTime            @default(now()) @map("created_at")
+
+  encounter              Encounter?           @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  user                   User                 @relation("TranscriptionUser", fields: [userId], references: [id], onDelete: Restrict)
+  patient                Patient?             @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  editedBy               User?                @relation("TranscriptionEditor", fields: [editedById], references: [id], onDelete: SetNull)
+  clinicalNotes          ClinicalNote[]
+  prescriptions          Prescription[]
+  triageAssessments      TriageAssessment[]
+  nursingInterventions   NursingIntervention[]
+  nursingNotes           NursingNote[]
+  nursingProcessDataCollection NursingProcess[] @relation("NursingProcessDataCollection")
+  nursingProcessEvaluation     NursingProcess[] @relation("NursingProcessEvaluation")
+  surgicalProcedures     SurgicalProcedure[]
+  documents              ClinicalDocument[]
+
+  @@index([encounterId, context])
+  @@map("voice_transcriptions")
+}
+
+model ClinicalNote {
+  id                    String     @id @default(uuid()) @map("id")
+  encounterId           String     @map("encounter_id")
+  authorId              String     @map("author_id")
+  authorRole            UserRole   @map("author_role")
+  type                  NoteType   @map("type")
+  status                NoteStatus @default(DRAFT) @map("status")
+  subjective            String?    @map("subjective")
+  objective             String?    @map("objective")
+  assessment            String?    @map("assessment")
+  plan                  String?    @map("plan")
+  freeText              String?    @map("free_text")
+  diagnosisCodes        String[]   @map("diagnosis_codes")
+  procedureCodes        String[]   @map("procedure_codes")
+  voiceTranscriptionId  String?    @map("voice_transcription_id")
+  wasGeneratedByAI      Boolean    @default(false) @map("was_generated_by_ai")
+  aiModel               String?    @map("ai_model")
+  aiPromptVersion       String?    @map("ai_prompt_version")
+  signedAt              DateTime?  @map("signed_at")
+  signedById            String?    @map("signed_by_id")
+  digitalSignatureHash  String?    @map("digital_signature_hash")
+  cosignedAt            DateTime?  @map("cosigned_at")
+  cosignedById          String?    @map("cosigned_by_id")
+  version               Int        @default(1) @map("version")
+  parentNoteId          String?    @map("parent_note_id")
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+
+  encounter           Encounter           @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  author              User                @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  signedBy            User?               @relation("NoteSigner", fields: [signedById], references: [id], onDelete: SetNull)
+  cosignedBy          User?               @relation("NoteCosigner", fields: [cosignedById], references: [id], onDelete: SetNull)
+  voiceTranscription  VoiceTranscription? @relation(fields: [voiceTranscriptionId], references: [id], onDelete: SetNull)
+  parentNote          ClinicalNote?       @relation("NoteAmendments", fields: [parentNoteId], references: [id], onDelete: SetNull)
+  amendments          ClinicalNote[]      @relation("NoteAmendments")
+  digitalSignatures   DigitalSignature[]
+
+  @@index([encounterId, type])
+  @@index([encounterId, authorId])
+  @@map("clinical_notes")
+}
+
+model Prescription {
+  id                    String             @id @default(uuid()) @map("id")
+  encounterId           String             @map("encounter_id")
+  doctorId              String             @map("doctor_id")
+  patientId             String             @map("patient_id")
+  tenantId              String             @map("tenant_id")
+  type                  PrescriptionType   @map("type")
+  status                PrescriptionStatus @default(DRAFT) @map("status")
+  voiceTranscriptionId  String?            @map("voice_transcription_id")
+  wasGeneratedByAI      Boolean            @default(false) @map("was_generated_by_ai")
+  validFrom             DateTime?          @map("valid_from")
+  validUntil            DateTime?          @map("valid_until")
+  isOneTime             Boolean            @default(false) @map("is_one_time")
+  isContinuous          Boolean            @default(false) @map("is_continuous")
+  isPRN                 Boolean            @default(false) @map("is_prn")
+  signedAt              DateTime?          @map("signed_at")
+  digitalSignatureHash  String?            @map("digital_signature_hash")
+  requiresDoubleCheck   Boolean            @default(false) @map("requires_double_check")
+  doubleCheckedById     String?            @map("double_checked_by_id")
+  doubleCheckedAt       DateTime?          @map("double_checked_at")
+  dispensedAt           DateTime?          @map("dispensed_at")
+  dispensedById         String?            @map("dispensed_by_id")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  encounter           Encounter           @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  doctor              User                @relation("PrescriptionDoctor", fields: [doctorId], references: [id], onDelete: Restrict)
+  patient             Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  voiceTranscription  VoiceTranscription? @relation(fields: [voiceTranscriptionId], references: [id], onDelete: SetNull)
+  doubleCheckedBy     User?               @relation("PrescriptionDoubleChecker", fields: [doubleCheckedById], references: [id], onDelete: SetNull)
+  dispensedBy         User?               @relation("PrescriptionDispenser", fields: [dispensedById], references: [id], onDelete: SetNull)
+  items               PrescriptionItem[]
+  digitalSignatures   DigitalSignature[]
+
+  @@index([encounterId, type])
+  @@index([patientId, status])
+  @@index([tenantId, status])
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id                      String            @id @default(uuid()) @map("id")
+  prescriptionId          String            @map("prescription_id")
+  medicationName          String?           @map("medication_name")
+  activeIngredient        String?           @map("active_ingredient")
+  concentration           String?           @map("concentration")
+  pharmaceuticalForm      String?           @map("pharmaceutical_form")
+  dose                    String?           @map("dose")
+  doseUnit                String?           @map("dose_unit")
+  route                   MedicationRoute?  @map("route")
+  frequency               String?           @map("frequency")
+  frequencyHours          Int?              @map("frequency_hours")
+  customSchedule          Json?             @map("custom_schedule")
+  duration                String?           @map("duration")
+  durationUnit            DurationUnit?     @map("duration_unit")
+  infusionRate            String?           @map("infusion_rate")
+  infusionRateUnit        String?           @map("infusion_rate_unit")
+  dilution                String?           @map("dilution")
+  dilutionVolume          String?           @map("dilution_volume")
+  dilutionSolution        String?           @map("dilution_solution")
+  maxDailyDose            String?           @map("max_daily_dose")
+  prnCondition            String?           @map("prn_condition")
+  specialInstructions     String?           @map("special_instructions")
+  examName                String?           @map("exam_name")
+  examCode                String?           @map("exam_code")
+  examType                ExamType?         @map("exam_type")
+  examUrgency             Priority?         @map("exam_urgency")
+  examInstructions        String?           @map("exam_instructions")
+  examJustification       String?           @map("exam_justification")
+  procedureName           String?           @map("procedure_name")
+  procedureCode           String?           @map("procedure_code")
+  dietType                String?           @map("diet_type")
+  caloricTarget           Int?              @map("caloric_target")
+  restrictions            String?           @map("restrictions")
+  supplements             String?           @map("supplements")
+  isControlled            Boolean           @default(false) @map("is_controlled")
+  controlledSchedule      ControlledSchedule? @map("controlled_schedule")
+  isAntibiotic            Boolean           @default(false) @map("is_antibiotic")
+  antibioticJustification String?           @map("antibiotic_justification")
+  isHighAlert             Boolean           @default(false) @map("is_high_alert")
+  aiSuggested             Boolean           @default(false) @map("ai_suggested")
+  aiConfidence            Float?            @map("ai_confidence")
+  aiReasoning             String?           @map("ai_reasoning")
+  interactionAlerts       Json?             @map("interaction_alerts")
+  allergyAlerts           Json?             @map("allergy_alerts")
+  duplicateAlert          Boolean           @default(false) @map("duplicate_alert")
+  doseCheckResult         DoseCheckResult?  @map("dose_check_result")
+  status                  CheckStatus       @default(PENDING) @map("status")
+  sortOrder               Int               @default(0) @map("sort_order")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+
+  prescription     Prescription      @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicationChecks MedicationCheck[]
+
+  @@index([prescriptionId])
+  @@map("prescription_items")
+}
+
+model MedicationCheck {
+  id                 String        @id @default(uuid()) @map("id")
+  prescriptionItemId String        @map("prescription_item_id")
+  nurseId            String        @map("nurse_id")
+  scheduledAt        DateTime      @map("scheduled_at")
+  checkedAt          DateTime?     @map("checked_at")
+  status             MedCheckStatus @map("status")
+  reason             String?       @map("reason")
+  observations       String?       @map("observations")
+  vitalsBefore       Json?         @map("vitals_before")
+  vitalsAfter        Json?         @map("vitals_after")
+  painScaleBefore    Int?          @map("pain_scale_before")
+  painScaleAfter     Int?          @map("pain_scale_after")
+  wasCheckedByVoice  Boolean       @default(false) @map("was_checked_by_voice")
+  lotNumber          String?       @map("lot_number")
+  expirationDate     DateTime?     @map("expiration_date")
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  prescriptionItem PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Cascade)
+  nurse            User             @relation(fields: [nurseId], references: [id], onDelete: Restrict)
+
+  @@index([prescriptionItemId, scheduledAt])
+  @@map("medication_checks")
+}
+
+model VitalSigns {
+  id                      String                @id @default(uuid()) @map("id")
+  encounterId             String?               @map("encounter_id")
+  patientId               String                @map("patient_id")
+  recordedById            String                @map("recorded_by_id")
+  recordedAt              DateTime              @map("recorded_at")
+  systolicBP              Int?                  @map("systolic_bp")
+  diastolicBP             Int?                  @map("diastolic_bp")
+  meanArterialPressure    Float?                @map("mean_arterial_pressure")
+  heartRate               Int?                  @map("heart_rate")
+  heartRhythm             HeartRhythm?          @map("heart_rhythm")
+  respiratoryRate         Int?                  @map("respiratory_rate")
+  respiratoryPattern      String?               @map("respiratory_pattern")
+  temperature             Float?                @map("temperature")
+  temperatureMethod       TemperatureMethod?    @map("temperature_method")
+  oxygenSaturation        Float?                @map("oxygen_saturation")
+  oxygenSupplementation   OxygenSupplementation? @map("oxygen_supplementation")
+  fiO2                    Float?                @map("fi_o2")
+  painScale               Int?                  @map("pain_scale")
+  painLocation            String?               @map("pain_location")
+  painType                String?               @map("pain_type")
+  weight                  Float?                @map("weight")
+  height                  Float?                @map("height")
+  bmi                     Float?                @map("bmi")
+  headCircumference       Float?                @map("head_circumference")
+  abdominalCircumference  Float?                @map("abdominal_circumference")
+  glucoseLevel            Float?                @map("glucose_level")
+  glucoseContext           GlucoseContext?       @map("glucose_context")
+  gcs                     Int?                  @map("gcs")
+  gcsEye                  Int?                  @map("gcs_eye")
+  gcsVerbal               Int?                  @map("gcs_verbal")
+  gcsMotor                Int?                  @map("gcs_motor")
+  pupilLeft               String?               @map("pupil_left")
+  pupilRight              String?               @map("pupil_right")
+  pupilReactivity         String?               @map("pupil_reactivity")
+  capillaryRefill         String?               @map("capillary_refill")
+  edema                   Edema?                @map("edema")
+  edemaLocation           String?               @map("edema_location")
+  diuresis24h             Float?                @map("diuresis_24h")
+  fluidBalance            Float?                @map("fluid_balance")
+  aiAlerts                Json?                 @map("ai_alerts")
+  aiTrend                 AiTrend?              @map("ai_trend")
+  aiTrendConfidence       Float?                @map("ai_trend_confidence")
+  source                  VitalSource           @default(MANUAL) @map("source")
+  deviceId                String?               @map("device_id")
+  createdAt               DateTime              @default(now()) @map("created_at")
+
+  encounter          Encounter?          @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  recordedBy         User                @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  triageAssessments  TriageAssessment[]
+
+  @@index([patientId, recordedAt])
+  @@index([encounterId, recordedAt])
+  @@map("vital_signs")
+}
+
+model TriageAssessment {
+  id                       String        @id @default(uuid()) @map("id")
+  encounterId              String        @unique @map("encounter_id")
+  nurseId                  String        @map("nurse_id")
+  protocol                 TriageProtocol @default(MANCHESTER) @map("protocol")
+  chiefComplaint           String        @map("chief_complaint")
+  symptomOnset             String?       @map("symptom_onset")
+  symptomDuration          String?       @map("symptom_duration")
+  painScale                Int?          @map("pain_scale")
+  painLocation             String?       @map("pain_location")
+  painCharacter            String?       @map("pain_character")
+  discriminators           Json?         @map("discriminators")
+  selectedDiscriminator    String?       @map("selected_discriminator")
+  level                    TriageLevel   @map("level")
+  levelDescription         String?       @map("level_description")
+  maxWaitTimeMinutes       Int?          @map("max_wait_time_minutes")
+  reassessmentTimeMinutes  Int?          @map("reassessment_time_minutes")
+  aiSuggestedLevel         TriageLevel?  @map("ai_suggested_level")
+  aiConfidence             Float?        @map("ai_confidence")
+  aiReasoning              String?       @map("ai_reasoning")
+  aiRedFlags               Json?         @map("ai_red_flags")
+  overriddenByNurse        Boolean       @default(false) @map("overridden_by_nurse")
+  overrideReason           String?       @map("override_reason")
+  vitalSignsId             String?       @map("vital_signs_id")
+  voiceTranscriptionId     String?       @map("voice_transcription_id")
+  completedAt              DateTime?     @map("completed_at")
+  createdAt                DateTime      @default(now()) @map("created_at")
+
+  encounter          Encounter           @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  nurse              User                @relation(fields: [nurseId], references: [id], onDelete: Restrict)
+  vitalSigns         VitalSigns?         @relation(fields: [vitalSignsId], references: [id], onDelete: SetNull)
+  voiceTranscription VoiceTranscription? @relation(fields: [voiceTranscriptionId], references: [id], onDelete: SetNull)
+
+  @@map("triage_assessments")
+}
+
+model Admission {
+  id                        String         @id @default(uuid()) @map("id")
+  encounterId               String         @unique @map("encounter_id")
+  patientId                 String         @map("patient_id")
+  tenantId                  String         @map("tenant_id")
+  admittingDoctorId         String         @map("admitting_doctor_id")
+  attendingDoctorId         String?        @map("attending_doctor_id")
+  admissionDate             DateTime       @map("admission_date")
+  expectedDischargeDate     DateTime?      @map("expected_discharge_date")
+  actualDischargeDate       DateTime?      @map("actual_discharge_date")
+  admissionType             AdmissionType  @map("admission_type")
+  currentBedId              String?        @map("current_bed_id")
+  admissionBedId            String?        @map("admission_bed_id")
+  isolationRequired         Boolean        @default(false) @map("isolation_required")
+  isolationType             IsolationType? @map("isolation_type")
+  aihNumber                 String?        @map("aih_number")
+  aihAuthorizedAt           DateTime?      @map("aih_authorized_at")
+  diagnosisAtAdmission      String?        @map("diagnosis_at_admission")
+  diagnosisAtDischarge      String?        @map("diagnosis_at_discharge")
+  procedurePerformed        String?        @map("procedure_performed")
+  dischargeType             DischargeType? @map("discharge_type")
+  dischargeNotes            String?        @map("discharge_notes")
+  dischargePrescription     String?        @map("discharge_prescription")
+  dischargeInstructions     String?        @map("discharge_instructions")
+  followUpDate              DateTime?      @map("follow_up_date")
+  aiLengthOfStayPrediction  Float?         @map("ai_length_of_stay_prediction")
+  aiReadmissionRisk         Float?         @map("ai_readmission_risk")
+  aiDischargePlanSuggestion String?        @map("ai_discharge_plan_suggestion")
+  createdAt                 DateTime       @default(now()) @map("created_at")
+  updatedAt                 DateTime       @updatedAt @map("updated_at")
+
+  encounter       Encounter    @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient         Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  admittingDoctor User         @relation("AdmittingDoctor", fields: [admittingDoctorId], references: [id], onDelete: Restrict)
+  attendingDoctor User?        @relation("AttendingDoctor", fields: [attendingDoctorId], references: [id], onDelete: SetNull)
+  currentBed      Bed?         @relation("CurrentBed", fields: [currentBedId], references: [id], onDelete: SetNull)
+  admissionBed    Bed?         @relation("AdmissionBed", fields: [admissionBedId], references: [id], onDelete: SetNull)
+  bedTransfers    BedTransfer[]
+
+  @@index([tenantId, admissionDate])
+  @@index([patientId])
+  @@map("admissions")
+}
+
+model Bed {
+  id                  String    @id @default(uuid()) @map("id")
+  tenantId            String    @map("tenant_id")
+  ward                String    @map("ward")
+  room                String    @map("room")
+  bedNumber           String    @map("bed_number")
+  floor               String?   @map("floor")
+  type                BedType   @map("type")
+  status              BedStatus @default(AVAILABLE) @map("status")
+  currentPatientId    String?   @map("current_patient_id")
+  currentAdmissionId  String?   @map("current_admission_id")
+  equipment           Json?     @map("equipment")
+  lastCleanedAt       DateTime? @map("last_cleaned_at")
+  lastMaintenanceAt   DateTime? @map("last_maintenance_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  currentPatient    Patient?     @relation("BedPatient", fields: [currentPatientId], references: [id], onDelete: SetNull)
+  currentAdmissions Admission[]  @relation("CurrentBed")
+  admissionBeds     Admission[]  @relation("AdmissionBed")
+  transfersFrom     BedTransfer[] @relation("TransferFromBed")
+  transfersTo       BedTransfer[] @relation("TransferToBed")
+
+  @@unique([tenantId, ward, room, bedNumber])
+  @@index([tenantId, status])
+  @@map("beds")
+}
+
+model BedTransfer {
+  id            String         @id @default(uuid()) @map("id")
+  admissionId   String         @map("admission_id")
+  fromBedId     String         @map("from_bed_id")
+  toBedId       String         @map("to_bed_id")
+  requestedById String         @map("requested_by_id")
+  approvedById  String?        @map("approved_by_id")
+  executedById  String?        @map("executed_by_id")
+  reason        String?        @map("reason")
+  requestedAt   DateTime       @map("requested_at")
+  approvedAt    DateTime?      @map("approved_at")
+  executedAt    DateTime?      @map("executed_at")
+  status        TransferStatus @default(REQUESTED) @map("status")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  admission   Admission @relation(fields: [admissionId], references: [id], onDelete: Restrict)
+  fromBed     Bed       @relation("TransferFromBed", fields: [fromBedId], references: [id], onDelete: Restrict)
+  toBed       Bed       @relation("TransferToBed", fields: [toBedId], references: [id], onDelete: Restrict)
+  requestedBy User      @relation("TransferRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  approvedBy  User?     @relation("TransferApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  executedBy  User?     @relation("TransferExecutor", fields: [executedById], references: [id], onDelete: SetNull)
+
+  @@map("bed_transfers")
+}
+
+model NursingProcess {
+  id                       String               @id @default(uuid()) @map("id")
+  encounterId              String               @map("encounter_id")
+  patientId                String               @map("patient_id")
+  nurseId                  String               @map("nurse_id")
+  status                   NursingProcessStatus @default(IN_PROGRESS) @map("status")
+  dataCollectionNotes      String?              @map("data_collection_notes")
+  dataCollectionVoiceId    String?              @map("data_collection_voice_id")
+  evaluationNotes          String?              @map("evaluation_notes")
+  evaluationVoiceId        String?              @map("evaluation_voice_id")
+  evaluatedAt              DateTime?            @map("evaluated_at")
+  aiSuggestedDiagnoses     Json?                @map("ai_suggested_diagnoses")
+  createdAt                DateTime             @default(now()) @map("created_at")
+  updatedAt                DateTime             @updatedAt @map("updated_at")
+
+  encounter              Encounter           @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient                Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  nurse                  User                @relation(fields: [nurseId], references: [id], onDelete: Restrict)
+  dataCollectionVoice    VoiceTranscription? @relation("NursingProcessDataCollection", fields: [dataCollectionVoiceId], references: [id], onDelete: SetNull)
+  evaluationVoice        VoiceTranscription? @relation("NursingProcessEvaluation", fields: [evaluationVoiceId], references: [id], onDelete: SetNull)
+  diagnoses              NursingDiagnosis[]
+
+  @@index([encounterId])
+  @@index([patientId])
+  @@map("nursing_processes")
+}
+
+model NursingDiagnosis {
+  id                       String           @id @default(uuid()) @map("id")
+  nursingProcessId         String           @map("nursing_process_id")
+  nandaCode                String?          @map("nanda_code")
+  nandaDomain              String?          @map("nanda_domain")
+  nandaClass               String?          @map("nanda_class")
+  nandaTitle               String           @map("nanda_title")
+  relatedFactors           String[]         @map("related_factors")
+  riskFactors              String[]         @map("risk_factors")
+  definingCharacteristics  String[]         @map("defining_characteristics")
+  status                   NursingDxStatus  @default(ACTIVE) @map("status")
+  priority                 NursingPriority  @map("priority")
+  aiSuggested              Boolean          @default(false) @map("ai_suggested")
+  aiConfidence             Float?           @map("ai_confidence")
+  createdAt                DateTime         @default(now()) @map("created_at")
+  resolvedAt               DateTime?        @map("resolved_at")
+
+  nursingProcess NursingProcess        @relation(fields: [nursingProcessId], references: [id], onDelete: Cascade)
+  outcomes       NursingOutcome[]
+  interventions  NursingIntervention[]
+
+  @@index([nursingProcessId])
+  @@map("nursing_diagnoses")
+}
+
+model NursingOutcome {
+  id                  String   @id @default(uuid()) @map("id")
+  nursingDiagnosisId  String   @map("nursing_diagnosis_id")
+  nocCode             String?  @map("noc_code")
+  nocTitle            String   @map("noc_title")
+  baselineScore       Int      @map("baseline_score")
+  targetScore         Int      @map("target_score")
+  currentScore        Int      @map("current_score")
+  indicators          Json?    @map("indicators")
+  evaluationFrequency String?  @map("evaluation_frequency")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  nursingDiagnosis NursingDiagnosis @relation(fields: [nursingDiagnosisId], references: [id], onDelete: Cascade)
+
+  @@index([nursingDiagnosisId])
+  @@map("nursing_outcomes")
+}
+
+model NursingIntervention {
+  id                   String             @id @default(uuid()) @map("id")
+  nursingDiagnosisId   String             @map("nursing_diagnosis_id")
+  nicCode              String?            @map("nic_code")
+  nicTitle             String             @map("nic_title")
+  activities           Json?              @map("activities")
+  status               InterventionStatus @default(PLANNED) @map("status")
+  notes                String?            @map("notes")
+  voiceTranscriptionId String?            @map("voice_transcription_id")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  nursingDiagnosis   NursingDiagnosis    @relation(fields: [nursingDiagnosisId], references: [id], onDelete: Cascade)
+  voiceTranscription VoiceTranscription? @relation(fields: [voiceTranscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([nursingDiagnosisId])
+  @@map("nursing_interventions")
+}
+
+model NursingNote {
+  id                   String          @id @default(uuid()) @map("id")
+  encounterId          String          @map("encounter_id")
+  nurseId              String          @map("nurse_id")
+  type                 NursingNoteType @map("type")
+  content              String          @map("content")
+  voiceTranscriptionId String?         @map("voice_transcription_id")
+  signedAt             DateTime?       @map("signed_at")
+  digitalSignatureHash String?         @map("digital_signature_hash")
+  shift                Shift           @map("shift")
+  createdAt            DateTime        @default(now()) @map("created_at")
+
+  encounter          Encounter           @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  nurse              User                @relation(fields: [nurseId], references: [id], onDelete: Restrict)
+  voiceTranscription VoiceTranscription? @relation(fields: [voiceTranscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([encounterId, shift])
+  @@map("nursing_notes")
+}
+
+model FluidBalance {
+  id                  String   @id @default(uuid()) @map("id")
+  encounterId         String   @map("encounter_id")
+  patientId           String   @map("patient_id")
+  nurseId             String   @map("nurse_id")
+  recordedAt          DateTime @map("recorded_at")
+  period              String?  @map("period")
+  intakeOral          Float    @default(0) @map("intake_oral")
+  intakeIV            Float    @default(0) @map("intake_iv")
+  intakeOther         Float    @default(0) @map("intake_other")
+  intakeTotal         Float    @default(0) @map("intake_total")
+  outputUrine         Float    @default(0) @map("output_urine")
+  outputDrain         Float    @default(0) @map("output_drain")
+  outputEmesis        Float    @default(0) @map("output_emesis")
+  outputStool         Float    @default(0) @map("output_stool")
+  outputOther         Float    @default(0) @map("output_other")
+  outputTotal         Float    @default(0) @map("output_total")
+  balance             Float    @default(0) @map("balance")
+  cumulativeBalance24h Float?  @map("cumulative_balance_24h")
+  aiAlert             String?  @map("ai_alert")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient   Patient   @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  nurse     User      @relation(fields: [nurseId], references: [id], onDelete: Restrict)
+
+  @@index([encounterId])
+  @@index([patientId])
+  @@map("fluid_balances")
+}
+
+model SurgicalProcedure {
+  id                          String          @id @default(uuid()) @map("id")
+  encounterId                 String          @map("encounter_id")
+  patientId                   String          @map("patient_id")
+  tenantId                    String          @map("tenant_id")
+  surgeonId                   String          @map("surgeon_id")
+  firstAssistantId            String?         @map("first_assistant_id")
+  anesthesiologistId          String?         @map("anesthesiologist_id")
+  scrubNurseId                String?         @map("scrub_nurse_id")
+  circulatingNurseId          String?         @map("circulating_nurse_id")
+  procedureName               String          @map("procedure_name")
+  procedureCode               String?         @map("procedure_code")
+  laterality                  Laterality?     @map("laterality")
+  anesthesiaType              AnesthesiaType? @map("anesthesia_type")
+  scheduledAt                 DateTime?       @map("scheduled_at")
+  patientInAt                 DateTime?       @map("patient_in_at")
+  anesthesiaStartAt           DateTime?       @map("anesthesia_start_at")
+  incisionAt                  DateTime?       @map("incision_at")
+  sutureAt                    DateTime?       @map("suture_at")
+  anesthesiaEndAt             DateTime?       @map("anesthesia_end_at")
+  patientOutAt                DateTime?       @map("patient_out_at")
+  safetyChecklistBefore       Json?           @map("safety_checklist_before")
+  safetyChecklistDuring       Json?           @map("safety_checklist_during")
+  safetyChecklistAfter        Json?           @map("safety_checklist_after")
+  surgicalDescription         String?         @map("surgical_description")
+  surgicalDescriptionVoiceId  String?         @map("surgical_description_voice_id")
+  complications               String?         @map("complications")
+  bloodLoss                   Int?            @map("blood_loss")
+  implants                    Json?           @map("implants")
+  pathologySamples            Json?           @map("pathology_samples")
+  status                      SurgicalStatus  @default(SCHEDULED) @map("status")
+  aiSurgicalRisk              String?         @map("ai_surgical_risk")
+  aiAnticipatedComplications  String?         @map("ai_anticipated_complications")
+  createdAt                   DateTime        @default(now()) @map("created_at")
+  updatedAt                   DateTime        @updatedAt @map("updated_at")
+
+  encounter                  Encounter           @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  patient                    Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  tenant                     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  surgeon                    User                @relation("Surgeon", fields: [surgeonId], references: [id], onDelete: Restrict)
+  firstAssistant             User?               @relation("FirstAssistant", fields: [firstAssistantId], references: [id], onDelete: SetNull)
+  anesthesiologist           User?               @relation("Anesthesiologist", fields: [anesthesiologistId], references: [id], onDelete: SetNull)
+  scrubNurse                 User?               @relation("ScrubNurse", fields: [scrubNurseId], references: [id], onDelete: SetNull)
+  circulatingNurse           User?               @relation("CirculatingNurse", fields: [circulatingNurseId], references: [id], onDelete: SetNull)
+  surgicalDescriptionVoice   VoiceTranscription? @relation(fields: [surgicalDescriptionVoiceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, scheduledAt])
+  @@map("surgical_procedures")
+}
+
+model ExamResult {
+  id                  String        @id @default(uuid()) @map("id")
+  encounterId         String?       @map("encounter_id")
+  patientId           String        @map("patient_id")
+  examName            String        @map("exam_name")
+  examCode            String?       @map("exam_code")
+  examType            ExamType      @map("exam_type")
+  requestedById       String?       @map("requested_by_id")
+  requestedAt         DateTime?     @map("requested_at")
+  labResults          Json?         @map("lab_results")
+  imageUrl            String?       @map("image_url")
+  imageModality       ImageModality? @map("image_modality")
+  radiologistReport   String?       @map("radiologist_report")
+  status              ExamStatus    @default(REQUESTED) @map("status")
+  collectedAt         DateTime?     @map("collected_at")
+  completedAt         DateTime?     @map("completed_at")
+  reviewedAt          DateTime?     @map("reviewed_at")
+  reviewedById        String?       @map("reviewed_by_id")
+  aiInterpretation    String?       @map("ai_interpretation")
+  aiAlerts            Json?         @map("ai_alerts")
+  aiTrendComparison   Json?         @map("ai_trend_comparison")
+  attachments         Json?         @map("attachments")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  patient     Patient    @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  requestedBy User?      @relation("ExamRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  reviewedBy  User?      @relation("ExamReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId, examType])
+  @@index([patientId, createdAt])
+  @@map("exam_results")
+}
+
+model ClinicalDocument {
+  id                   String         @id @default(uuid()) @map("id")
+  encounterId          String?        @map("encounter_id")
+  patientId            String         @map("patient_id")
+  authorId             String         @map("author_id")
+  tenantId             String         @map("tenant_id")
+  type                 DocumentType   @map("type")
+  title                String         @map("title")
+  content              String?        @map("content")
+  templateId           String?        @map("template_id")
+  generatedByAI        Boolean        @default(false) @map("generated_by_ai")
+  voiceTranscriptionId String?        @map("voice_transcription_id")
+  signedAt             DateTime?      @map("signed_at")
+  signedById           String?        @map("signed_by_id")
+  digitalSignatureHash String?        @map("digital_signature_hash")
+  patientSignedAt      DateTime?      @map("patient_signed_at")
+  patientSignature     String?        @map("patient_signature")
+  witnessSignedAt      DateTime?      @map("witness_signed_at")
+  witnessName          String?        @map("witness_name")
+  pdfUrl               String?        @map("pdf_url")
+  status               DocumentStatus @default(DRAFT) @map("status")
+  voidReason           String?        @map("void_reason")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  encounter          Encounter?          @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  author             User                @relation("DocumentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  template           DocumentTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  signedBy           User?               @relation("DocumentSigner", fields: [signedById], references: [id], onDelete: SetNull)
+  voiceTranscription VoiceTranscription? @relation(fields: [voiceTranscriptionId], references: [id], onDelete: SetNull)
+  digitalSignatures  DigitalSignature[]
+
+  @@index([patientId])
+  @@index([tenantId, type])
+  @@map("clinical_documents")
+}
+
+model DocumentTemplate {
+  id          String       @id @default(uuid()) @map("id")
+  tenantId    String       @map("tenant_id")
+  name        String       @map("name")
+  type        DocumentType @map("type")
+  category    String?      @map("category")
+  content     String       @map("content")
+  variables   Json?        @map("variables")
+  isDefault   Boolean      @default(false) @map("is_default")
+  isActive    Boolean      @default(true) @map("is_active")
+  createdById String?      @map("created_by_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  createdBy User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  documents ClinicalDocument[]
+
+  @@index([tenantId, type])
+  @@map("document_templates")
+}
+
+model ClinicalAlert {
+  id               String        @id @default(uuid()) @map("id")
+  tenantId         String        @map("tenant_id")
+  patientId        String        @map("patient_id")
+  encounterId      String?       @map("encounter_id")
+  type             AlertType     @map("type")
+  severity         AlertSeverity @map("severity")
+  title            String        @map("title")
+  message          String        @map("message")
+  details          Json?         @map("details")
+  source           AlertSource   @map("source")
+  triggeredAt      DateTime      @map("triggered_at")
+  acknowledgedAt   DateTime?     @map("acknowledged_at")
+  acknowledgedById String?       @map("acknowledged_by_id")
+  actionTaken      String?       @map("action_taken")
+  isActive         Boolean       @default(true) @map("is_active")
+  resolvedAt       DateTime?     @map("resolved_at")
+  resolvedById     String?       @map("resolved_by_id")
+  readAloud        Boolean       @default(false) @map("read_aloud")
+  ttsAudioUrl      String?       @map("tts_audio_url")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient        Patient    @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  encounter      Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  acknowledgedBy User?      @relation("AlertAcknowledger", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  resolvedBy     User?      @relation("AlertResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, isActive])
+  @@index([patientId, isActive])
+  @@map("clinical_alerts")
+}
+
+model Notification {
+  id        String              @id @default(uuid()) @map("id")
+  userId    String              @map("user_id")
+  tenantId  String              @map("tenant_id")
+  type      NotificationType    @map("type")
+  title     String              @map("title")
+  body      String              @map("body")
+  data      Json?               @map("data")
+  channel   NotificationChannel @default(IN_APP) @map("channel")
+  sentAt    DateTime?           @map("sent_at")
+  readAt    DateTime?           @map("read_at")
+  actionUrl String?             @map("action_url")
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id           String      @id @default(uuid()) @map("id")
+  tenantId     String?     @map("tenant_id")
+  userId       String?     @map("user_id")
+  patientId    String?     @map("patient_id")
+  action       AuditAction @map("action")
+  entity       String      @map("entity")
+  entityId     String?     @map("entity_id")
+  previousData Json?       @map("previous_data")
+  newData      Json?       @map("new_data")
+  ipAddress    String?     @map("ip_address")
+  userAgent    String?     @map("user_agent")
+  deviceId     String?     @map("device_id")
+  geolocation  String?     @map("geolocation")
+  sessionId    String?     @map("session_id")
+  timestamp    DateTime    @default(now()) @map("timestamp")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, timestamp])
+  @@index([userId, timestamp])
+  @@index([patientId, timestamp])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+model ConsentRecord {
+  id          String      @id @default(uuid()) @map("id")
+  patientId   String      @map("patient_id")
+  tenantId    String      @map("tenant_id")
+  type        ConsentType @map("type")
+  purpose     String?     @map("purpose")
+  granted     Boolean     @map("granted")
+  grantedAt   DateTime?   @map("granted_at")
+  revokedAt   DateTime?   @map("revoked_at")
+  expiresAt   DateTime?   @map("expires_at")
+  consentText String?     @map("consent_text")
+  version     Int         @default(1) @map("version")
+  ipAddress   String?     @map("ip_address")
+  userAgent   String?     @map("user_agent")
+  deviceId    String?     @map("device_id")
+  // Legal basis (LGPD Art. 7)
+  legalBasis  LegalBasis  @default(CONSENT) @map("legal_basis")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([patientId])
+  @@index([tenantId])
+  @@index([type])
+  @@map("consent_records")
+}
+
+model DataAccessRequest {
+  id             String            @id @default(uuid()) @map("id")
+  patientId      String            @map("patient_id")
+  tenantId       String?           @map("tenant_id")
+  type           DataRequestType   @map("type")
+  status         DataRequestStatus @default(PENDING) @map("status")
+  requestedAt    DateTime          @map("requested_at")
+  respondedAt    DateTime?         @map("responded_at")
+  responseNotes  String?           @map("response_notes")
+  processedById  String?           @map("processed_by_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  patient     Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  processedBy User?   @relation(fields: [processedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@map("data_access_requests")
+}
+
+model Appointment {
+  id                   String            @id @default(uuid()) @map("id")
+  tenantId             String            @map("tenant_id")
+  patientId            String            @map("patient_id")
+  doctorId             String            @map("doctor_id")
+  type                 AppointmentType   @map("type")
+  status               AppointmentStatus @default(SCHEDULED) @map("status")
+  scheduledAt          DateTime          @map("scheduled_at")
+  duration             Int               @default(30) @map("duration")
+  actualStartAt        DateTime?         @map("actual_start_at")
+  actualEndAt          DateTime?         @map("actual_end_at")
+  location             String?           @map("location")
+  room                 String?           @map("room")
+  isTelemedicine       Boolean           @default(false) @map("is_telemedicine")
+  confirmedAt          DateTime?         @map("confirmed_at")
+  confirmationMethod   String?           @map("confirmation_method")
+  reminderSentAt       DateTime?         @map("reminder_sent_at")
+  aiSuggestedSlot      Boolean           @default(false) @map("ai_suggested_slot")
+  aiNoShowPrediction   Float?            @map("ai_no_show_prediction")
+  notes                String?           @map("notes")
+  cancellationReason   String?           @map("cancellation_reason")
+  encounterId          String?           @map("encounter_id")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor    User       @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  encounter Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, doctorId, scheduledAt])
+  @@index([tenantId, patientId])
+  @@index([tenantId, status])
+  @@map("appointments")
+}
+
+model BillingEntry {
+  id                  String        @id @default(uuid()) @map("id")
+  encounterId         String        @map("encounter_id")
+  tenantId            String        @map("tenant_id")
+  patientId           String        @map("patient_id")
+  insuranceProvider   String?       @map("insurance_provider")
+  planType            String?       @map("plan_type")
+  guideNumber         String?       @map("guide_number")
+  guideType           GuideType?    @map("guide_type")
+  items               Json?         @map("items")
+  totalAmount         Decimal?      @map("total_amount")
+  glosedAmount        Decimal?      @map("glosed_amount")
+  approvedAmount      Decimal?      @map("approved_amount")
+  status              BillingStatus @default(PENDING) @map("status")
+  submittedAt         DateTime?     @map("submitted_at")
+  approvedAt          DateTime?     @map("approved_at")
+  paidAt              DateTime?     @map("paid_at")
+  tissXml             String?       @map("tiss_xml")
+  aiCodingSuggestions Json?         @map("ai_coding_suggestions")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient   Patient   @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status])
+  @@map("billing_entries")
+}
+
+// ============================================================================
+// LGPD COMPLIANCE MODELS
+// ============================================================================
+
+model DataRetentionPolicy {
+  id              String       @id @default(uuid()) @map("id")
+  tenantId        String       @map("tenant_id")
+  dataCategory    DataCategory @map("data_category")
+  retentionYears  Int          @map("retention_years")
+  legalBasis      String       @map("legal_basis")
+  description     String       @map("description")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, dataCategory])
+  @@map("data_retention_policies")
+}
+
+model DataAccessLog {
+  id          String           @id @default(uuid()) @map("id")
+  tenantId    String           @map("tenant_id")
+  userId      String           @map("user_id")
+  patientId   String?          @map("patient_id")
+  action      DataAccessAction @map("action")
+  resource    String           @map("resource")
+  resourceId  String?          @map("resource_id")
+  purpose     String?          @map("purpose")
+  ipAddress   String?          @map("ip_address")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([patientId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("data_access_logs")
+}
+
+model AnonymizationLog {
+  id             String               @id @default(uuid()) @map("id")
+  tenantId       String               @map("tenant_id")
+  patientId      String               @map("patient_id")
+  requestedBy    String               @map("requested_by")
+  status         AnonymizationStatus  @map("status")
+  dataCategories String[]             @map("data_categories")
+  completedAt    DateTime?            @map("completed_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([patientId])
+  @@map("anonymization_logs")
+}
+
+// ============================================================================
+// DIGITAL SIGNATURE — ICP-Brasil (CFM Resolution 2.299/2021)
+// ============================================================================
+
+enum SignatureType {
+  CLINICAL_NOTE
+  PRESCRIPTION
+  DISCHARGE_SUMMARY
+  LAB_RESULT
+  SURGICAL_REPORT
+  MEDICAL_CERTIFICATE
+}
+
+enum CertificateType {
+  ICP_BRASIL_A1       // Software certificate (PFX/P12)
+  ICP_BRASIL_A3       // Hardware token/smart card
+  CLOUD_CERTIFICATE   // Cloud-based (e.g., BirdID, VIDaaS)
+}
+
+enum SignatureStandard {
+  CADES_BES   // Basic Electronic Signature
+  CADES_T     // With timestamp
+  PADES_B     // PDF basic
+  XADES_BES   // XML basic
+}
+
+model DigitalSignature {
+  id                  String            @id @default(uuid()) @map("id")
+  tenantId            String            @map("tenant_id")
+  tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  documentId          String?           @map("document_id")
+  document            ClinicalDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  clinicalNoteId      String?           @map("clinical_note_id")
+  clinicalNote        ClinicalNote?     @relation(fields: [clinicalNoteId], references: [id], onDelete: SetNull)
+  prescriptionId      String?           @map("prescription_id")
+  prescription        Prescription?     @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+
+  signerId            String            @map("signer_id")
+  signer              User              @relation("DigitalSignatureSigner", fields: [signerId], references: [id], onDelete: Restrict)
+
+  signatureType       SignatureType     @map("signature_type")
+  certificateType     CertificateType   @map("certificate_type")
+
+  // Certificate info extracted from ICP-Brasil certificate
+  certificateSubject  String            @map("certificate_subject")
+  certificateIssuer   String            @map("certificate_issuer")
+  certificateSerial   String            @map("certificate_serial")
+  certificateNotBefore DateTime         @map("certificate_not_before")
+  certificateNotAfter  DateTime         @map("certificate_not_after")
+
+  // Signature data
+  signatureHash       String            @map("signature_hash")
+  signatureValue      String            @db.Text @map("signature_value")
+  signedAt            DateTime          @default(now()) @map("signed_at")
+
+  // Verification
+  verified            Boolean           @default(false) @map("verified")
+  verifiedAt          DateTime?         @map("verified_at")
+  verificationChain   String?           @db.Text @map("verification_chain")
+
+  // CAdES/PAdES metadata (CFM Resolution 2.299/2021)
+  signatureStandard   SignatureStandard @map("signature_standard")
+  timestampToken      String?           @db.Text @map("timestamp_token")
+
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([documentId])
+  @@index([clinicalNoteId])
+  @@index([prescriptionId])
+  @@index([signerId])
+  @@map("digital_signatures")
+}

@@ -1,0 +1,309 @@
+import { useMutation, useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import type {
+  AISOAPResponse,
+  AIPrescriptionParseResponse,
+  AITriageSuggestion,
+  AICopilotResponse,
+  AIPatientSummaryResponse,
+  AICodingSuggestion,
+  TranscriptionContext,
+} from '@/types';
+
+// ============================================================================
+// Query Keys
+// ============================================================================
+
+export const aiKeys = {
+  all: ['ai'] as const,
+  patientSummary: (patientId: string) => [...aiKeys.all, 'patient-summary', patientId] as const,
+  codingSuggestions: (encounterId: string) =>
+    [...aiKeys.all, 'coding-suggestions', encounterId] as const,
+};
+
+// ============================================================================
+// SOAP Generation
+// ============================================================================
+
+export function useGenerateSOAP() {
+  return useMutation({
+    mutationFn: async ({
+      encounterId,
+      transcription,
+      context,
+    }: {
+      encounterId: string;
+      transcription: string;
+      context?: TranscriptionContext;
+    }) => {
+      const { data } = await api.post<AISOAPResponse>('/ai/soap/generate', {
+        encounterId,
+        transcription,
+        context,
+      });
+      return data;
+    },
+  });
+}
+
+export function useRefineSOAP() {
+  return useMutation({
+    mutationFn: async ({
+      encounterId,
+      currentNote,
+      instruction,
+    }: {
+      encounterId: string;
+      currentNote: {
+        subjective?: string;
+        objective?: string;
+        assessment?: string;
+        plan?: string;
+      };
+      instruction: string;
+    }) => {
+      const { data } = await api.post<AISOAPResponse>('/ai/soap/refine', {
+        encounterId,
+        currentNote,
+        instruction,
+      });
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Prescription Parsing
+// ============================================================================
+
+export function useParsePrescription() {
+  return useMutation({
+    mutationFn: async ({
+      transcription,
+      patientId,
+    }: {
+      transcription: string;
+      patientId: string;
+    }) => {
+      const { data } = await api.post<AIPrescriptionParseResponse>('/ai/prescription/parse', {
+        transcription,
+        patientId,
+      });
+      return data;
+    },
+  });
+}
+
+export function useCheckPrescriptionSafety() {
+  return useMutation({
+    mutationFn: async ({
+      patientId,
+      items,
+    }: {
+      patientId: string;
+      items: Array<{ medicationName?: string; dose?: string; route?: string; frequency?: string }>;
+    }) => {
+      const { data } = await api.post<{
+        alerts: string[];
+        interactions: unknown[];
+        allergyConflicts: unknown[];
+      }>('/ai/prescription/safety-check', { patientId, items });
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Triage AI
+// ============================================================================
+
+export function useSuggestTriage() {
+  return useMutation({
+    mutationFn: async ({
+      chiefComplaint,
+      vitalSigns,
+      symptoms,
+    }: {
+      chiefComplaint: string;
+      vitalSigns?: Record<string, number>;
+      symptoms?: string[];
+    }) => {
+      const { data } = await api.post<AITriageSuggestion>('/ai/triage/suggest', {
+        chiefComplaint,
+        vitalSigns,
+        symptoms,
+      });
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Copilot (inline suggestions)
+// ============================================================================
+
+export function useCopilotSuggestion() {
+  return useMutation({
+    mutationFn: async ({
+      encounterId,
+      context,
+      currentText,
+      field,
+    }: {
+      encounterId: string;
+      context: TranscriptionContext;
+      currentText: string;
+      field: string;
+    }) => {
+      const { data } = await api.post<AICopilotResponse>('/ai/copilot/suggest', {
+        encounterId,
+        context,
+        currentText,
+        field,
+      });
+      return data;
+    },
+  });
+}
+
+export function useCopilotAutoComplete() {
+  return useMutation({
+    mutationFn: async ({
+      text,
+      context,
+    }: {
+      text: string;
+      context: TranscriptionContext;
+    }) => {
+      const { data } = await api.post<{ completion: string; confidence: number }>(
+        '/ai/copilot/autocomplete',
+        { text, context },
+      );
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Patient Summary
+// ============================================================================
+
+export function usePatientAISummary(patientId: string) {
+  return useQuery({
+    queryKey: aiKeys.patientSummary(patientId),
+    queryFn: async () => {
+      const { data } = await api.get<AIPatientSummaryResponse>(
+        `/ai/patients/${patientId}/summary`,
+      );
+      return data;
+    },
+    enabled: !!patientId,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+}
+
+export function useGeneratePatientSummary() {
+  return useMutation({
+    mutationFn: async (patientId: string) => {
+      const { data } = await api.post<AIPatientSummaryResponse>(
+        `/ai/patients/${patientId}/summary/generate`,
+      );
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Coding Suggestions (ICD / procedure codes)
+// ============================================================================
+
+export function useCodingSuggestions(encounterId: string) {
+  return useQuery({
+    queryKey: aiKeys.codingSuggestions(encounterId),
+    queryFn: async () => {
+      const { data } = await api.get<AICodingSuggestion[]>(
+        `/ai/encounters/${encounterId}/coding-suggestions`,
+      );
+      return data;
+    },
+    enabled: !!encounterId,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useGenerateCodingSuggestions() {
+  return useMutation({
+    mutationFn: async ({
+      encounterId,
+      clinicalText,
+    }: {
+      encounterId: string;
+      clinicalText: string;
+    }) => {
+      const { data } = await api.post<AICodingSuggestion[]>(
+        `/ai/encounters/${encounterId}/coding-suggestions/generate`,
+        { clinicalText },
+      );
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Encounter Summary (AI-generated summary)
+// ============================================================================
+
+export function useGenerateEncounterSummary() {
+  return useMutation({
+    mutationFn: async (encounterId: string) => {
+      const { data } = await api.post<{ summary: string; confidence: number }>(
+        `/ai/encounters/${encounterId}/summary/generate`,
+      );
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Nursing AI Suggestions
+// ============================================================================
+
+export function useSuggestNursingDiagnoses() {
+  return useMutation({
+    mutationFn: async ({
+      patientId,
+      dataCollectionNotes,
+    }: {
+      patientId: string;
+      dataCollectionNotes: string;
+    }) => {
+      const { data } = await api.post<{
+        diagnoses: Array<{
+          nandaCode: string;
+          nandaTitle: string;
+          confidence: number;
+          relatedFactors: string[];
+        }>;
+      }>('/ai/nursing/suggest-diagnoses', { patientId, dataCollectionNotes });
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Discharge Planning AI
+// ============================================================================
+
+export function useSuggestDischargePlan() {
+  return useMutation({
+    mutationFn: async (admissionId: string) => {
+      const { data } = await api.post<{
+        plan: string;
+        instructions: string[];
+        medications: string[];
+        followUpRecommendations: string[];
+      }>(`/ai/admissions/${admissionId}/discharge-plan`);
+      return data;
+    },
+  });
+}

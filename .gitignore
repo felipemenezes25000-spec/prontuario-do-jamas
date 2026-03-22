@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Turbo
+.turbo/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Prisma
+prisma/generated/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+*.lcov
+
+# Temp
+tmp/
+temp/
+.cache/
+
+# Sentry
+.sentryclirc

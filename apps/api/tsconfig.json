@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": "./",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "incremental": false,
+    "composite": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "strictPropertyInitialization": false,
+    "noUncheckedIndexedAccess": false,
+    "paths": {
+      "@/*": ["src/*"],
+      "@voxpep/shared-types": ["../../packages/shared-types/src"],
+      "@voxpep/shared-utils": ["../../packages/shared-utils/src"],
+      "@voxpep/medical-constants": ["../../packages/medical-constants/src"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "coverage", "test", "src/**/*.spec.ts"]
+}
