@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Query,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,8 +17,10 @@ import {
   ApiQuery,
   ApiBody,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { AdmissionsService, FindAllAdmissionsOptions } from './admissions.service';
 import { BedsService } from './beds.service';
+import { PdfGeneratorService } from '../documents/pdf-generator.service';
 import { CreateAdmissionDto } from './dto/create-admission.dto';
 import { DischargeDto } from './dto/discharge.dto';
 import { TransferBedDto } from './dto/transfer-bed.dto';
@@ -34,6 +37,7 @@ export class AdmissionsController {
   constructor(
     private readonly admissionsService: AdmissionsService,
     private readonly bedsService: BedsService,
+    private readonly pdfGeneratorService: PdfGeneratorService,
   ) {}
 
   @Post('admit')
@@ -81,6 +85,23 @@ export class AdmissionsController {
     @Body() dto: ReverseDischargeDto,
   ) {
     return this.admissionsService.reverseDischarge(tenantId, id, dto.reason);
+  }
+
+  @Get(':id/discharge-summary-pdf')
+  @ApiParam({ name: 'id', description: 'Admission UUID' })
+  @ApiOperation({ summary: 'Generate discharge summary PDF' })
+  @ApiResponse({ status: 200, description: 'Discharge summary PDF file' })
+  @ApiResponse({ status: 404, description: 'Admission not found' })
+  async generateDischargeSummaryPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.pdfGeneratorService.generateDischargeSummaryPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="sumario_alta_${id}.pdf"`,
+    });
+    res.send(buffer);
   }
 
   @Get()

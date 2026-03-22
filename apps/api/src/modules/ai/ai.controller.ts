@@ -4,12 +4,15 @@ import {
   Post,
   Param,
   Body,
+  Query,
+  Res,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
   ServiceUnavailableException,
   Logger,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -25,6 +28,7 @@ import { randomUUID } from 'crypto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 import { AuditService } from '../audit/audit.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 import { VoiceEngineService } from './voice-engine.service';
 import { SoapGeneratorService } from './soap-generator.service';
@@ -91,6 +95,7 @@ export class AiController {
     private readonly codingAi: CodingAiService,
     private readonly dischargeAi: DischargeAiService,
     private readonly auditService: AuditService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ─── Voice ──────────────────────────────────────────────────────
@@ -264,8 +269,9 @@ export class AiController {
     try {
       const result = await this.soapGenerator.generateSOAP(
         dto.transcription,
-        undefined, // patient context could be fetched from DB by patientId in future
+        undefined,
         dto.doctorSpecialty,
+        dto.patientId,
       );
 
       await this.auditService.log({
@@ -291,6 +297,81 @@ export class AiController {
       throw new ServiceUnavailableException(
         'Servico de IA indisponivel. Tente novamente em alguns instantes.',
       );
+    }
+  }
+
+  // ─── SOAP Stream (SSE) ────────────────────────────────────────
+
+  @Get('soap/stream')
+  @ApiOperation({ summary: 'Stream SOAP generation via SSE' })
+  @ApiResponse({ status: 200, description: 'SSE stream of SOAP generation chunks' })
+  @ApiResponse({ status: 400, description: 'Missing encounterId' })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async streamSoap(
+    @Query('encounterId') encounterId: string,
+    @Query('transcription') transcription: string,
+    @Query('doctorSpecialty') doctorSpecialty: string | undefined,
+    @Res() res: Response,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<void> {
+    if (!encounterId || !transcription) {
+      res.status(400).json({
+        message: 'encounterId e transcription sao obrigatorios.',
+      });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    try {
+      // Resolve patientId from encounter
+      let patientId: string | undefined;
+      try {
+        const enc = await this.prisma.encounter.findUnique({
+          where: { id: encounterId },
+          select: { patientId: true },
+        });
+        patientId = enc?.patientId ?? undefined;
+      } catch {
+        this.logger.warn('Could not resolve patientId for SSE stream');
+      }
+
+      const stream = this.soapGenerator.streamSOAP(
+        transcription,
+        doctorSpecialty,
+        patientId,
+      );
+
+      for await (const chunk of stream) {
+        res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+      }
+
+      res.write('data: [DONE]\n\n');
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        action: 'AI_SUGGESTION',
+        entity: 'SOAPStream',
+        newData: {
+          encounterId,
+          transcriptionLength: transcription.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    } catch (error) {
+      this.logger.error(
+        `streamSoap failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      res.write(`data: ${JSON.stringify({ error: 'Servico de IA indisponivel.' })}\n\n`);
+      res.write('data: [DONE]\n\n');
+    } finally {
+      res.end();
     }
   }
 
@@ -439,6 +520,53 @@ export class AiController {
     } catch (error) {
       this.logger.error(
         `getCopilotSuggestions failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  @Post('copilot/proactive')
+  @ApiOperation({ summary: 'Get proactive copilot suggestions based on current text' })
+  @ApiResponse({ status: 200, description: 'Proactive copilot suggestions' })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async getProactiveSuggestions(
+    @Body() body: { encounterId: string; currentText: string; field: string },
+    @CurrentUser() user: JwtPayload,
+  ): Promise<{ suggestions: Array<{ text: string; field: string; reason: string }> }> {
+    if (!body.encounterId || !body.currentText || !body.field) {
+      throw new BadRequestException(
+        'encounterId, currentText e field sao obrigatorios.',
+      );
+    }
+
+    try {
+      const suggestions = await this.copilot.getProactiveSuggestions(
+        body.encounterId,
+        body.currentText,
+        body.field,
+      );
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        action: 'AI_SUGGESTION',
+        entity: 'CopilotProactive',
+        newData: {
+          encounterId: body.encounterId,
+          field: body.field,
+          textLength: body.currentText.length,
+          suggestionsCount: suggestions.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return { suggestions };
+    } catch (error) {
+      this.logger.error(
+        `getProactiveSuggestions failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       throw new ServiceUnavailableException(
         'Servico de IA indisponivel. Tente novamente em alguns instantes.',

@@ -27,6 +27,7 @@ const SettingsPage = lazy(() => import('@/pages/settings'));
 const AdminPage = lazy(() => import('@/pages/admin'));
 const PharmacyPage = lazy(() => import('@/pages/pharmacy'));
 const ChemotherapyPage = lazy(() => import('@/pages/chemotherapy'));
+const BookingPage = lazy(() => import('@/pages/booking'));
 
 function PageLoader() {
   return (
@@ -125,6 +126,7 @@ export function AppRoutes() {
           }
         />
       </Route>
+      <Route path="/agendar/:tenantSlug" element={<SuspenseWrap><BookingPage /></SuspenseWrap>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

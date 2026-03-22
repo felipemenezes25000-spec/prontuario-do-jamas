@@ -16,6 +16,8 @@ import { PredictiveAiService } from './predictive-ai.service';
 import { AiController } from './ai.controller';
 import { VoiceTranscriptionController } from './voice-transcription.controller';
 import { VoiceTranscriptionService } from './voice-transcription.service';
+import { PatientContextBuilder } from './patient-context.builder';
+import { AiCacheService } from './ai-cache.service';
 
 @Module({
   imports: [ConfigModule],
@@ -35,6 +37,8 @@ import { VoiceTranscriptionService } from './voice-transcription.service';
     HandoffAiService,
     PredictiveAiService,
     VoiceTranscriptionService,
+    PatientContextBuilder,
+    AiCacheService,
   ],
   exports: [
     GeminiProvider,
@@ -50,6 +54,8 @@ import { VoiceTranscriptionService } from './voice-transcription.service';
     HandoffAiService,
     PredictiveAiService,
     VoiceTranscriptionService,
+    PatientContextBuilder,
+    AiCacheService,
   ],
 })
 export class AiModule {}

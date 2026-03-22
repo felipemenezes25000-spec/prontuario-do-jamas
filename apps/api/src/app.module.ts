@@ -38,6 +38,9 @@ import { ChemotherapyModule } from './modules/chemotherapy/chemotherapy.module';
 import { DrugsModule } from './modules/drugs/drugs.module';
 import { ProtocolsModule } from './modules/protocols/protocols.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { TelemedicineModule } from './modules/telemedicine/telemedicine.module';
+import { BookingModule } from './modules/booking/booking.module';
 
 @Module({
   imports: [
@@ -75,6 +78,9 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     DrugsModule,
     ProtocolsModule,
     IntegrationsModule,
+    ReportsModule,
+    TelemedicineModule,
+    BookingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

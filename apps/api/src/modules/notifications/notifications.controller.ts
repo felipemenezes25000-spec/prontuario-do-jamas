@@ -15,7 +15,6 @@ import {
 import { NotificationsService } from './notifications.service';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('Notifications')
 @ApiBearerAuth('access-token')
@@ -23,17 +22,21 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  @Get()
+  @Get('me')
   @ApiOperation({ summary: 'Get current user notifications (paginated, unread first)' })
   @ApiResponse({ status: 200, description: 'User notifications' })
   async findByUser(
     @CurrentUser() user: JwtPayload,
-    @Query() pagination: PaginationQueryDto,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
-    return this.notificationsService.findByUser(user.sub, pagination);
+    return this.notificationsService.findByUser(user.sub, {
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    });
   }
 
-  @Get('unread-count')
+  @Get('me/unread-count')
   @ApiOperation({ summary: 'Get unread notification count' })
   @ApiResponse({ status: 200, description: 'Unread count' })
   async getUnreadCount(@CurrentUser() user: JwtPayload) {

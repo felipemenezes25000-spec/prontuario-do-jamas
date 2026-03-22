@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Query,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -15,8 +16,10 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { BillingService } from './billing.service';
 import { TissService } from './tiss.service';
+import { PdfGeneratorService } from '../documents/pdf-generator.service';
 import { CreateBillingDto } from './dto/create-billing.dto';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
@@ -30,6 +33,7 @@ export class BillingController {
   constructor(
     private readonly billingService: BillingService,
     private readonly tissService: TissService,
+    private readonly pdfGeneratorService: PdfGeneratorService,
   ) {}
 
   @Post()
@@ -112,5 +116,22 @@ export class BillingController {
   async generateTiss(@Param('id', ParseUUIDPipe) id: string) {
     const xml = await this.tissService.generateTISSXml(id);
     return { xml };
+  }
+
+  @Get(':id/tiss-pdf')
+  @ApiParam({ name: 'id', description: 'Billing entry UUID' })
+  @ApiOperation({ summary: 'Generate TISS guide PDF for a billing entry' })
+  @ApiResponse({ status: 200, description: 'TISS guide PDF file' })
+  @ApiResponse({ status: 404, description: 'Billing entry not found' })
+  async generateTissPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.pdfGeneratorService.generateTissGuidePdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="guia_tiss_${id}.pdf"`,
+    });
+    res.send(buffer);
   }
 }

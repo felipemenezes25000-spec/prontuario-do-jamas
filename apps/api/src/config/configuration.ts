@@ -36,6 +36,7 @@ export default () => ({
     apiUrl: process.env.API_URL || 'http://localhost:3000',
   },
   google: {
+    apiKey: process.env.GOOGLE_API_KEY || '',
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     callbackUrl:
@@ -49,5 +50,12 @@ export default () => ({
     callbackUrl:
       process.env.MICROSOFT_CALLBACK_URL ||
       'http://localhost:3000/api/v1/auth/sso/microsoft/callback',
+  },
+  daily: {
+    apiKey: process.env.DAILY_API_KEY || '',
+  },
+  whatsapp: {
+    token: process.env.WHATSAPP_TOKEN || '',
+    phoneId: process.env.WHATSAPP_PHONE_ID || '',
   },
 });

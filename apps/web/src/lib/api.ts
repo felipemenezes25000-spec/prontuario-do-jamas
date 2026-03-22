@@ -1,4 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { toast } from 'sonner';
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -114,8 +115,30 @@ api.interceptors.response.use(
       }
     }
 
+    // Global error toasts (non-401)
+    const status = error.response?.status;
+    const message =
+      (error.response?.data as Record<string, unknown>)?.message as
+        | string
+        | undefined;
+
+    if (status === 403) {
+      toast.error('Sem permissão para esta ação.');
+    } else if (status === 404) {
+      // Silent — pages handle their own 404 UX
+    } else if (status === 422) {
+      toast.error(`Dados inválidos: ${message ?? 'verifique os campos'}`);
+    } else if (status === 503) {
+      toast.error('Serviço temporariamente indisponível. Tente novamente.');
+    } else if (status && status >= 500) {
+      toast.error(message ?? 'Erro interno do servidor.');
+    } else if (error.code === 'ERR_NETWORK') {
+      toast.error('Sem conexão com o servidor. Verifique sua rede.');
+    }
+
     return Promise.reject(error);
   },
 );
 
+export { api };
 export default api;

@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Query,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -15,9 +16,11 @@ import {
   ApiBody,
   ApiQuery,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { DocumentType } from '@prisma/client';
 import { DocumentsService } from './documents.service';
 import { DocumentReplicationService } from './document-replication.service';
+import { PdfGeneratorService } from './pdf-generator.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { SuggestFromHistoryDto } from './dto/suggest-from-history.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -31,6 +34,7 @@ export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
     private readonly replicationService: DocumentReplicationService,
+    private readonly pdfGeneratorService: PdfGeneratorService,
   ) {}
 
   @Get()
@@ -160,6 +164,49 @@ export class DocumentsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.documentsService.sign(id, user.sub);
+  }
+
+  @Post('certificate/pdf')
+  @ApiOperation({ summary: 'Generate a medical certificate PDF' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        patientName: { type: 'string' },
+        cpf: { type: 'string' },
+        cidCode: { type: 'string' },
+        cidDescription: { type: 'string' },
+        days: { type: 'number' },
+        startDate: { type: 'string' },
+        doctorName: { type: 'string' },
+        crm: { type: 'string' },
+        tenantName: { type: 'string' },
+      },
+      required: ['patientName', 'cpf', 'days', 'startDate', 'doctorName', 'crm', 'tenantName'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Medical certificate PDF' })
+  async generateCertificatePdf(
+    @Body()
+    body: {
+      patientName: string;
+      cpf: string;
+      cidCode: string;
+      cidDescription: string;
+      days: number;
+      startDate: string;
+      doctorName: string;
+      crm: string;
+      tenantName: string;
+    },
+    @Res() res: Response,
+  ) {
+    const buffer = await this.pdfGeneratorService.generateMedicalCertificatePdf(body);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'inline; filename="atestado_medico.pdf"',
+    });
+    res.send(buffer);
   }
 
   @Post('generate-from-template')

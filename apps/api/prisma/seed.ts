@@ -3079,6 +3079,117 @@ async function main(): Promise<void> {
     });
   }
 
+  // ─── Notifications ─────────────────────────────────────────────────────
+  console.log('📬 Seeding notifications...');
+
+  const notificationsSeed = [
+    {
+      userId: IDS.drCarlos,
+      tenantId: IDS.tenant,
+      type: 'ALERT' as const,
+      title: 'Alerta Crítico: Interação Medicamentosa',
+      body: 'Warfarina + AAS detectado na prescrição do paciente João Oliveira. Risco de sangramento aumentado.',
+      channel: 'IN_APP' as const,
+      actionUrl: `/pacientes/${IDS.jose}`,
+      sentAt: new Date('2026-03-20T08:00:00'),
+    },
+    {
+      userId: IDS.drCarlos,
+      tenantId: IDS.tenant,
+      type: 'RESULT' as const,
+      title: 'Resultado de Exame Disponível',
+      body: 'Hemograma completo de Maria da Silva já está disponível. Valores fora do padrão detectados.',
+      channel: 'IN_APP' as const,
+      actionUrl: `/pacientes/${IDS.maria}`,
+      sentAt: new Date('2026-03-20T10:30:00'),
+    },
+    {
+      userId: IDS.drCarlos,
+      tenantId: IDS.tenant,
+      type: 'APPOINTMENT' as const,
+      title: 'Consulta em 30 minutos',
+      body: 'Você tem uma consulta agendada com Pedro Santos às 14:00 no consultório 3.',
+      channel: 'IN_APP' as const,
+      actionUrl: '/agenda',
+      sentAt: new Date('2026-03-21T13:30:00'),
+    },
+    {
+      userId: IDS.drCarlos,
+      tenantId: IDS.tenant,
+      type: 'SYSTEM' as const,
+      title: 'Nova funcionalidade: Teleconsulta',
+      body: 'Agora você pode realizar teleconsultas diretamente pelo VoxPEP. Acesse a tela de atendimento para iniciar.',
+      channel: 'IN_APP' as const,
+      sentAt: new Date('2026-03-19T09:00:00'),
+      readAt: new Date('2026-03-19T11:00:00') as Date | undefined,
+    },
+    {
+      userId: IDS.drCarlos,
+      tenantId: IDS.tenant,
+      type: 'TASK' as const,
+      title: 'Nota clínica pendente de assinatura',
+      body: 'Você tem 2 notas clínicas aguardando assinatura digital. Assine para finalizar o atendimento.',
+      channel: 'IN_APP' as const,
+      actionUrl: '/atendimentos',
+      sentAt: new Date('2026-03-21T16:00:00'),
+    },
+    {
+      userId: IDS.drCarlos,
+      tenantId: IDS.tenant,
+      type: 'REMINDER' as const,
+      title: 'Lembrete: Retorno do paciente',
+      body: 'Antônio Costa tem retorno agendado para amanhã (consulta de acompanhamento pós-operatório).',
+      channel: 'IN_APP' as const,
+      actionUrl: '/agenda',
+      sentAt: new Date('2026-03-22T07:00:00'),
+    },
+  ];
+
+  for (const n of notificationsSeed) {
+    await prisma.notification.create({ data: n });
+  }
+
+  // ─── Clinical Protocols ──────────────────────────────────────────────
+  console.log('📋 Seeding clinical protocols...');
+
+  await prisma.clinicalProtocol.createMany({
+    data: [
+      {
+        tenantId: IDS.tenant,
+        name: 'Protocolo de Dor Torácica',
+        nameEn: 'Chest Pain Protocol',
+        description: 'Protocolo para avaliação e manejo de dor torácica aguda na emergência. Inclui estratificação de risco, ECG em até 10 minutos, troponina seriada, e decisão de cateterismo vs tratamento clínico.',
+        triggerCriteria: JSON.parse('[{"field":"chiefComplaint","operator":"contains","value":"dor torácica"},{"field":"triageLevel","operator":"in","value":["RED","ORANGE"]}]'),
+        actions: JSON.parse('[{"type":"ORDER_ECG","params":{"urgency":"STAT","maxMinutes":10}},{"type":"ORDER_LAB","params":{"tests":["troponina","CK-MB","D-dimero"]}},{"type":"ALERT_CARDIOLOGY","params":{"condition":"STEMI"}}]'),
+        category: 'ACS',
+        priority: 10,
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Protocolo de Sepse (Hour-1 Bundle)',
+        nameEn: 'Sepsis Hour-1 Bundle',
+        description: 'Bundle de 1 hora para sepse conforme Surviving Sepsis Campaign 2021. Lactato, hemoculturas, antibiótico de amplo espectro em até 1h, cristaloide 30mL/kg se hipotensão, vasopressor se PAM < 65.',
+        triggerCriteria: JSON.parse('[{"field":"qSOFA","operator":">=","value":2},{"field":"suspectedInfection","operator":"equals","value":true}]'),
+        actions: JSON.parse('[{"type":"ORDER_LAB","params":{"tests":["lactato","hemoculturas x2","hemograma","PCR","procalcitonina"]}},{"type":"START_FLUID","params":{"solution":"SF 0.9%","volume":"30mL/kg","maxMinutes":60}},{"type":"START_ANTIBIOTIC","params":{"empiric":true,"maxMinutes":60}}]'),
+        category: 'SEPSIS',
+        priority: 10,
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Protocolo de Broncoespasmo (J45)',
+        nameEn: 'Bronchospasm Protocol',
+        description: 'Manejo de crise asmática/broncoespasmo no PS. Classificação de gravidade (leve/moderada/grave), nebulização com beta-2 agonista, corticoide sistêmico, avaliação de resposta em 20 minutos.',
+        triggerCriteria: JSON.parse('[{"field":"cidCode","operator":"startsWith","value":"J45"},{"field":"chiefComplaint","operator":"contains","value":"dispneia"}]'),
+        actions: JSON.parse('[{"type":"ADMINISTER_MEDICATION","params":{"drug":"Salbutamol","route":"NBZ","dose":"5mg","frequency":"20/20min x3"}},{"type":"ADMINISTER_MEDICATION","params":{"drug":"Prednisona","route":"VO","dose":"40mg"}},{"type":"MONITOR_PEAK_FLOW","params":{"interval":"20min"}}]'),
+        category: 'RESPIRATORY',
+        priority: 7,
+        isActive: true,
+      },
+    ],
+  });
+
   // ─── Done ──────────────────────────────────────────────────────────────
 
   console.log('\n✅ Seed completed successfully!');

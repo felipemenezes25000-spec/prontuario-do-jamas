@@ -2,15 +2,30 @@ import {
   Controller,
   Post,
   Get,
+  Param,
   Query,
+  Res,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiConsumes,
+  ApiBody,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+} from '@nestjs/swagger';
+import { Response } from 'express';
 import { StorageService } from './storage.service';
 import { CurrentUser, CurrentTenant } from '../../common/decorators';
+
+const ALLOWED_LOCAL_TYPES = ['audio', 'documents', 'images'] as const;
 
 @ApiTags('storage')
 @ApiBearerAuth()
@@ -163,7 +178,11 @@ export class StorageController {
   @ApiOperation({ summary: 'Get presigned download URL' })
   @ApiQuery({ name: 'bucket', required: true, description: 'S3 bucket name' })
   @ApiQuery({ name: 'key', required: true, description: 'Object key' })
-  @ApiQuery({ name: 'expiresIn', required: false, description: 'URL expiry in seconds (default 3600)' })
+  @ApiQuery({
+    name: 'expiresIn',
+    required: false,
+    description: 'URL expiry in seconds (default 3600)',
+  })
   @ApiResponse({ status: 200, description: 'Presigned URL' })
   async getPresignedUrl(
     @Query('bucket') bucket: string,
@@ -182,5 +201,44 @@ export class StorageController {
       ttl,
     );
     return { url, expiresIn: ttl };
+  }
+
+  @Get('local/:type/:filename')
+  @ApiOperation({ summary: 'Serve locally stored files (dev only)' })
+  @ApiParam({
+    name: 'type',
+    enum: ['audio', 'documents', 'images'],
+    description: 'Storage type',
+  })
+  @ApiParam({ name: 'filename', description: 'File name' })
+  @ApiResponse({ status: 200, description: 'File content' })
+  @ApiResponse({ status: 400, description: 'Invalid type' })
+  @ApiResponse({ status: 404, description: 'File not found' })
+  async serveLocal(
+    @Param('type') type: string,
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
+    if (
+      !ALLOWED_LOCAL_TYPES.includes(type as (typeof ALLOWED_LOCAL_TYPES)[number])
+    ) {
+      throw new BadRequestException(
+        `Tipo inválido: "${type}". Use: ${ALLOWED_LOCAL_TYPES.join(', ')}`,
+      );
+    }
+
+    if (!this.storageService.isLocalMode()) {
+      throw new NotFoundException(
+        'Armazenamento local não está ativo. Use S3 presigned URLs.',
+      );
+    }
+
+    const filePath = this.storageService.getLocalFilePath(type, filename);
+
+    if (!filePath) {
+      throw new NotFoundException('Arquivo não encontrado');
+    }
+
+    res.sendFile(filePath);
   }
 }

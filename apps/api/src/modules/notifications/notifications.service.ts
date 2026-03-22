@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class NotificationsService {
@@ -15,7 +15,7 @@ export class NotificationsService {
         type: dto.type,
         title: dto.title,
         body: dto.body,
-        data: (dto.data as any) ?? undefined,
+        data: (dto.data as Prisma.InputJsonValue) ?? undefined,
         channel: dto.channel ?? 'IN_APP',
         actionUrl: dto.actionUrl,
         sentAt: new Date(),
@@ -23,14 +23,21 @@ export class NotificationsService {
     });
   }
 
-  async findByUser(userId: string, pagination: PaginationQueryDto) {
+  async findByUser(
+    userId: string,
+    options: { page?: number; pageSize?: number } = {},
+  ) {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 20;
+    const skip = (page - 1) * pageSize;
+
     const where = { userId };
 
     const [data, total] = await Promise.all([
       this.prisma.notification.findMany({
         where,
-        skip: pagination.skip,
-        take: pagination.take,
+        skip,
+        take: pageSize,
         orderBy: [{ readAt: 'asc' }, { createdAt: 'desc' }],
       }),
       this.prisma.notification.count({ where }),
@@ -39,9 +46,9 @@ export class NotificationsService {
     return {
       data,
       total,
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-      totalPages: Math.ceil(total / pagination.pageSize),
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
     };
   }
 

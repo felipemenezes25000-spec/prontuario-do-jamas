@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@elastic/elasticsearch';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export interface PatientDocument {
   id: string;
@@ -46,9 +47,12 @@ export class SearchService implements OnModuleInit {
   private readonly logger = new Logger(SearchService.name);
   private readonly PATIENTS_INDEX = 'voxpep-patients';
   private readonly NOTES_INDEX = 'voxpep-clinical-notes';
-  private available = false;
+  private esAvailable = false;
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     const esUrl =
       this.config.get<string>('elasticsearch.url') ||
       'http://localhost:9200';
@@ -58,19 +62,18 @@ export class SearchService implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.client.ping();
-      this.logger.log('Elasticsearch connected');
+      this.logger.log('Elasticsearch connected — full-text search enabled');
       await this.createIndices();
-      this.available = true;
+      this.esAvailable = true;
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.warn(
-        `Elasticsearch not available: ${msg}. Search will be degraded.`,
+        `Elasticsearch unavailable: ${msg} — falling back to PostgreSQL ILIKE search`,
       );
     }
   }
 
   private async createIndices() {
-    // Create patients index with Portuguese analyzer
     const patientsExists = await this.client.indices.exists({
       index: this.PATIENTS_INDEX,
     });
@@ -123,7 +126,6 @@ export class SearchService implements OnModuleInit {
       this.logger.log('Created patients index');
     }
 
-    // Create clinical notes index
     const notesExists = await this.client.indices.exists({
       index: this.NOTES_INDEX,
     });
@@ -153,10 +155,7 @@ export class SearchService implements OnModuleInit {
             tenantId: { type: 'keyword' },
             encounterId: { type: 'keyword' },
             patientId: { type: 'keyword' },
-            patientName: {
-              type: 'text',
-              analyzer: 'brazilian_medical',
-            },
+            patientName: { type: 'text', analyzer: 'brazilian_medical' },
             authorId: { type: 'keyword' },
             authorName: { type: 'text' },
             type: { type: 'keyword' },
@@ -176,12 +175,7 @@ export class SearchService implements OnModuleInit {
 
   // === Patient Indexing ===
   async indexPatient(patient: PatientDocument): Promise<void> {
-    if (!this.available) {
-      this.logger.debug(
-        `[DEGRADED] indexPatient skipped - patientId: ${patient.id}`,
-      );
-      return;
-    }
+    if (!this.esAvailable) return;
     try {
       await this.client.index({
         index: this.PATIENTS_INDEX,
@@ -195,7 +189,7 @@ export class SearchService implements OnModuleInit {
   }
 
   async removePatient(patientId: string): Promise<void> {
-    if (!this.available) return;
+    if (!this.esAvailable) return;
     try {
       await this.client.delete({
         index: this.PATIENTS_INDEX,
@@ -214,38 +208,41 @@ export class SearchService implements OnModuleInit {
     options: {
       page?: number;
       pageSize?: number;
-      filters?: Record<string, any>;
+      filters?: Record<string, unknown>;
     } = {},
   ): Promise<{ results: PatientDocument[]; total: number }> {
-    if (!this.available) {
-      return { results: [], total: 0 };
+    if (this.esAvailable) {
+      return this.esSearchPatients(tenantId, query, options);
     }
+    return this.pgSearchPatients(tenantId, query, options);
+  }
 
+  // --- Elasticsearch patient search ---
+  private async esSearchPatients(
+    tenantId: string,
+    query: string,
+    options: {
+      page?: number;
+      pageSize?: number;
+      filters?: Record<string, unknown>;
+    },
+  ): Promise<{ results: PatientDocument[]; total: number }> {
     const { page = 1, pageSize = 20, filters = {} } = options;
 
     try {
-      const must: any[] = [
+      const must: Record<string, unknown>[] = [
         { term: { tenantId } },
         { term: { isActive: true } },
       ];
 
-      // Multi-field search
       if (query) {
         must.push({
           bool: {
             should: [
-              {
-                match: {
-                  fullName: { query, boost: 3, fuzziness: 'AUTO' },
-                },
-              },
+              { match: { fullName: { query, boost: 3, fuzziness: 'AUTO' } } },
               { match: { socialName: { query, boost: 2 } } },
               { term: { mrn: { value: query, boost: 5 } } },
-              {
-                term: {
-                  cpf: { value: query.replace(/\D/g, ''), boost: 5 },
-                },
-              },
+              { term: { cpf: { value: query.replace(/\D/g, ''), boost: 5 } } },
               { term: { cns: { value: query, boost: 4 } } },
               { match: { allergies: query } },
               { match: { conditions: query } },
@@ -256,13 +253,10 @@ export class SearchService implements OnModuleInit {
         });
       }
 
-      // Apply filters
       if (filters.insuranceProvider) {
-        must.push({
-          term: { insuranceProvider: filters.insuranceProvider },
-        });
+        must.push({ term: { insuranceProvider: filters.insuranceProvider } });
       }
-      if (filters.tags?.length) {
+      if (Array.isArray(filters.tags) && filters.tags.length > 0) {
         must.push({ terms: { tags: filters.tags } });
       }
       if (filters.gender) {
@@ -277,13 +271,6 @@ export class SearchService implements OnModuleInit {
         sort: query
           ? [{ _score: { order: 'desc' } }, { 'fullName.keyword': { order: 'asc' } }]
           : [{ 'fullName.keyword': { order: 'asc' } }],
-        highlight: {
-          fields: {
-            fullName: {},
-            conditions: {},
-            allergies: {},
-          },
-        },
       });
 
       const hits = response.hits.hits;
@@ -293,27 +280,104 @@ export class SearchService implements OnModuleInit {
           : response.hits.total?.value || 0;
 
       return {
-        results: hits.map((hit) => ({
-          ...(hit._source as PatientDocument),
-          _highlight: hit.highlight,
-        })),
+        results: hits.map((hit) => hit._source as PatientDocument),
         total,
       };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Patient search failed: ${msg}`);
-      return { results: [], total: 0 };
+      this.logger.error(`ES patient search failed, falling back to PG: ${msg}`);
+      return this.pgSearchPatients(tenantId, query, options);
     }
+  }
+
+  // --- PostgreSQL ILIKE fallback for patient search ---
+  private async pgSearchPatients(
+    tenantId: string,
+    query: string,
+    options: {
+      page?: number;
+      pageSize?: number;
+      filters?: Record<string, unknown>;
+    },
+  ): Promise<{ results: PatientDocument[]; total: number }> {
+    const { page = 1, pageSize = 20, filters = {} } = options;
+    const skip = (page - 1) * pageSize;
+
+    const where: Record<string, unknown> = {
+      tenantId,
+      isActive: true,
+    };
+
+    if (query) {
+      const cleanQuery = query.replace(/\D/g, '');
+      where.OR = [
+        { fullName: { contains: query, mode: 'insensitive' } },
+        { socialName: { contains: query, mode: 'insensitive' } },
+        { cpf: { contains: cleanQuery } },
+        { mrn: { contains: query, mode: 'insensitive' } },
+        { cns: { contains: query } },
+        { email: { contains: query, mode: 'insensitive' } },
+      ];
+    }
+
+    if (filters.insuranceProvider) {
+      where.insuranceProvider = filters.insuranceProvider;
+    }
+    if (filters.gender) {
+      where.gender = filters.gender;
+    }
+
+    const [patients, total] = await Promise.all([
+      this.prisma.patient.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { fullName: 'asc' },
+        select: {
+          id: true,
+          tenantId: true,
+          mrn: true,
+          fullName: true,
+          socialName: true,
+          cpf: true,
+          cns: true,
+          birthDate: true,
+          gender: true,
+          phone: true,
+          email: true,
+          insuranceProvider: true,
+          isActive: true,
+        },
+      }),
+      this.prisma.patient.count({ where }),
+    ]);
+
+    return {
+      results: patients.map((p) => ({
+        id: p.id,
+        tenantId: p.tenantId,
+        mrn: p.mrn ?? '',
+        fullName: p.fullName,
+        socialName: p.socialName ?? undefined,
+        cpf: p.cpf ?? undefined,
+        cns: p.cns ?? undefined,
+        birthDate: p.birthDate.toISOString(),
+        gender: p.gender,
+        phone: p.phone ?? undefined,
+        email: p.email ?? undefined,
+        insuranceProvider: p.insuranceProvider ?? undefined,
+        tags: [],
+        allergies: [],
+        conditions: [],
+        isActive: p.isActive,
+      })),
+      total,
+    };
   }
 
   // === Clinical Note Indexing ===
   async indexNote(note: ClinicalNoteDocument): Promise<void> {
-    if (!this.available) {
-      this.logger.debug(
-        `[DEGRADED] indexNote skipped - noteId: ${note.id}`,
-      );
-      return;
-    }
+    if (!this.esAvailable) return;
     try {
       await this.client.index({
         index: this.NOTES_INDEX,
@@ -340,14 +404,30 @@ export class SearchService implements OnModuleInit {
       type?: string;
     } = {},
   ): Promise<{ results: ClinicalNoteDocument[]; total: number }> {
-    if (!this.available) {
-      return { results: [], total: 0 };
+    if (this.esAvailable) {
+      return this.esSearchNotes(tenantId, query, options);
     }
+    return this.pgSearchNotes(tenantId, query, options);
+  }
 
+  // --- ES clinical note search ---
+  private async esSearchNotes(
+    tenantId: string,
+    query: string,
+    options: {
+      page?: number;
+      pageSize?: number;
+      patientId?: string;
+      authorId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      type?: string;
+    },
+  ): Promise<{ results: ClinicalNoteDocument[]; total: number }> {
     const { page = 1, pageSize = 20 } = options;
 
     try {
-      const must: any[] = [{ term: { tenantId } }];
+      const must: Record<string, unknown>[] = [{ term: { tenantId } }];
 
       if (query) {
         must.push({
@@ -363,15 +443,12 @@ export class SearchService implements OnModuleInit {
             ],
             type: 'best_fields',
             fuzziness: 'AUTO',
-            analyzer: 'brazilian_medical',
           },
         });
       }
 
-      if (options.patientId)
-        must.push({ term: { patientId: options.patientId } });
-      if (options.authorId)
-        must.push({ term: { authorId: options.authorId } });
+      if (options.patientId) must.push({ term: { patientId: options.patientId } });
+      if (options.authorId) must.push({ term: { authorId: options.authorId } });
       if (options.type) must.push({ term: { type: options.type } });
       if (options.dateFrom || options.dateTo) {
         const range: Record<string, string> = {};
@@ -389,14 +466,6 @@ export class SearchService implements OnModuleInit {
           { _score: { order: 'desc' } },
           { createdAt: { order: 'desc' } },
         ],
-        highlight: {
-          fields: {
-            subjective: { fragment_size: 150, number_of_fragments: 2 },
-            objective: { fragment_size: 150, number_of_fragments: 2 },
-            assessment: { fragment_size: 150, number_of_fragments: 2 },
-            plan: { fragment_size: 150, number_of_fragments: 2 },
-          },
-        },
       });
 
       const hits = response.hits.hits;
@@ -406,22 +475,108 @@ export class SearchService implements OnModuleInit {
           : response.hits.total?.value || 0;
 
       return {
-        results: hits.map((hit) => ({
-          ...(hit._source as ClinicalNoteDocument),
-          _highlight: hit.highlight,
-        })),
+        results: hits.map((hit) => hit._source as ClinicalNoteDocument),
         total,
       };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Note search failed: ${msg}`);
-      return { results: [], total: 0 };
+      this.logger.error(`ES note search failed, falling back to PG: ${msg}`);
+      return this.pgSearchNotes(tenantId, query, options);
     }
+  }
+
+  // --- PostgreSQL ILIKE fallback for clinical notes ---
+  private async pgSearchNotes(
+    tenantId: string,
+    query: string,
+    options: {
+      page?: number;
+      pageSize?: number;
+      patientId?: string;
+      authorId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      type?: string;
+    },
+  ): Promise<{ results: ClinicalNoteDocument[]; total: number }> {
+    const { page = 1, pageSize = 20 } = options;
+    const skip = (page - 1) * pageSize;
+
+    const where: Record<string, unknown> = {
+      encounter: { tenantId },
+    };
+
+    if (query) {
+      where.OR = [
+        { subjective: { contains: query, mode: 'insensitive' } },
+        { objective: { contains: query, mode: 'insensitive' } },
+        { assessment: { contains: query, mode: 'insensitive' } },
+        { plan: { contains: query, mode: 'insensitive' } },
+        { freeText: { contains: query, mode: 'insensitive' } },
+      ];
+    }
+
+    if (options.patientId) {
+      where.encounter = {
+        ...(where.encounter as Record<string, unknown>),
+        patientId: options.patientId,
+      };
+    }
+    if (options.authorId) where.authorId = options.authorId;
+    if (options.type) where.type = options.type;
+    if (options.dateFrom || options.dateTo) {
+      const createdAt: Record<string, Date> = {};
+      if (options.dateFrom) createdAt.gte = new Date(options.dateFrom);
+      if (options.dateTo) createdAt.lte = new Date(options.dateTo);
+      where.createdAt = createdAt;
+    }
+
+    const [notes, total] = await Promise.all([
+      this.prisma.clinicalNote.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          author: { select: { id: true, name: true } },
+          encounter: {
+            select: {
+              id: true,
+              patient: { select: { id: true, fullName: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.clinicalNote.count({ where }),
+    ]);
+
+    return {
+      results: notes.map((n) => ({
+        id: n.id,
+        tenantId,
+        encounterId: n.encounterId,
+        patientId: n.encounter.patient.id,
+        patientName: n.encounter.patient.fullName,
+        authorId: n.authorId,
+        authorName: n.author.name,
+        type: n.type,
+        subjective: n.subjective ?? undefined,
+        objective: n.objective ?? undefined,
+        assessment: n.assessment ?? undefined,
+        plan: n.plan ?? undefined,
+        freeText: n.freeText ?? undefined,
+        diagnosisCodes: Array.isArray(n.diagnosisCodes)
+          ? (n.diagnosisCodes as string[])
+          : [],
+        createdAt: n.createdAt.toISOString(),
+      })),
+      total,
+    };
   }
 
   // === Bulk operations ===
   async bulkIndexPatients(patients: PatientDocument[]): Promise<void> {
-    if (!this.available || !patients.length) return;
+    if (!this.esAvailable || !patients.length) return;
 
     const operations = patients.flatMap((doc) => [
       { index: { _index: this.PATIENTS_INDEX, _id: doc.id } },
@@ -441,6 +596,7 @@ export class SearchService implements OnModuleInit {
 
   // === Health check ===
   async isHealthy(): Promise<boolean> {
+    if (!this.esAvailable) return false;
     try {
       await this.client.ping();
       return true;

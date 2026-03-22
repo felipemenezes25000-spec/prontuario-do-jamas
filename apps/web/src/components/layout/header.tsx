@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Menu,
   Search,
-  Bell,
   AlertTriangle,
   User,
   Settings,
@@ -16,6 +15,7 @@ import { useUIStore } from '@/stores/ui.store';
 import { useVoiceStore } from '@/stores/voice.store';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from './theme-toggle';
+import { NotificationBell } from './notification-bell';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -37,7 +37,7 @@ import { getInitials } from '@/lib/utils';
 
 export function Header() {
   const { user, logout } = useAuthStore();
-  const { setSidebarMobileOpen, unreadCount, activeAlerts, setCommandOpen, commandOpen } = useUIStore();
+  const { setSidebarMobileOpen, activeAlerts, setCommandOpen, commandOpen } = useUIStore();
   const { isRecording } = useVoiceStore();
   const navigate = useNavigate();
 
@@ -124,14 +124,7 @@ export function Header() {
         <ThemeToggle />
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
-          <Bell className="h-4 w-4" />
-          {unreadCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </Button>
+        <NotificationBell />
 
         {/* User dropdown */}
         <DropdownMenu>

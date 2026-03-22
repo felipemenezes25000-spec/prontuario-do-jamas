@@ -33,6 +33,7 @@ import { usePrescriptions } from '@/services/prescriptions.service';
 import { useVitalSigns } from '@/services/vital-signs.service';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
+import { PdfDownloadButton } from '@/components/pdf-download-button';
 import type { RiskLevel } from '@/types';
 
 function riskLevelFromScore(score?: number): RiskLevel | undefined {
@@ -436,12 +437,19 @@ export default function PatientDetailPage() {
                       <CardTitle className="text-sm">
                         Prescrição — {new Date(presc.createdAt).toLocaleDateString('pt-BR')}
                       </CardTitle>
-                      <Badge
-                        variant="secondary"
-                        className={cn('text-[10px]', prescStatus.className)}
-                      >
-                        {prescStatus.label}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <PdfDownloadButton
+                          endpoint={`prescriptions/${presc.id}/pdf`}
+                          label="PDF"
+                          size="sm"
+                        />
+                        <Badge
+                          variant="secondary"
+                          className={cn('text-[10px]', prescStatus.className)}
+                        >
+                          {prescStatus.label}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>

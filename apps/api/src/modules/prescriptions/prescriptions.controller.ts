@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -17,8 +18,10 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { PrescriptionsService } from './prescriptions.service';
 import { PrescriptionSafetyService } from './prescription-safety.service';
+import { PdfGeneratorService } from '../documents/pdf-generator.service';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 import { CreatePrescriptionItemDto } from './dto/create-prescription-item.dto';
@@ -38,6 +41,7 @@ export class PrescriptionsController {
   constructor(
     private readonly prescriptionsService: PrescriptionsService,
     private readonly prescriptionSafetyService: PrescriptionSafetyService,
+    private readonly pdfGeneratorService: PdfGeneratorService,
   ) {}
 
   @Post()
@@ -107,6 +111,23 @@ export class PrescriptionsController {
     @Param('patientId', ParseUUIDPipe) patientId: string,
   ) {
     return this.prescriptionsService.findByPatient(patientId);
+  }
+
+  @Get(':id/pdf')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
+  @ApiOperation({ summary: 'Generate prescription PDF' })
+  @ApiResponse({ status: 200, description: 'Prescription PDF file' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  async generatePdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.pdfGeneratorService.generatePrescriptionPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="receita_${id}.pdf"`,
+    });
+    res.send(buffer);
   }
 
   @Get(':id')
