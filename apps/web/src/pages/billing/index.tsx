@@ -246,7 +246,14 @@ export default function BillingPage() {
   const totalPages = billingData?.totalPages ?? 1;
 
   // Dashboard data — use API with fallback to client-side calculation
-  const { data: dashboardApi } = useBillingDashboard({ startDate, endDate });
+  // Only send dates to the API if they are non-empty strings
+  const dashboardParams = useMemo(() => {
+    const params: { startDate?: string; endDate?: string } = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    return params;
+  }, [startDate, endDate]);
+  const { data: dashboardApi } = useBillingDashboard(dashboardParams);
   const dashboardData = useMemo<BillingDashboardData | null>(() => {
     if (dashboardApi) return dashboardApi;
     if (allBilling.length > 0) return buildMockDashboard(allBilling);

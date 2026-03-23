@@ -76,6 +76,20 @@ export class BillingController {
     return this.billingService.generateSummary(tenantId);
   }
 
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Get billing dashboard data for tenant' })
+  @ApiResponse({ status: 200, description: 'Billing dashboard data' })
+  async getDashboard(
+    @CurrentTenant() tenantId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.billingService.getDashboard(tenantId, {
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    });
+  }
+
   @Get('by-encounter/:encounterId')
   @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
   @ApiOperation({ summary: 'Get billing entries by encounter' })

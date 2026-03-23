@@ -45,6 +45,7 @@ import { CertificateAiService } from './certificate-ai.service';
 import { ReferralAiService } from './referral-ai.service';
 import { VitalsAiService } from './vitals-ai.service';
 import { DischargeVoiceService } from './discharge-voice.service';
+import { HandoffAiService } from './handoff-ai.service';
 
 import {
   VoiceTranscribeDto,
@@ -116,9 +117,83 @@ export class AiController {
     private readonly referralAi: ReferralAiService,
     private readonly vitalsAi: VitalsAiService,
     private readonly dischargeVoice: DischargeVoiceService,
+    private readonly handoffAi: HandoffAiService,
     private readonly auditService: AuditService,
     private readonly prisma: PrismaService,
   ) {}
+
+  // ─── Handoff Summary ─────────────────────────────────────────
+
+  @Post('handoff-summary')
+  @ApiOperation({ summary: 'Generate AI-powered shift handoff summary' })
+  @ApiResponse({ status: 200, description: 'Handoff summary generated' })
+  async generateHandoffSummary(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { ward: string; shift: 'MORNING' | 'AFTERNOON' | 'NIGHT'; patientIds: string[] },
+  ) {
+    this.logger.log(`[handoff-summary] user=${user.sub} ward=${body.ward} shift=${body.shift}`);
+
+    // Gather patient data from database
+    const patients = await this.prisma.patient.findMany({
+      where: { id: { in: body.patientIds }, tenantId: user.tenantId },
+      include: {
+        encounters: {
+          where: { status: 'IN_PROGRESS' },
+          take: 1,
+          orderBy: { startedAt: 'desc' },
+          include: {
+            clinicalNotes: { take: 3, orderBy: { createdAt: 'desc' } },
+            prescriptions: {
+              where: { status: 'ACTIVE' },
+              include: { items: true },
+            },
+            vitalSigns: { take: 1, orderBy: { recordedAt: 'desc' } },
+          },
+        },
+        allergies: { where: { status: 'ACTIVE' } },
+      },
+    });
+
+    const patientData = patients.map((p) => {
+      const encounter = p.encounters[0];
+      const vitals = encounter?.vitalSigns?.[0];
+      return {
+        name: p.fullName,
+        bed: encounter?.bed ?? encounter?.room ?? 'N/A',
+        diagnosis: encounter?.chiefComplaint ?? 'Não informado',
+        currentMedications: (encounter?.prescriptions ?? []).flatMap(
+          (rx) => (rx.items ?? []).map((i) => `${i.medicationName ?? 'N/A'} ${i.dose ?? ''} ${i.route ?? ''}`),
+        ),
+        recentVitals: vitals
+          ? {
+              systolicBP: vitals.systolicBP,
+              diastolicBP: vitals.diastolicBP,
+              heartRate: vitals.heartRate,
+              temperature: vitals.temperature,
+              spo2: vitals.oxygenSaturation,
+              respiratoryRate: vitals.respiratoryRate,
+            }
+          : null,
+        pendingOrders: [] as string[],
+        alerts: (p.allergies ?? []).map(
+          (a) => `Alergia: ${a.substance} (${a.severity})`,
+        ),
+        nursingNotes: (encounter?.clinicalNotes ?? [])
+          .filter((n) => n.type === 'EVOLUTION' || n.type === 'PROGRESS_NOTE')
+          .map((n) => n.freeText ?? n.subjective ?? '')
+          .filter(Boolean),
+        significantEvents: [] as string[],
+      };
+    });
+
+    const result = await this.handoffAi.generateHandoffSummary({
+      ward: body.ward,
+      shift: body.shift,
+      patients: patientData,
+    });
+
+    return result;
+  }
 
   // ─── Voice ──────────────────────────────────────────────────────
 
