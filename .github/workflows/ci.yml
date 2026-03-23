@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "22"
+  NODE_VERSION: "20"
   PNPM_VERSION: "9"
 
 jobs:
@@ -41,10 +41,13 @@ jobs:
         run: pnpm --filter @voxpep/api prisma:generate
 
       - name: Lint
-        run: pnpm turbo lint
+        run: pnpm lint
 
-      - name: Type Check
-        run: pnpm turbo typecheck
+      - name: Type Check API
+        run: cd apps/api && npx tsc --noEmit
+
+      - name: Type Check Web
+        run: cd apps/web && npx tsc --noEmit
 
   # ─── API Tests ───────────────────────────────────────────────────────────────
   test-api:

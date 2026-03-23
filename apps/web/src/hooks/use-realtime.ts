@@ -1,11 +1,21 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
+import { useUIStore } from '@/stores/ui.store';
+import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket';
+import type { ClinicalAlert, VitalSigns } from '@/types';
 
-interface RealtimeEvents {
-  'vitals:new': (data: { patientId: string; encounterId?: string; values: Record<string, number> }) => void;
-  'alert:new': (data: { patientId: string; type: string; severity: string; message: string }) => void;
-  'prescription:updated': (data: { prescriptionId: string; status: string }) => void;
+// ---------------------------------------------------------------------------
+// Event type map — mirrors what the gateway emits
+// ---------------------------------------------------------------------------
+
+export interface RealtimeEvents {
+  'vitals:new': (data: VitalSigns) => void;
+  'alert:new': (data: ClinicalAlert) => void;
+  'alert:resolved': (data: { id: string }) => void;
+  'prescription:updated': (data: { prescriptionId: string; encounterId: string; status: string }) => void;
   'medication:checked': (data: { checkId: string; status: string; nurseId: string }) => void;
   'bed:updated': (data: { bedId: string; status: string; patientId?: string }) => void;
   'transcription:partial': (data: { text: string }) => void;
@@ -15,22 +25,24 @@ interface RealtimeEvents {
   'encounter:status-changed': (data: { encounterId: string; status: string }) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Core hook — manages the socket lifecycle & global event handlers
+// ---------------------------------------------------------------------------
+
 export function useRealtime() {
   const socketRef = useRef<Socket | null>(null);
   const { user } = useAuthStore();
+  const { addAlert, dismissAlert } = useUIStore();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!user) return;
 
-    const socket = io('/realtime', {
-      query: {
-        tenantId: user.tenantId,
-        userId: user.id,
-      },
-      transports: ['websocket', 'polling'],
-    });
-
+    connectSocket();
+    const socket = getSocket();
     socketRef.current = socket;
+
+    // --- Global listeners ------------------------------------------------
 
     socket.on('connect', () => {
       console.log('[VoxPEP] Realtime connected');
@@ -40,11 +52,58 @@ export function useRealtime() {
       console.log('[VoxPEP] Realtime disconnected');
     });
 
+    // Vital signs → invalidate query cache
+    socket.on('vitals:new', () => {
+      void queryClient.invalidateQueries({ queryKey: ['vital-signs'] });
+      void queryClient.invalidateQueries({ queryKey: ['encounters'] });
+    });
+
+    // New clinical alert → add to UI store + toast
+    socket.on('alert:new', (data: ClinicalAlert) => {
+      addAlert(data);
+
+      const toastFn =
+        data.severity === 'CRITICAL' || data.severity === 'EMERGENCY'
+          ? toast.error
+          : data.severity === 'WARNING'
+            ? toast.warning
+            : toast.info;
+
+      toastFn(data.title, { description: data.message, duration: 8000 });
+    });
+
+    // Alert resolved → remove from UI store
+    socket.on('alert:resolved', (data: { id: string }) => {
+      dismissAlert(data.id);
+    });
+
+    // Prescription updated → invalidate cache
+    socket.on('prescription:updated', () => {
+      void queryClient.invalidateQueries({ queryKey: ['prescriptions'] });
+      void queryClient.invalidateQueries({ queryKey: ['encounters'] });
+    });
+
+    // Encounter status changed → invalidate cache
+    socket.on('encounter:status-changed', () => {
+      void queryClient.invalidateQueries({ queryKey: ['encounters'] });
+    });
+
     return () => {
-      socket.disconnect();
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('vitals:new');
+      socket.off('alert:new');
+      socket.off('alert:resolved');
+      socket.off('prescription:updated');
+      socket.off('encounter:status-changed');
+      disconnectSocket();
       socketRef.current = null;
     };
-  }, [user]);
+    // addAlert / dismissAlert are stable Zustand selectors
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, queryClient]);
+
+  // --- Room helpers -------------------------------------------------------
 
   const on = useCallback(<K extends keyof RealtimeEvents>(
     event: K,
@@ -83,22 +142,19 @@ export function useRealtime() {
   };
 }
 
-/**
- * Subscribe to a specific realtime event with automatic cleanup.
- * The handler is called whenever the event fires, and unsubscribed on unmount.
- */
+// ---------------------------------------------------------------------------
+// Convenience hook — subscribe to one event with auto cleanup
+// ---------------------------------------------------------------------------
+
 export function useRealtimeEvent<K extends keyof RealtimeEvents>(
   eventName: K,
   handler: RealtimeEvents[K],
 ) {
-  const { socket } = useRealtime();
+  const { on } = useRealtime();
 
   useEffect(() => {
-    if (!socket) return;
-    const h = handler as (...args: unknown[]) => void;
-    socket.on(eventName as string, h);
-    return () => {
-      socket.off(eventName as string, h);
-    };
-  }, [socket, eventName, handler]);
+    const unsub = on(eventName, handler);
+    return unsub;
+    // handler identity may change — callers should memoize if stable ref needed
+  }, [on, eventName, handler]);
 }

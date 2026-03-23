@@ -28,6 +28,9 @@ const AdminPage = lazy(() => import('@/pages/admin'));
 const PharmacyPage = lazy(() => import('@/pages/pharmacy'));
 const ChemotherapyPage = lazy(() => import('@/pages/chemotherapy'));
 const BookingPage = lazy(() => import('@/pages/booking'));
+const PrescriptionsPage = lazy(() => import('@/pages/prescriptions'));
+const TelemedicinePage = lazy(() => import('@/pages/telemedicine'));
+const TelemedicineRoomPage = lazy(() => import('@/pages/telemedicine/[roomName]'));
 
 function PageLoader() {
   return (
@@ -112,8 +115,11 @@ export function AppRoutes() {
         <Route path="agenda" element={<SuspenseWrap><AppointmentsPage /></SuspenseWrap>} />
         <Route path="centro-cirurgico" element={<SuspenseWrap><SurgicalPage /></SuspenseWrap>} />
         <Route path="exames" element={<SuspenseWrap><ExamsPage /></SuspenseWrap>} />
+        <Route path="prescricoes" element={<SuspenseWrap><PrescriptionsPage /></SuspenseWrap>} />
         <Route path="farmacia" element={<SuspenseWrap><PharmacyPage /></SuspenseWrap>} />
         <Route path="quimioterapia" element={<SuspenseWrap><ChemotherapyPage /></SuspenseWrap>} />
+        <Route path="telemedicina" element={<SuspenseWrap><TelemedicinePage /></SuspenseWrap>} />
+        <Route path="telemedicina/:roomName" element={<SuspenseWrap><TelemedicineRoomPage /></SuspenseWrap>} />
         <Route path="faturamento" element={<SuspenseWrap><BillingPage /></SuspenseWrap>} />
         <Route path="relatorios" element={<SuspenseWrap><ReportsPage /></SuspenseWrap>} />
         <Route path="configuracoes" element={<SuspenseWrap><SettingsPage /></SuspenseWrap>} />

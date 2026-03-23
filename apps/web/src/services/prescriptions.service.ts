@@ -202,6 +202,34 @@ export function useCancelPrescription() {
   });
 }
 
+export function useSuspendPrescription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const { data } = await api.patch<Prescription>(`/prescriptions/${id}`, {
+        status: 'SUSPENDED',
+        suspendReason: reason,
+      });
+      return data;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: prescriptionKeys.all });
+      qc.invalidateQueries({ queryKey: prescriptionKeys.detail(vars.id) });
+    },
+  });
+}
+
+export function useDownloadPrescriptionPdf() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.get<Blob>(`/prescriptions/${id}/pdf`, {
+        responseType: 'blob',
+      });
+      return data;
+    },
+  });
+}
+
 export function useCheckInteractions() {
   return useMutation({
     mutationFn: async (payload: { patientId: string; medications: string[] }) => {

@@ -1,15 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Receipt,
   TrendingDown,
-  Clock,
   CheckCircle2,
+  Percent,
   Plus,
   Sparkles,
   FileCheck2,
   AlertTriangle,
   CheckCircle,
   XCircle,
+  Eye,
+  FileDown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,8 +35,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { useBillingEntries } from '@/services/billing.service';
+import { useBillingEntries, type BillingFilters } from '@/services/billing.service';
 import {
   useBillingAppeals,
   useCreateAppeal,
@@ -40,39 +52,76 @@ import {
   useGenerateAIJustification,
   useValidateTissXml,
 } from '@/services/appeals.service';
-import type { AppealStatus } from '@/types';
+import type { BillingStatus, BillingEntry, AppealStatus } from '@/types';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
+import { PageEmpty } from '@/components/common/page-empty';
 
 // ============================================================================
-// Status config
+// Constants
 // ============================================================================
 
-const billingStatusConfig: Record<string, { label: string; color: string }> = {
-  PENDING: { label: 'Pendente', color: 'bg-yellow-600' },
-  SUBMITTED: { label: 'Enviado', color: 'bg-blue-600' },
-  APPROVED: { label: 'Aprovado', color: 'bg-green-600' },
-  PARTIALLY_APPROVED: { label: 'Parcial', color: 'bg-amber-600' },
-  DENIED: { label: 'Glosado', color: 'bg-red-600' },
-  APPEALED: { label: 'Em Recurso', color: 'bg-purple-600' },
-  PAID: { label: 'Pago', color: 'bg-teal-600' },
+const PAGE_SIZE = 10;
+
+const billingStatusConfig: Record<
+  BillingStatus,
+  { label: string; badgeClass: string }
+> = {
+  PENDING: { label: 'Rascunho', badgeClass: 'bg-zinc-500 text-white' },
+  SUBMITTED: { label: 'Enviado', badgeClass: 'bg-blue-600 text-white' },
+  APPROVED: { label: 'Aprovado', badgeClass: 'bg-green-600 text-white' },
+  PARTIALLY_APPROVED: {
+    label: 'Parcialmente Aprovado',
+    badgeClass: 'bg-yellow-600 text-white',
+  },
+  DENIED: { label: 'Glosado', badgeClass: 'bg-red-600 text-white' },
+  APPEALED: { label: 'Em Recurso', badgeClass: 'bg-orange-600 text-white' },
+  PAID: { label: 'Pago', badgeClass: 'bg-teal-600 text-white' },
 };
 
-const appealStatusConfig: Record<
-  string,
-  { label: string; color: string }
-> = {
+const appealStatusConfig: Record<string, { label: string; color: string }> = {
   DRAFT: { label: 'Rascunho', color: 'bg-zinc-500' },
   SUBMITTED: { label: 'Enviado', color: 'bg-blue-600' },
   IN_REVIEW: { label: 'Em Analise', color: 'bg-yellow-600' },
   ACCEPTED: { label: 'Aceito', color: 'bg-green-600' },
-  PARTIALLY_ACCEPTED: { label: 'Parcialmente Aceito', color: 'bg-orange-600' },
+  PARTIALLY_ACCEPTED: {
+    label: 'Parcialmente Aceito',
+    color: 'bg-orange-600',
+  },
   REJECTED: { label: 'Rejeitado', color: 'bg-red-600' },
   ESCALATED: { label: 'Escalado', color: 'bg-purple-600' },
 };
 
-const formatCurrency = (value: number) =>
-  value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const BILLING_STATUS_OPTIONS: { value: BillingStatus; label: string }[] = [
+  { value: 'PENDING', label: 'Rascunho' },
+  { value: 'SUBMITTED', label: 'Enviado' },
+  { value: 'APPROVED', label: 'Aprovado' },
+  { value: 'PARTIALLY_APPROVED', label: 'Parcialmente Aprovado' },
+  { value: 'DENIED', label: 'Glosado' },
+  { value: 'APPEALED', label: 'Em Recurso' },
+  { value: 'PAID', label: 'Pago' },
+];
+
+const INSURANCE_PROVIDERS = [
+  'Unimed',
+  'Bradesco Saude',
+  'SulAmerica',
+  'Amil',
+  'NotreDame Intermedica',
+  'Hapvida',
+  'Porto Seguro',
+  'Cassi',
+  'Particular',
+];
+
+const formatCurrency = (value: number): string =>
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+
+const formatDate = (dateStr: string): string =>
+  new Date(dateStr).toLocaleDateString('pt-BR');
 
 // ============================================================================
 // Main Page
@@ -80,39 +129,73 @@ const formatCurrency = (value: number) =>
 
 export default function BillingPage() {
   const [selectedEntry, setSelectedEntry] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [insuranceFilter, setInsuranceFilter] = useState<string>('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [page, setPage] = useState(1);
 
-  const { data: billingData, isLoading, isError, refetch } = useBillingEntries();
-  const allBilling = billingData?.data ?? [];
+  const filters = useMemo<BillingFilters>(() => {
+    const f: BillingFilters = { page, limit: PAGE_SIZE };
+    if (statusFilter !== 'ALL') f.status = statusFilter as BillingStatus;
+    if (insuranceFilter !== 'ALL') f.insuranceProvider = insuranceFilter;
+    if (startDate) f.startDate = startDate;
+    if (endDate) f.endDate = endDate;
+    return f;
+  }, [statusFilter, insuranceFilter, startDate, endDate, page]);
 
-  const totalBilled = useMemo(
-    () => allBilling.reduce((sum, b) => sum + (b.totalAmount ?? 0), 0),
-    [allBilling],
-  );
-  const totalApproved = useMemo(
-    () =>
-      allBilling
-        .filter((b) => b.status === 'APPROVED' || b.status === 'PAID')
-        .reduce((sum, b) => sum + (b.approvedAmount ?? b.totalAmount ?? 0), 0),
-    [allBilling],
-  );
-  const totalDenied = useMemo(
-    () =>
-      allBilling
-        .filter((b) => b.status === 'DENIED')
-        .reduce((sum, b) => sum + (b.glosedAmount ?? b.totalAmount ?? 0), 0),
-    [allBilling],
-  );
-  const totalPending = useMemo(
-    () =>
-      allBilling
-        .filter((b) => b.status === 'PENDING' || b.status === 'SUBMITTED')
-        .reduce((sum, b) => sum + (b.totalAmount ?? 0), 0),
-    [allBilling],
-  );
+  const { data: billingData, isLoading, isError, refetch } = useBillingEntries(filters);
+  const allBilling = useMemo(() => billingData?.data ?? [], [billingData]);
+  const totalItems = billingData?.total ?? 0;
+  const totalPages = billingData?.totalPages ?? 1;
+
+  // KPI calculations from the current page of results
+  const { totalBilled, totalApproved, totalGlosed, approvalRate } = useMemo(() => {
+    const billed = allBilling.reduce((sum, b) => sum + (b.totalAmount ?? 0), 0);
+    const approved = allBilling.reduce((sum, b) => sum + (b.approvedAmount ?? 0), 0);
+    const glosed = allBilling.reduce((sum, b) => sum + (b.glosedAmount ?? 0), 0);
+    const rate = billed > 0 ? (approved / billed) * 100 : 0;
+    return {
+      totalBilled: billed,
+      totalApproved: approved,
+      totalGlosed: glosed,
+      approvalRate: rate,
+    };
+  }, [allBilling]);
 
   const detail = selectedEntry
-    ? allBilling.find((b) => b.id === selectedEntry)
+    ? allBilling.find((b) => b.id === selectedEntry) ?? null
     : null;
+
+  const handleStatusFilterChange = useCallback((value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  }, []);
+
+  const handleInsuranceFilterChange = useCallback((value: string) => {
+    setInsuranceFilter(value);
+    setPage(1);
+  }, []);
+
+  const handleStartDateChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setStartDate(e.target.value);
+      setPage(1);
+    },
+    [],
+  );
+
+  const handleEndDateChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setEndDate(e.target.value);
+      setPage(1);
+    },
+    [],
+  );
+
+  const handleDownloadTissPdf = useCallback((id: string) => {
+    window.open(`/api/v1/billing/${id}/tiss-pdf`, '_blank');
+  }, []);
 
   const kpis = [
     {
@@ -123,25 +206,25 @@ export default function BillingPage() {
       bgColor: 'bg-teal-500/10',
     },
     {
-      label: 'Aprovado',
+      label: 'Total Aprovado',
       value: formatCurrency(totalApproved),
       icon: CheckCircle2,
       color: 'text-green-400',
       bgColor: 'bg-green-500/10',
     },
     {
-      label: 'Glosado',
-      value: formatCurrency(totalDenied),
+      label: 'Total Glosado',
+      value: formatCurrency(totalGlosed),
       icon: TrendingDown,
       color: 'text-red-400',
       bgColor: 'bg-red-500/10',
     },
     {
-      label: 'Pendente',
-      value: formatCurrency(totalPending),
-      icon: Clock,
-      color: 'text-amber-400',
-      bgColor: 'bg-amber-500/10',
+      label: 'Taxa de Aprovacao',
+      value: `${approvalRate.toFixed(1)}%`,
+      icon: Percent,
+      color: 'text-emerald-400',
+      bgColor: 'bg-emerald-500/10',
     },
   ];
 
@@ -186,78 +269,155 @@ export default function BillingPage() {
 
         {/* ====== Billing Entries Tab ====== */}
         <TabsContent value="entries">
-          <Card className="border-border bg-card overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Lancamentos</CardTitle>
-            </CardHeader>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">
-                      Data
-                    </th>
-                    <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">
-                      Guia TISS
-                    </th>
-                    <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">
-                      Convenio
-                    </th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">
-                      Valor
-                    </th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {allBilling.map((entry) => (
-                    <tr
-                      key={entry.id}
-                      onClick={() => setSelectedEntry(entry.id)}
-                      className="cursor-pointer transition-colors hover:bg-accent/30"
-                    >
-                      <td className="px-4 py-3 text-sm">
-                        {new Date(entry.createdAt).toLocaleDateString('pt-BR')}
-                      </td>
-                      <td className="hidden max-w-xs truncate px-4 py-3 text-sm text-muted-foreground font-mono sm:table-cell">
-                        {entry.guideNumber ?? '\u2014'}
-                      </td>
-                      <td className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">
-                        {entry.insuranceProvider ?? 'Particular'}
-                      </td>
-                      <td className="px-4 py-3 text-sm font-medium text-right">
-                        {formatCurrency(entry.totalAmount ?? 0)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            'text-[10px] text-white',
-                            billingStatusConfig[entry.status]?.color,
-                          )}
-                        >
-                          {billingStatusConfig[entry.status]?.label ??
-                            entry.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                  {allBilling.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-4 py-8 text-center text-sm text-muted-foreground"
-                      >
-                        Nenhum lancamento encontrado
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+          {/* Filters */}
+          <Card className="border-border bg-card mb-4">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-end gap-3">
+                {/* Status filter */}
+                <div className="w-48">
+                  <Label className="mb-1.5 block text-xs text-muted-foreground">
+                    Status
+                  </Label>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={handleStatusFilterChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Todos</SelectItem>
+                      {BILLING_STATUS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Insurance provider filter */}
+                <div className="w-52">
+                  <Label className="mb-1.5 block text-xs text-muted-foreground">
+                    Convenio
+                  </Label>
+                  <Select
+                    value={insuranceFilter}
+                    onValueChange={handleInsuranceFilterChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Todos</SelectItem>
+                      {INSURANCE_PROVIDERS.map((name) => (
+                        <SelectItem key={name} value={name}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date range */}
+                <div className="w-40">
+                  <Label className="mb-1.5 block text-xs text-muted-foreground">
+                    Data inicio
+                  </Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={handleStartDateChange}
+                    className="h-10"
+                  />
+                </div>
+                <div className="w-40">
+                  <Label className="mb-1.5 block text-xs text-muted-foreground">
+                    Data fim
+                  </Label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={handleEndDateChange}
+                    className="h-10"
+                  />
+                </div>
+              </div>
+            </CardContent>
           </Card>
+
+          {/* Table */}
+          {allBilling.length === 0 ? (
+            <PageEmpty
+              title="Nenhum lancamento encontrado"
+              description="Altere os filtros ou crie um novo lancamento de faturamento."
+            />
+          ) : (
+            <Card className="border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Paciente</TableHead>
+                      <TableHead className="text-xs">Convenio</TableHead>
+                      <TableHead className="text-xs text-right">
+                        Valor Total
+                      </TableHead>
+                      <TableHead className="text-xs text-right">
+                        Valor Aprovado
+                      </TableHead>
+                      <TableHead className="text-xs text-right">
+                        Glosa
+                      </TableHead>
+                      <TableHead className="text-xs">Status</TableHead>
+                      <TableHead className="text-xs">Data</TableHead>
+                      <TableHead className="text-xs">Acoes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allBilling.map((entry) => (
+                      <BillingTableRow
+                        key={entry.id}
+                        entry={entry}
+                        onView={setSelectedEntry}
+                        onDownloadPdf={handleDownloadTissPdf}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between border-t border-border px-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  Mostrando {allBilling.length} de {totalItems} registros
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="sr-only">Anterior</span>
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Pagina {page} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                    <span className="sr-only">Proximo</span>
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ====== Appeals Tab ====== */}
@@ -272,85 +432,202 @@ export default function BillingPage() {
       </Tabs>
 
       {/* Detail Dialog */}
-      <Dialog open={!!selectedEntry} onOpenChange={() => setSelectedEntry(null)}>
-        <DialogContent className="bg-card border-border">
-          <DialogHeader>
-            <DialogTitle>Detalhes do Lancamento</DialogTitle>
-          </DialogHeader>
-          {detail && (
-            <div className="space-y-3">
-              <div className="grid gap-3 grid-cols-2 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground">Data</p>
-                  <p>
-                    {new Date(detail.createdAt).toLocaleDateString('pt-BR')}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Convenio</p>
-                  <p>{detail.insuranceProvider ?? 'Particular'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Guia TISS</p>
-                  <p className="font-mono text-xs">
-                    {detail.guideNumber ?? '\u2014'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Tipo</p>
-                  <p>{detail.guideType ?? '\u2014'}</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <span className="text-sm text-muted-foreground">
-                  Valor Total
-                </span>
-                <span className="text-lg font-bold">
-                  {formatCurrency(detail.totalAmount ?? 0)}
-                </span>
-              </div>
-              {(detail.approvedAmount != null ||
-                detail.glosedAmount != null) && (
-                <div className="grid gap-3 grid-cols-2">
-                  {detail.approvedAmount != null && (
-                    <div className="flex items-center justify-between rounded-lg border border-green-500/20 p-2">
-                      <span className="text-xs text-muted-foreground">
-                        Aprovado
-                      </span>
-                      <span className="text-sm font-medium text-green-400">
-                        {formatCurrency(detail.approvedAmount)}
-                      </span>
-                    </div>
-                  )}
-                  {detail.glosedAmount != null && (
-                    <div className="flex items-center justify-between rounded-lg border border-red-500/20 p-2">
-                      <span className="text-xs text-muted-foreground">
-                        Glosado
-                      </span>
-                      <span className="text-sm font-medium text-red-400">
-                        {formatCurrency(detail.glosedAmount)}
-                      </span>
-                    </div>
-                  )}
+      <BillingDetailDialog
+        entry={detail}
+        open={!!selectedEntry}
+        onOpenChange={() => setSelectedEntry(null)}
+        onDownloadPdf={handleDownloadTissPdf}
+      />
+    </div>
+  );
+}
+
+// ============================================================================
+// Billing Table Row
+// ============================================================================
+
+function BillingTableRow({
+  entry,
+  onView,
+  onDownloadPdf,
+}: {
+  entry: BillingEntry;
+  onView: (id: string) => void;
+  onDownloadPdf: (id: string) => void;
+}) {
+  const statusCfg = billingStatusConfig[entry.status];
+
+  return (
+    <TableRow className="cursor-pointer transition-colors hover:bg-accent/30">
+      <TableCell className="text-sm font-mono text-xs">
+        {entry.patientId.slice(0, 8)}...
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {entry.insuranceProvider ?? 'Particular'}
+      </TableCell>
+      <TableCell className="text-sm font-medium text-right">
+        {formatCurrency(entry.totalAmount ?? 0)}
+      </TableCell>
+      <TableCell className="text-sm text-right text-green-400">
+        {entry.approvedAmount != null
+          ? formatCurrency(entry.approvedAmount)
+          : '\u2014'}
+      </TableCell>
+      <TableCell className="text-sm text-right text-red-400">
+        {entry.glosedAmount != null
+          ? formatCurrency(entry.glosedAmount)
+          : '\u2014'}
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant="secondary"
+          className={cn('text-[10px]', statusCfg?.badgeClass)}
+        >
+          {statusCfg?.label ?? entry.status}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {formatDate(entry.createdAt)}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onView(entry.id)}
+            title="Ver detalhes"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onDownloadPdf(entry.id)}
+            title="Baixar PDF TISS"
+          >
+            <FileDown className="h-4 w-4" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// ============================================================================
+// Detail Dialog
+// ============================================================================
+
+function BillingDetailDialog({
+  entry,
+  open,
+  onOpenChange,
+  onDownloadPdf,
+}: {
+  entry: BillingEntry | null;
+  open: boolean;
+  onOpenChange: () => void;
+  onDownloadPdf: (id: string) => void;
+}) {
+  if (!entry) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="bg-card border-border" />
+      </Dialog>
+    );
+  }
+
+  const statusCfg = billingStatusConfig[entry.status];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-card border-border">
+        <DialogHeader>
+          <DialogTitle>Detalhes do Lancamento</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid gap-3 grid-cols-2 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Data</p>
+              <p>{formatDate(entry.createdAt)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Convenio</p>
+              <p>{entry.insuranceProvider ?? 'Particular'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Guia TISS</p>
+              <p className="font-mono text-xs">
+                {entry.guideNumber ?? '\u2014'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Tipo</p>
+              <p>{entry.guideType ?? '\u2014'}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <span className="text-sm text-muted-foreground">Valor Total</span>
+            <span className="text-lg font-bold">
+              {formatCurrency(entry.totalAmount ?? 0)}
+            </span>
+          </div>
+
+          {(entry.approvedAmount != null || entry.glosedAmount != null) && (
+            <div className="grid gap-3 grid-cols-2">
+              {entry.approvedAmount != null && (
+                <div className="flex items-center justify-between rounded-lg border border-green-500/20 p-2">
+                  <span className="text-xs text-muted-foreground">
+                    Aprovado
+                  </span>
+                  <span className="text-sm font-medium text-green-400">
+                    {formatCurrency(entry.approvedAmount)}
+                  </span>
                 </div>
               )}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Status:</span>
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    'text-xs text-white',
-                    billingStatusConfig[detail.status]?.color,
-                  )}
-                >
-                  {billingStatusConfig[detail.status]?.label ?? detail.status}
-                </Badge>
-              </div>
+              {entry.glosedAmount != null && (
+                <div className="flex items-center justify-between rounded-lg border border-red-500/20 p-2">
+                  <span className="text-xs text-muted-foreground">
+                    Glosado
+                  </span>
+                  <span className="text-sm font-medium text-red-400">
+                    {formatCurrency(entry.glosedAmount)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-    </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Status:</span>
+            <Badge
+              variant="secondary"
+              className={cn('text-xs', statusCfg?.badgeClass)}
+            >
+              {statusCfg?.label ?? entry.status}
+            </Badge>
+          </div>
+
+          {entry.submittedAt && (
+            <div className="text-xs text-muted-foreground">
+              Enviado em: {formatDate(entry.submittedAt)}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onDownloadPdf(entry.id)}
+              className="gap-1.5"
+            >
+              <FileDown className="h-4 w-4" />
+              Baixar PDF TISS
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -359,17 +636,18 @@ export default function BillingPage() {
 // ============================================================================
 
 function AppealsTab() {
-  const [statusFilter, setStatusFilter] = useState<AppealStatus | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<AppealStatus | 'ALL'>(
+    'ALL',
+  );
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedAppeal, setSelectedAppeal] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<string | null>(null);
 
   const filters =
-    statusFilter !== 'ALL' ? { status: statusFilter as AppealStatus } : undefined;
-  const {
-    data: appealsData,
-    isLoading,
-  } = useBillingAppeals(filters);
+    statusFilter !== 'ALL'
+      ? { status: statusFilter as AppealStatus }
+      : undefined;
+  const { data: appealsData, isLoading } = useBillingAppeals(filters);
   const appeals = appealsData?.data ?? [];
 
   const createAppeal = useCreateAppeal();
@@ -453,48 +731,38 @@ function AppealsTab() {
       {/* Appeals Table */}
       <Card className="border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border text-left">
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">
-                  Recurso
-                </th>
-                <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Recurso</TableHead>
+                <TableHead className="hidden text-xs sm:table-cell">
                   Guia
-                </th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground text-right">
-                  Glosado
-                </th>
-                <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground text-right sm:table-cell">
+                </TableHead>
+                <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs text-right">Glosado</TableHead>
+                <TableHead className="hidden text-xs text-right sm:table-cell">
                   Em Recurso
-                </th>
-                <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground text-right md:table-cell">
+                </TableHead>
+                <TableHead className="hidden text-xs text-right md:table-cell">
                   Recuperado
-                </th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">
-                  Data
-                </th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">
-                  Acoes
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/50">
+                </TableHead>
+                <TableHead className="text-xs">Data</TableHead>
+                <TableHead className="text-xs">Acoes</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {appeals.map((appeal) => (
-                <tr
+                <TableRow
                   key={appeal.id}
                   className="transition-colors hover:bg-accent/30"
                 >
-                  <td className="px-4 py-3 text-sm font-mono">
+                  <TableCell className="text-sm font-mono">
                     {appeal.appealNumber}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm text-muted-foreground font-mono sm:table-cell">
+                  </TableCell>
+                  <TableCell className="hidden text-sm text-muted-foreground font-mono sm:table-cell">
                     {appeal.billingEntry?.guideNumber ?? '\u2014'}
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     <Badge
                       variant="secondary"
                       className={cn(
@@ -505,22 +773,22 @@ function AppealsTab() {
                       {appealStatusConfig[appeal.status]?.label ??
                         appeal.status}
                     </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-sm font-medium text-right text-red-400">
+                  </TableCell>
+                  <TableCell className="text-sm font-medium text-right text-red-400">
                     {formatCurrency(appeal.glosedAmount)}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm font-medium text-right text-blue-400 sm:table-cell">
+                  </TableCell>
+                  <TableCell className="hidden text-sm font-medium text-right text-blue-400 sm:table-cell">
                     {formatCurrency(appeal.appealedAmount)}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm font-medium text-right text-green-400 md:table-cell">
+                  </TableCell>
+                  <TableCell className="hidden text-sm font-medium text-right text-green-400 md:table-cell">
                     {appeal.recoveredAmount != null
                       ? formatCurrency(appeal.recoveredAmount)
                       : '\u2014'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {new Date(appeal.createdAt).toLocaleDateString('pt-BR')}
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatDate(appeal.createdAt)}
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-1">
                       {appeal.status === 'DRAFT' && (
                         <Button
@@ -551,21 +819,21 @@ function AppealsTab() {
                         <FileCheck2 className="h-4 w-4" />
                       </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
               {appeals.length === 0 && (
-                <tr>
-                  <td
+                <TableRow>
+                  <TableCell
                     colSpan={8}
                     className="px-4 py-8 text-center text-sm text-muted-foreground"
                   >
                     Nenhum recurso de glosa encontrado
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </Card>
 
@@ -776,9 +1044,7 @@ function AppealDetailDialog({
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Criado em</p>
-                <p>
-                  {new Date(detail.createdAt).toLocaleDateString('pt-BR')}
-                </p>
+                <p>{formatDate(detail.createdAt)}</p>
               </div>
             </div>
 
@@ -834,9 +1100,7 @@ function AppealDetailDialog({
 
             {detail.resolution && (
               <div>
-                <p className="text-xs text-muted-foreground mb-1">
-                  Resolucao
-                </p>
+                <p className="text-xs text-muted-foreground mb-1">Resolucao</p>
                 <p className="text-sm rounded-lg border border-border p-3 bg-muted/30">
                   {detail.resolution}
                 </p>
@@ -895,7 +1159,6 @@ function TissValidationTab() {
 
           {result && (
             <div className="space-y-3 pt-2">
-              {/* Overall result */}
               <div
                 className={cn(
                   'flex items-center gap-2 rounded-lg border p-3',
@@ -916,7 +1179,6 @@ function TissValidationTab() {
                 </span>
               </div>
 
-              {/* Errors */}
               {(result.errors ?? []).length > 0 && (
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-red-400">Erros</p>
@@ -932,7 +1194,6 @@ function TissValidationTab() {
                 </div>
               )}
 
-              {/* Warnings */}
               {(result.warnings ?? []).length > 0 && (
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-yellow-400">Avisos</p>

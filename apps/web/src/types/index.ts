@@ -503,6 +503,9 @@ export interface Prescription {
   encounterId: string;
   doctorId: string;
   patientId: string;
+  patient?: Patient;
+  doctor?: User;
+  encounter?: Encounter;
   type: PrescriptionType;
   status: PrescriptionStatus;
   wasGeneratedByAI?: boolean;
