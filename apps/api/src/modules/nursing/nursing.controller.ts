@@ -21,6 +21,11 @@ import {
 } from './dto/create-nursing-diagnosis.dto';
 import { CreateNursingNoteDto } from './dto/create-nursing-note.dto';
 import { CreateFluidBalanceDto } from './dto/create-fluid-balance.dto';
+import {
+  AdministerMedicationDto,
+  SkipMedicationDto,
+  SuspendMedicationDto,
+} from './dto/administer-medication.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 
@@ -29,6 +34,48 @@ import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 @Controller('nursing')
 export class NursingController {
   constructor(private readonly nursingService: NursingService) {}
+
+  // --- Medication Schedule (A3) ---
+
+  @Get('schedule/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Get medication schedule grid for an encounter' })
+  @ApiResponse({ status: 200, description: 'Medication schedule grid' })
+  async getSchedule(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+  ) {
+    return this.nursingService.getSchedule(encounterId);
+  }
+
+  @Post('administer')
+  @ApiOperation({ summary: 'Record medication administration' })
+  @ApiResponse({ status: 201, description: 'Medication administration recorded' })
+  async administerMedication(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: AdministerMedicationDto,
+  ) {
+    return this.nursingService.administerMedication(user.sub, dto);
+  }
+
+  @Post('skip')
+  @ApiOperation({ summary: 'Record medication as skipped/refused' })
+  @ApiResponse({ status: 201, description: 'Medication skip recorded' })
+  async skipMedication(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: SkipMedicationDto,
+  ) {
+    return this.nursingService.skipMedication(user.sub, dto);
+  }
+
+  @Post('suspend')
+  @ApiOperation({ summary: 'Suspend a medication for remaining schedule today' })
+  @ApiResponse({ status: 200, description: 'Medication suspended' })
+  async suspendMedication(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: SuspendMedicationDto,
+  ) {
+    return this.nursingService.suspendMedication(user.sub, dto);
+  }
 
   // --- Nursing Processes ---
 

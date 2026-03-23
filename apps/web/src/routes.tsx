@@ -18,6 +18,7 @@ const EncounterPage = lazy(() => import('@/pages/encounters/[id]'));
 const TriagePage = lazy(() => import('@/pages/triage'));
 const AdmissionsPage = lazy(() => import('@/pages/admissions'));
 const NursingPage = lazy(() => import('@/pages/nursing'));
+const NursingSchedulePage = lazy(() => import('@/pages/nursing/schedule'));
 const AppointmentsPage = lazy(() => import('@/pages/appointments'));
 const SurgicalPage = lazy(() => import('@/pages/surgical'));
 const ExamsPage = lazy(() => import('@/pages/exams'));
@@ -114,6 +115,7 @@ export function AppRoutes() {
         <Route path="triagem" element={<SuspenseWrap><TriagePage /></SuspenseWrap>} />
         <Route path="internacoes" element={<SuspenseWrap><AdmissionsPage /></SuspenseWrap>} />
         <Route path="enfermagem" element={<SuspenseWrap><NursingPage /></SuspenseWrap>} />
+        <Route path="enfermagem/aprazamento" element={<SuspenseWrap><NursingSchedulePage /></SuspenseWrap>} />
         <Route path="agenda" element={<SuspenseWrap><AppointmentsPage /></SuspenseWrap>} />
         <Route path="centro-cirurgico" element={<SuspenseWrap><SurgicalPage /></SuspenseWrap>} />
         <Route path="exames" element={<SuspenseWrap><ExamsPage /></SuspenseWrap>} />

@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Syringe,
+  CalendarClock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth.store';
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { label: 'Farmácia', icon: Pill, href: '/farmacia' },
   { label: 'Exames', icon: TestTube, href: '/exames' },
   { label: 'Enfermagem', icon: HeartPulse, href: '/enfermagem' },
+  { label: 'Aprazamento', icon: CalendarClock, href: '/enfermagem/aprazamento' },
   { label: 'Quimioterapia', icon: Syringe, href: '/quimioterapia' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
   { label: 'Faturamento', icon: Receipt, href: '/faturamento' },
