@@ -21,3 +21,6 @@ export {
 } from './loading-skeleton';
 export { SafetyValidationForm, DoubleCheckActions } from './prescription-safety-panel';
 export { DocumentPrefill } from './document-prefill';
+export { QuickAntecedents } from './quick-antecedents';
+export { ExamRequestModal } from './exam-request-modal';
+export { LabTrendChart } from './lab-trend-chart';

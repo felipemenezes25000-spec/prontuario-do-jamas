@@ -207,6 +207,30 @@ export class PatientsService {
     });
   }
 
+  async updateCondition(
+    patientId: string,
+    conditionId: string,
+    tenantId: string,
+    data: { status?: string; notes?: string; cidCode?: string; cidDescription?: string },
+  ) {
+    await this.findById(patientId, tenantId);
+    const condition = await this.prisma.chronicCondition.findFirst({
+      where: { id: conditionId, patientId },
+    });
+    if (!condition) {
+      throw new NotFoundException(`Condition with ID "${conditionId}" not found for this patient`);
+    }
+    return this.prisma.chronicCondition.update({
+      where: { id: conditionId },
+      data: {
+        ...(data.status ? { status: data.status as ConditionStatus } : {}),
+        ...(data.notes !== undefined ? { notes: data.notes } : {}),
+        ...(data.cidCode !== undefined ? { cidCode: data.cidCode } : {}),
+        ...(data.cidDescription !== undefined ? { cidDescription: data.cidDescription } : {}),
+      },
+    });
+  }
+
   async getFamilyHistory(patientId: string, tenantId: string) {
     await this.findById(patientId, tenantId);
     return this.prisma.familyHistory.findMany({

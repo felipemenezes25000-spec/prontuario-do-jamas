@@ -142,14 +142,29 @@ export class PatientsController {
   @Post(':id/conditions')
   @ApiParam({ name: 'id', description: 'Patient UUID' })
   @ApiOperation({ summary: 'Add condition to patient' })
-  @ApiBody({ schema: { type: 'object', properties: { name: { type: 'string' }, icdCode: { type: 'string' }, status: { type: 'string' }, diagnosedAt: { type: 'string' }, notes: { type: 'string' } }, required: ['name'] } })
+  @ApiBody({ schema: { type: 'object', properties: { cidCode: { type: 'string' }, cidDescription: { type: 'string' }, status: { type: 'string' }, diagnosedAt: { type: 'string' }, notes: { type: 'string' } }, required: ['cidCode'] } })
   @ApiResponse({ status: 201, description: 'Condition added' })
   async addCondition(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenantId: string,
-    @Body() data: { name: string; icdCode?: string; status?: string; diagnosedAt?: string; notes?: string },
+    @Body() data: { cidCode?: string; cidDescription?: string; status?: string; diagnosedAt?: string; notes?: string },
   ) {
-    return this.patientsService.addCondition(id, tenantId, data as any);
+    return this.patientsService.addCondition(id, tenantId, data);
+  }
+
+  @Patch(':id/conditions/:conditionId')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
+  @ApiParam({ name: 'conditionId', description: 'Condition UUID' })
+  @ApiOperation({ summary: 'Update a patient condition' })
+  @ApiBody({ schema: { type: 'object', properties: { status: { type: 'string' }, notes: { type: 'string' }, cidCode: { type: 'string' }, cidDescription: { type: 'string' } } } })
+  @ApiResponse({ status: 200, description: 'Condition updated' })
+  async updateCondition(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('conditionId', ParseUUIDPipe) conditionId: string,
+    @CurrentTenant() tenantId: string,
+    @Body() data: { status?: string; notes?: string; cidCode?: string; cidDescription?: string },
+  ) {
+    return this.patientsService.updateCondition(id, conditionId, tenantId, data);
   }
 
   // --- Family History sub-routes ---

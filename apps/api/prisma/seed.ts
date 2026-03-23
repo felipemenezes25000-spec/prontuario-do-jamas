@@ -17,6 +17,7 @@ import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { seedDrugs } from './seed-drugs';
+import { seedExams } from './seed-exams';
 
 const prisma = new PrismaClient();
 
@@ -3225,6 +3226,10 @@ async function main(): Promise<void> {
 
   // ─── Drug Database ─────────────────────────────────────────────────────
   await seedDrugs(prisma);
+
+  // ─── Exam Catalog ─────────────────────────────────────────────────────
+  const examCount = await seedExams(prisma, IDS.tenant);
+  console.log(`   - ${examCount} Exam Catalog entries`);
 }
 
 main()
