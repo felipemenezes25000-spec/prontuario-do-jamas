@@ -18,6 +18,12 @@ import { VoiceTranscriptionController } from './voice-transcription.controller';
 import { VoiceTranscriptionService } from './voice-transcription.service';
 import { PatientContextBuilder } from './patient-context.builder';
 import { AiCacheService } from './ai-cache.service';
+import { VoiceCommandService } from './voice-command.service';
+import { ExamRequestAiService } from './exam-request-ai.service';
+import { CertificateAiService } from './certificate-ai.service';
+import { ReferralAiService } from './referral-ai.service';
+import { VitalsAiService } from './vitals-ai.service';
+import { DischargeVoiceService } from './discharge-voice.service';
 
 @Module({
   imports: [ConfigModule],
@@ -39,6 +45,12 @@ import { AiCacheService } from './ai-cache.service';
     VoiceTranscriptionService,
     PatientContextBuilder,
     AiCacheService,
+    VoiceCommandService,
+    ExamRequestAiService,
+    CertificateAiService,
+    ReferralAiService,
+    VitalsAiService,
+    DischargeVoiceService,
   ],
   exports: [
     GeminiProvider,
@@ -56,6 +68,12 @@ import { AiCacheService } from './ai-cache.service';
     VoiceTranscriptionService,
     PatientContextBuilder,
     AiCacheService,
+    VoiceCommandService,
+    ExamRequestAiService,
+    CertificateAiService,
+    ReferralAiService,
+    VitalsAiService,
+    DischargeVoiceService,
   ],
 })
 export class AiModule {}

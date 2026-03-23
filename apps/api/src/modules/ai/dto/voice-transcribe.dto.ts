@@ -30,4 +30,17 @@ export class VoiceTranscribeResponseDto {
 
   @ApiProperty({ description: 'Structured data extracted from transcription (NER results)' })
   structuredData!: Record<string, unknown>;
+
+  @ApiProperty({
+    description: 'Detected voice intent',
+    example: 'SOAP',
+    enum: ['SOAP', 'PRESCRIPTION', 'EXAM_REQUEST', 'CERTIFICATE', 'REFERRAL', 'EVOLUTION', 'VITALS', 'DISCHARGE'],
+  })
+  intent!: string;
+
+  @ApiProperty({ description: 'Intent classification confidence (0-1)', example: 0.92 })
+  intentConfidence!: number;
+
+  @ApiProperty({ description: 'Data extracted based on the detected intent' })
+  intentData!: Record<string, unknown>;
 }

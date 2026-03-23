@@ -11,3 +11,8 @@ export * from './copilot-autocomplete.dto';
 export * from './coding-suggestions.dto';
 export * from './suggest-nursing-diagnoses.dto';
 export * from './discharge-plan.dto';
+export * from './exam-request-ai.dto';
+export * from './certificate-ai.dto';
+export * from './referral-ai.dto';
+export * from './vitals-ai.dto';
+export * from './discharge-voice.dto';

@@ -2,33 +2,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { VoiceButton } from './voice-button';
 
-// Mock the voice store
+// Mock the useVoice hook
 const mockStartRecording = vi.fn();
 const mockStopRecording = vi.fn();
-const mockSetProcessing = vi.fn();
-const mockSetTranscription = vi.fn();
-const mockSetError = vi.fn();
-const mockSetDuration = vi.fn();
-const mockReset = vi.fn();
+const mockCancelRecording = vi.fn();
+const mockClearTranscription = vi.fn();
 
-let mockStoreState = {
+let mockVoiceState = {
+  status: 'idle' as string,
   isRecording: false,
   isProcessing: false,
   currentTranscription: '',
-  partialText: '',
+  partialTranscription: '',
+  structuredData: null as Record<string, unknown> | null,
   error: null as string | null,
   duration: 0,
   startRecording: mockStartRecording,
   stopRecording: mockStopRecording,
-  setProcessing: mockSetProcessing,
-  setTranscription: mockSetTranscription,
-  setError: mockSetError,
-  setDuration: mockSetDuration,
-  reset: mockReset,
+  cancelRecording: mockCancelRecording,
+  clearTranscription: mockClearTranscription,
 };
 
-vi.mock('@/stores/voice.store', () => ({
-  useVoiceStore: () => mockStoreState,
+vi.mock('@/hooks/use-voice', () => ({
+  useVoice: () => mockVoiceState,
 }));
 
 vi.mock('@/components/ui/tooltip', () => ({
@@ -40,28 +36,27 @@ vi.mock('@/components/ui/tooltip', () => ({
   TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-function resetStore() {
-  mockStoreState = {
+function resetVoiceState() {
+  mockVoiceState = {
+    status: 'idle',
     isRecording: false,
     isProcessing: false,
     currentTranscription: '',
-    partialText: '',
+    partialTranscription: '',
+    structuredData: null,
     error: null,
     duration: 0,
     startRecording: mockStartRecording,
     stopRecording: mockStopRecording,
-    setProcessing: mockSetProcessing,
-    setTranscription: mockSetTranscription,
-    setError: mockSetError,
-    setDuration: mockSetDuration,
-    reset: mockReset,
+    cancelRecording: mockCancelRecording,
+    clearTranscription: mockClearTranscription,
   };
 }
 
 describe('VoiceButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetStore();
+    resetVoiceState();
   });
 
   it('renders in idle state with mic icon and correct aria-label', () => {
@@ -78,72 +73,71 @@ describe('VoiceButton', () => {
   });
 
   it('renders listening label when isRecording is true', () => {
-    mockStoreState.isRecording = true;
+    mockVoiceState.isRecording = true;
     render(<VoiceButton />);
     expect(screen.getByText('Escutando...')).toBeInTheDocument();
   });
 
   it('shows duration timer in listening state', () => {
-    mockStoreState.isRecording = true;
-    mockStoreState.duration = 65;
+    mockVoiceState.isRecording = true;
+    mockVoiceState.duration = 65;
     render(<VoiceButton />);
     expect(screen.getByText('1:05')).toBeInTheDocument();
   });
 
   it('shows aria-label "Parar gravação" when recording', () => {
-    mockStoreState.isRecording = true;
+    mockVoiceState.isRecording = true;
     render(<VoiceButton />);
     expect(
       screen.getByRole('button', { name: 'Parar gravação' }),
     ).toBeInTheDocument();
   });
 
-  it('calls stopRecording and setProcessing when clicked while recording', () => {
-    mockStoreState.isRecording = true;
+  it('calls stopRecording when clicked while recording', () => {
+    mockVoiceState.isRecording = true;
     render(<VoiceButton />);
     const button = screen.getByRole('button', { name: 'Parar gravação' });
     fireEvent.click(button);
     expect(mockStopRecording).toHaveBeenCalledOnce();
-    expect(mockSetProcessing).toHaveBeenCalledWith(true);
   });
 
   it('renders processing label when isProcessing is true', () => {
-    mockStoreState.isProcessing = true;
+    mockVoiceState.isProcessing = true;
     render(<VoiceButton />);
     expect(screen.getByText('Processando...')).toBeInTheDocument();
   });
 
   it('renders error label when error exists', () => {
-    mockStoreState.error = 'Microphone failed';
+    mockVoiceState.error = 'Microphone failed';
     render(<VoiceButton />);
     expect(screen.getByText('Erro — toque para tentar')).toBeInTheDocument();
   });
 
-  it('calls reset when clicked in error state', () => {
-    mockStoreState.error = 'Microphone failed';
+  it('calls clearTranscription when clicked in error state', () => {
+    mockVoiceState.error = 'Microphone failed';
     render(<VoiceButton />);
     const button = screen.getByRole('button');
     fireEvent.click(button);
-    expect(mockReset).toHaveBeenCalledOnce();
+    expect(mockClearTranscription).toHaveBeenCalledOnce();
   });
 
   it('shows partial transcript when showTranscript is true and listening', () => {
-    mockStoreState.isRecording = true;
-    mockStoreState.partialText = 'Paciente relata dor...';
+    mockVoiceState.isRecording = true;
+    mockVoiceState.partialTranscription = 'Paciente relata dor...';
     render(<VoiceButton showTranscript />);
     expect(screen.getByText('Paciente relata dor...')).toBeInTheDocument();
   });
 
   it('does not show partial transcript when showTranscript is false', () => {
-    mockStoreState.isRecording = true;
-    mockStoreState.partialText = 'Paciente relata dor...';
+    mockVoiceState.isRecording = true;
+    mockVoiceState.partialTranscription = 'Paciente relata dor...';
     render(<VoiceButton showTranscript={false} />);
     expect(screen.queryByText('Paciente relata dor...')).not.toBeInTheDocument();
   });
 
   it('formats duration correctly for 0 seconds', () => {
-    mockStoreState.isRecording = true;
-    mockStoreState.duration = 0;
+    mockVoiceState.isRecording = true;
+    mockVoiceState.duration = 0;
     render(<VoiceButton />);
     expect(screen.getByText('0:00')).toBeInTheDocument();
   });

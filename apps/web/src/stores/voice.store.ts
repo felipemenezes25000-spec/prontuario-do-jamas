@@ -1,5 +1,15 @@
 import { create } from 'zustand';
 
+export type VoiceIntent =
+  | 'SOAP'
+  | 'PRESCRIPTION'
+  | 'EXAM_REQUEST'
+  | 'CERTIFICATE'
+  | 'REFERRAL'
+  | 'EVOLUTION'
+  | 'VITALS'
+  | 'DISCHARGE';
+
 interface VoiceStoreState {
   isRecording: boolean;
   isProcessing: boolean;
@@ -8,6 +18,9 @@ interface VoiceStoreState {
   structuredData: Record<string, unknown> | null;
   error: string | null;
   duration: number;
+  intent: VoiceIntent | null;
+  intentConfidence: number;
+  intentData: Record<string, unknown> | null;
   startRecording: () => void;
   stopRecording: () => void;
   setProcessing: (processing: boolean) => void;
@@ -15,6 +28,7 @@ interface VoiceStoreState {
   setTranscription: (text: string) => void;
   appendTranscription: (text: string) => void;
   setStructuredData: (data: Record<string, unknown> | null) => void;
+  setIntent: (intent: VoiceIntent, confidence: number, data: Record<string, unknown>) => void;
   setError: (error: string | null) => void;
   setDuration: (duration: number) => void;
   clearTranscription: () => void;
@@ -29,6 +43,9 @@ export const useVoiceStore = create<VoiceStoreState>()((set) => ({
   structuredData: null,
   error: null,
   duration: 0,
+  intent: null,
+  intentConfidence: 0,
+  intentData: null,
 
   startRecording: () =>
     set({
@@ -38,6 +55,9 @@ export const useVoiceStore = create<VoiceStoreState>()((set) => ({
       duration: 0,
       partialText: '',
       structuredData: null,
+      intent: null,
+      intentConfidence: 0,
+      intentData: null,
     }),
 
   stopRecording: () =>
@@ -64,6 +84,13 @@ export const useVoiceStore = create<VoiceStoreState>()((set) => ({
 
   setStructuredData: (data) => set({ structuredData: data }),
 
+  setIntent: (intent, confidence, data) =>
+    set({
+      intent,
+      intentConfidence: confidence,
+      intentData: data,
+    }),
+
   setError: (error) =>
     set({
       error,
@@ -78,6 +105,9 @@ export const useVoiceStore = create<VoiceStoreState>()((set) => ({
       currentTranscription: '',
       partialText: '',
       structuredData: null,
+      intent: null,
+      intentConfidence: 0,
+      intentData: null,
     }),
 
   reset: () =>
@@ -89,5 +119,8 @@ export const useVoiceStore = create<VoiceStoreState>()((set) => ({
       structuredData: null,
       error: null,
       duration: 0,
+      intent: null,
+      intentConfidence: 0,
+      intentData: null,
     }),
 }));

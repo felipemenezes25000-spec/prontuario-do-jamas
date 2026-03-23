@@ -27,8 +27,10 @@ export function getInitials(name: string): string {
     .join('');
 }
 
-export function calculateAge(birthDate: Date | string): number {
+export function calculateAge(birthDate: Date | string | null | undefined): number {
+  if (!birthDate) return 0;
   const birth = typeof birthDate === 'string' ? new Date(birthDate) : birthDate;
+  if (isNaN(birth.getTime())) return 0;
   const today = new Date();
   let age = today.getFullYear() - birth.getFullYear();
   const m = today.getMonth() - birth.getMonth();

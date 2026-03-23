@@ -187,6 +187,164 @@ export function useCopilotAutoComplete() {
 }
 
 // ============================================================================
+// Exam Request Parsing (BLOCO 4)
+// ============================================================================
+
+export function useParseExamRequest() {
+  return useMutation({
+    mutationFn: async ({
+      text,
+      encounterId,
+      patientId,
+      clinicalIndication,
+    }: {
+      text: string;
+      encounterId?: string;
+      patientId?: string;
+      clinicalIndication?: string;
+    }) => {
+      const { data } = await api.post<{
+        items: Array<{
+          examName: string;
+          examType: string;
+          tussCode?: string;
+          urgency: string;
+          clinicalIndication?: string;
+          confidence: number;
+        }>;
+        suggestedIndication: string;
+      }>('/ai/exam/parse-voice', { text, encounterId, patientId, clinicalIndication });
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Certificate Parsing (BLOCO 5)
+// ============================================================================
+
+export function useParseCertificate() {
+  return useMutation({
+    mutationFn: async ({
+      text,
+      encounterId,
+      patientId,
+    }: {
+      text: string;
+      encounterId?: string;
+      patientId?: string;
+    }) => {
+      const { data } = await api.post<{
+        days: number;
+        cidCode?: string;
+        cidDescription?: string;
+        justification: string;
+        certificateType: string;
+        restrictions?: string;
+        confidence: number;
+      }>('/ai/certificate/parse-voice', { text, encounterId, patientId });
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Referral Parsing (BLOCO 6)
+// ============================================================================
+
+export function useParseReferral() {
+  return useMutation({
+    mutationFn: async ({
+      text,
+      encounterId,
+      patientId,
+    }: {
+      text: string;
+      encounterId?: string;
+      patientId?: string;
+    }) => {
+      const { data } = await api.post<{
+        specialty: string;
+        reason: string;
+        urgency: string;
+        cidCode?: string;
+        clinicalSummary?: string;
+        questionsForSpecialist?: string;
+        confidence: number;
+      }>('/ai/referral/parse-voice', { text, encounterId, patientId });
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Vitals Parsing (BLOCO 10)
+// ============================================================================
+
+export function useParseVitals() {
+  return useMutation({
+    mutationFn: async ({
+      text,
+      encounterId,
+      patientId,
+    }: {
+      text: string;
+      encounterId?: string;
+      patientId?: string;
+    }) => {
+      const { data } = await api.post<{
+        systolicBP?: number;
+        diastolicBP?: number;
+        heartRate?: number;
+        respiratoryRate?: number;
+        temperature?: number;
+        oxygenSaturation?: number;
+        gcs?: number;
+        painScale?: number;
+        painLocation?: string;
+        weight?: number;
+        height?: number;
+        glucoseLevel?: number;
+        confidence: number;
+        summary: string;
+      }>('/ai/vitals/parse-voice', { text, encounterId, patientId });
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Discharge Parsing (BLOCO 11)
+// ============================================================================
+
+export function useParseDischarge() {
+  return useMutation({
+    mutationFn: async ({
+      text,
+      encounterId,
+      patientId,
+    }: {
+      text: string;
+      encounterId?: string;
+      patientId?: string;
+    }) => {
+      const { data } = await api.post<{
+        dischargeType: string;
+        condition: string;
+        followUpDays?: number;
+        instructions: string;
+        followUpSpecialty?: string;
+        warningSignals?: string[];
+        homeMedications?: string[];
+        restrictions?: string[];
+        confidence: number;
+      }>('/ai/discharge/parse-voice', { text, encounterId, patientId });
+      return data;
+    },
+  });
+}
+
+// ============================================================================
 // Patient Summary
 // ============================================================================
 

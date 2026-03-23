@@ -1,9 +1,7 @@
-'use client';
-
 import * as React from 'react';
 import { Mic, Loader2, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useVoiceStore } from '@/stores/voice.store';
+import { useVoice } from '@/hooks/use-voice';
 import {
   Tooltip,
   TooltipContent,
@@ -22,6 +20,8 @@ interface VoiceButtonProps {
     | 'soap'
     | 'nursing'
     | 'general';
+  encounterId?: string;
+  patientId?: string;
   size?: 'sm' | 'md' | 'lg';
   onTranscriptionUpdate?: (text: string) => void;
   onTranscriptionComplete?: (text: string) => void;
@@ -42,47 +42,34 @@ function formatDuration(seconds: number): string {
 }
 
 export function VoiceButton({
-  context: _context = 'general',
+  context = 'general',
+  encounterId,
+  patientId,
   size = 'md',
   onTranscriptionUpdate,
   onTranscriptionComplete,
   className,
   showTranscript = false,
 }: VoiceButtonProps) {
-  const {
-    isRecording,
-    isProcessing,
-    currentTranscription,
-    partialText,
-    error,
-    duration,
-    startRecording,
-    stopRecording,
-    setProcessing,
-    setTranscription,
-    setError: _setError,
-    setDuration,
-    reset,
-  } = useVoiceStore();
+  const voice = useVoice({ context, encounterId, patientId });
 
   const [voiceState, setVoiceState] = React.useState<VoiceState>('idle');
-  const durationRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const completeTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const s = sizeMap[size];
 
-  // Derive visual state from store
+  // Derive visual state from voice hook
   React.useEffect(() => {
-    if (error) {
+    if (voice.error) {
       setVoiceState('error');
-    } else if (isProcessing) {
+    } else if (voice.isProcessing) {
       setVoiceState('processing');
-    } else if (isRecording) {
+    } else if (voice.isRecording) {
       setVoiceState('listening');
-    } else if (currentTranscription) {
+    } else if (voice.currentTranscription) {
       setVoiceState((prev) => {
         if (prev === 'processing') {
-          onTranscriptionComplete?.(currentTranscription);
+          onTranscriptionComplete?.(voice.currentTranscription);
           completeTimeoutRef.current = setTimeout(() => {
             setVoiceState('idle');
           }, 2000);
@@ -96,49 +83,28 @@ export function VoiceButton({
         clearTimeout(completeTimeoutRef.current);
       }
     };
-  }, [isRecording, isProcessing, error, currentTranscription, onTranscriptionComplete]);
+  }, [voice.isRecording, voice.isProcessing, voice.error, voice.currentTranscription, onTranscriptionComplete]);
 
   // Partial text callback
   React.useEffect(() => {
-    if (partialText) {
-      onTranscriptionUpdate?.(partialText);
+    if (voice.partialTranscription) {
+      onTranscriptionUpdate?.(voice.partialTranscription);
     }
-  }, [partialText, onTranscriptionUpdate]);
-
-  // Duration timer
-  React.useEffect(() => {
-    if (isRecording) {
-      durationRef.current = setInterval(() => {
-        setDuration(duration + 1);
-      }, 1000);
-    } else if (durationRef.current) {
-      clearInterval(durationRef.current);
-      durationRef.current = null;
-    }
-    return () => {
-      if (durationRef.current) clearInterval(durationRef.current);
-    };
-  }, [isRecording, duration, setDuration]);
+  }, [voice.partialTranscription, onTranscriptionUpdate]);
 
   const handleToggle = React.useCallback(() => {
     if (voiceState === 'error') {
-      reset();
+      voice.clearTranscription();
       setVoiceState('idle');
       return;
     }
-    if (isRecording) {
-      stopRecording();
-      setProcessing(true);
-      // Simulate processing completion (replace with real API call)
-      setTimeout(() => {
-        setTranscription(
-          partialText || 'Paciente relata dor epigástrica há 3 dias...',
-        );
-      }, 1500);
-    } else if (!isProcessing) {
-      startRecording();
+    if (voice.isRecording) {
+      // Stop recording — useVoice hook handles API call automatically
+      voice.stopRecording();
+    } else if (!voice.isProcessing) {
+      voice.startRecording();
     }
-  }, [voiceState, isRecording, isProcessing, reset, stopRecording, setProcessing, setTranscription, partialText, startRecording]);
+  }, [voiceState, voice]);
 
   // Keyboard shortcut: Space to toggle recording
   React.useEffect(() => {
@@ -243,7 +209,7 @@ export function VoiceButton({
                   voiceState === 'idle' && 'voice-idle-pulse',
                 )}
                 aria-label={
-                  isRecording ? 'Parar gravação' : 'Iniciar gravação por voz'
+                  voice.isRecording ? 'Parar gravação' : 'Iniciar gravação por voz'
                 }
               >
                 {voiceState === 'idle' && <Mic className={s.icon} />}
@@ -295,14 +261,14 @@ export function VoiceButton({
       {/* Duration timer for listening */}
       {voiceState === 'listening' && (
         <span className="font-mono text-xs text-muted-foreground">
-          {formatDuration(duration)}
+          {formatDuration(voice.duration)}
         </span>
       )}
 
       {/* Inline transcript preview */}
-      {showTranscript && partialText && voiceState === 'listening' && (
+      {showTranscript && voice.partialTranscription && voiceState === 'listening' && (
         <div className="mt-2 max-w-xs rounded-lg border border-border bg-card/80 px-3 py-2 text-xs text-muted-foreground backdrop-blur-sm">
-          {partialText}
+          {voice.partialTranscription}
         </div>
       )}
     </div>

@@ -39,6 +39,12 @@ import { TriageAiService } from './triage-ai.service';
 import { MedicalNerService } from './medical-ner.service';
 import { CodingAiService } from './coding-ai.service';
 import { DischargeAiService } from './discharge-ai.service';
+import { VoiceCommandService } from './voice-command.service';
+import { ExamRequestAiService } from './exam-request-ai.service';
+import { CertificateAiService } from './certificate-ai.service';
+import { ReferralAiService } from './referral-ai.service';
+import { VitalsAiService } from './vitals-ai.service';
+import { DischargeVoiceService } from './discharge-voice.service';
 
 import {
   VoiceTranscribeDto,
@@ -68,6 +74,16 @@ import {
   SuggestNursingDiagnosesResponseDto,
   DischargePlanDto,
   DischargePlanResponseDto,
+  ExamParseVoiceDto,
+  ExamParseVoiceResponseDto,
+  CertificateParseVoiceDto,
+  CertificateParseVoiceResponseDto,
+  ReferralParseVoiceDto,
+  ReferralParseVoiceResponseDto,
+  VitalsParseVoiceDto,
+  VitalsParseVoiceResponseDto,
+  DischargeParseVoiceDto,
+  DischargeParseVoiceResponseDto,
 } from './dto';
 
 const TRIAGE_LEVEL_DESCRIPTIONS: Record<string, string> = {
@@ -94,6 +110,12 @@ export class AiController {
     private readonly medicalNer: MedicalNerService,
     private readonly codingAi: CodingAiService,
     private readonly dischargeAi: DischargeAiService,
+    private readonly voiceCommand: VoiceCommandService,
+    private readonly examRequestAi: ExamRequestAiService,
+    private readonly certificateAi: CertificateAiService,
+    private readonly referralAi: ReferralAiService,
+    private readonly vitalsAi: VitalsAiService,
+    private readonly dischargeVoice: DischargeVoiceService,
     private readonly auditService: AuditService,
     private readonly prisma: PrismaService,
   ) {}
@@ -174,6 +196,19 @@ export class AiController {
         }
       }
 
+      // Classify voice intent (SOAP, PRESCRIPTION, EXAM_REQUEST, etc.)
+      let intent: string = 'SOAP';
+      let intentConfidence = 0.5;
+      let intentData: Record<string, unknown> = {};
+      try {
+        const intentResult = await this.voiceCommand.classifyIntent(result.text);
+        intent = intentResult.intent;
+        intentConfidence = intentResult.confidence;
+        intentData = intentResult.extractedData;
+      } catch {
+        this.logger.warn('Voice intent classification failed — defaulting to SOAP');
+      }
+
       // Audit log
       await this.auditService.log({
         tenantId: user.tenantId,
@@ -187,6 +222,8 @@ export class AiController {
           encounterId: dto.encounterId,
           textLength: result.text.length,
           confidence: result.confidence,
+          intent,
+          intentConfidence,
         },
       }).catch((err: unknown) => {
         this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -197,6 +234,9 @@ export class AiController {
         text: result.text,
         confidence: result.confidence,
         structuredData,
+        intent,
+        intentConfidence,
+        intentData,
       };
     } catch (error) {
       if (
@@ -567,6 +607,207 @@ export class AiController {
     } catch (error) {
       this.logger.error(
         `getProactiveSuggestions failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Exam Request (BLOCO 4) ────────────────────────────────────
+
+  @Post('exam/parse-voice')
+  @ApiOperation({ summary: 'Parse voice-dictated exam request into structured items' })
+  @ApiResponse({ status: 200, description: 'Parsed exam request items', type: ExamParseVoiceResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async parseExamRequest(
+    @Body() dto: ExamParseVoiceDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<ExamParseVoiceResponseDto> {
+    try {
+      const result = await this.examRequestAi.parseVoiceExamRequest(
+        dto.text,
+        dto.clinicalIndication,
+      );
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        patientId: dto.patientId,
+        action: 'AI_SUGGESTION',
+        entity: 'ExamRequestParse',
+        newData: {
+          encounterId: dto.encounterId,
+          textLength: dto.text.length,
+          itemsFound: result.items.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `parseExamRequest failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Certificate (BLOCO 5) ────────────────────────────────────
+
+  @Post('certificate/parse-voice')
+  @ApiOperation({ summary: 'Parse voice-dictated certificate request' })
+  @ApiResponse({ status: 200, description: 'Parsed certificate data', type: CertificateParseVoiceResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async parseCertificate(
+    @Body() dto: CertificateParseVoiceDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<CertificateParseVoiceResponseDto> {
+    try {
+      const result = await this.certificateAi.parseVoiceCertificate(dto.text);
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        patientId: dto.patientId,
+        action: 'AI_SUGGESTION',
+        entity: 'CertificateParse',
+        newData: {
+          encounterId: dto.encounterId,
+          textLength: dto.text.length,
+          certificateType: result.certificateType,
+          days: result.days,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `parseCertificate failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Referral (BLOCO 6) ───────────────────────────────────────
+
+  @Post('referral/parse-voice')
+  @ApiOperation({ summary: 'Parse voice-dictated referral request' })
+  @ApiResponse({ status: 200, description: 'Parsed referral data', type: ReferralParseVoiceResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async parseReferral(
+    @Body() dto: ReferralParseVoiceDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<ReferralParseVoiceResponseDto> {
+    try {
+      const result = await this.referralAi.parseVoiceReferral(dto.text);
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        patientId: dto.patientId,
+        action: 'AI_SUGGESTION',
+        entity: 'ReferralParse',
+        newData: {
+          encounterId: dto.encounterId,
+          textLength: dto.text.length,
+          specialty: result.specialty,
+          urgency: result.urgency,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `parseReferral failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Vitals (BLOCO 10) ─────────────────────────────────────────
+
+  @Post('vitals/parse-voice')
+  @ApiOperation({ summary: 'Parse voice-dictated vital signs' })
+  @ApiResponse({ status: 200, description: 'Parsed vital signs', type: VitalsParseVoiceResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async parseVitals(
+    @Body() dto: VitalsParseVoiceDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<VitalsParseVoiceResponseDto> {
+    try {
+      const result = await this.vitalsAi.parseVoiceVitals(dto.text);
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        patientId: dto.patientId,
+        action: 'AI_SUGGESTION',
+        entity: 'VitalsParse',
+        newData: {
+          encounterId: dto.encounterId,
+          textLength: dto.text.length,
+          summary: result.summary,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `parseVitals failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Discharge Voice (BLOCO 11) ───────────────────────────────
+
+  @Post('discharge/parse-voice')
+  @ApiOperation({ summary: 'Parse voice-dictated discharge instructions' })
+  @ApiResponse({ status: 200, description: 'Parsed discharge data', type: DischargeParseVoiceResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async parseDischarge(
+    @Body() dto: DischargeParseVoiceDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<DischargeParseVoiceResponseDto> {
+    try {
+      const result = await this.dischargeVoice.parseVoiceDischarge(dto.text);
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        patientId: dto.patientId,
+        action: 'AI_SUGGESTION',
+        entity: 'DischargeParse',
+        newData: {
+          encounterId: dto.encounterId,
+          textLength: dto.text.length,
+          dischargeType: result.dischargeType,
+          condition: result.condition,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `parseDischarge failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       throw new ServiceUnavailableException(
         'Servico de IA indisponivel. Tente novamente em alguns instantes.',

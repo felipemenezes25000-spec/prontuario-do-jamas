@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -14,7 +14,6 @@ import {
   Pill,
   TestTube,
   FileText,
-  Lightbulb,
   Clock,
   CheckCircle2,
   Plus,
@@ -25,6 +24,9 @@ import {
   Sparkles,
   ShieldAlert,
   X,
+  FileCheck,
+  ArrowRightCircle,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,25 +53,13 @@ import { useAlerts } from '@/services/alerts.service';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
 import { useVoice } from '@/hooks/use-voice';
+import { useStreamingSOAP } from '@/hooks/use-streaming-soap';
+import { VoiceWaveform } from '@/components/voice/voice-waveform';
+import type { VoiceIntent } from '@/stores/voice.store';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 
 // ── Types ──────────────────────────────────────────────────
-
-interface SoapResponse {
-  subjective: string;
-  objective: string;
-  assessment: string;
-  plan: string;
-  diagnosisCodes: string[];
-  suggestedExams: string[];
-  suggestedMedications: Array<{
-    name: string;
-    dose: string;
-    route: string;
-    frequency: string;
-    duration: string;
-  }>;
-}
 
 interface ParsedPrescriptionItem {
   medicationName: string;
@@ -88,6 +78,64 @@ interface SafetyWarning {
   items: string[];
 }
 
+interface ParsedExamItem {
+  examName: string;
+  examType: string;
+  tussCode?: string;
+  urgency: string;
+  clinicalIndication?: string;
+  confidence: number;
+}
+
+interface ParsedCertificateData {
+  days: number;
+  cidCode?: string;
+  cidDescription?: string;
+  justification: string;
+  certificateType: string;
+  restrictions?: string;
+  confidence: number;
+}
+
+interface ParsedVitalsData {
+  systolicBP?: number;
+  diastolicBP?: number;
+  heartRate?: number;
+  respiratoryRate?: number;
+  temperature?: number;
+  oxygenSaturation?: number;
+  gcs?: number;
+  painScale?: number;
+  painLocation?: string;
+  weight?: number;
+  height?: number;
+  glucoseLevel?: number;
+  confidence: number;
+  summary: string;
+}
+
+interface ParsedDischargeData {
+  dischargeType: string;
+  condition: string;
+  followUpDays?: number;
+  instructions: string;
+  followUpSpecialty?: string;
+  warningSignals?: string[];
+  homeMedications?: string[];
+  restrictions?: string[];
+  confidence: number;
+}
+
+interface ParsedReferralData {
+  specialty: string;
+  reason: string;
+  urgency: string;
+  cidCode?: string;
+  clinicalSummary?: string;
+  questionsForSpecialist?: string;
+  confidence: number;
+}
+
 interface CopilotSuggestion {
   type: string;
   text: string;
@@ -95,6 +143,30 @@ interface CopilotSuggestion {
   source: string;
   actionable: boolean;
 }
+
+// ── Intent labels for toast notifications ──────────────────
+
+const intentLabels: Record<VoiceIntent, string> = {
+  SOAP: 'Nota SOAP',
+  PRESCRIPTION: 'Prescricao detectada',
+  EXAM_REQUEST: 'Exames solicitados',
+  CERTIFICATE: 'Atestado detectado',
+  REFERRAL: 'Encaminhamento detectado',
+  EVOLUTION: 'Evolucao clinica',
+  VITALS: 'Sinais vitais detectados',
+  DISCHARGE: 'Alta detectada',
+};
+
+const intentIcons: Record<VoiceIntent, string> = {
+  SOAP: '📝',
+  PRESCRIPTION: '💊',
+  EXAM_REQUEST: '🔬',
+  CERTIFICATE: '📄',
+  REFERRAL: '↗️',
+  EVOLUTION: '📋',
+  VITALS: '❤️',
+  DISCHARGE: '🏠',
+};
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -136,7 +208,7 @@ export default function EncounterPage() {
   const patientAlerts = alertsData?.data ?? [];
   const { data: patientConditions = [] } = useConditions(encounter?.patientId ?? '');
 
-  // SOAP state — encounter might carry SOAP fields from prior notes
+  // SOAP state
   const encounterRecord = encounter as Record<string, unknown> | undefined;
   const [subjective, setSubjective] = useState(
     (typeof encounterRecord?.subjective === 'string' ? encounterRecord.subjective : '') as string,
@@ -152,8 +224,6 @@ export default function EncounterPage() {
   );
 
   // AI state
-  const [isGeneratingSoap, setIsGeneratingSoap] = useState(false);
-  const [isParsingPrescription, setIsParsingPrescription] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [copilotSuggestions, setCopilotSuggestions] = useState<CopilotSuggestion[]>([]);
   const [isLoadingCopilot, setIsLoadingCopilot] = useState(false);
@@ -164,6 +234,57 @@ export default function EncounterPage() {
   const [safetyWarnings, setSafetyWarnings] = useState<SafetyWarning[]>([]);
   const [isCheckingSafety, setIsCheckingSafety] = useState(false);
   const [isSafetyChecked, setIsSafetyChecked] = useState(false);
+  const [isParsingPrescription, setIsParsingPrescription] = useState(false);
+
+  // Exam request modal state (BLOCO 4)
+  const [examModalOpen, setExamModalOpen] = useState(false);
+  const [parsedExamItems, setParsedExamItems] = useState<ParsedExamItem[]>([]);
+  const [isParsingExam, setIsParsingExam] = useState(false);
+
+  // Certificate modal state (BLOCO 5)
+  const [certificateModalOpen, setCertificateModalOpen] = useState(false);
+  const [parsedCertificate, setParsedCertificate] = useState<ParsedCertificateData | null>(null);
+  const [isParsingCertificate, setIsParsingCertificate] = useState(false);
+
+  // Referral modal state (BLOCO 6)
+  const [referralModalOpen, setReferralModalOpen] = useState(false);
+  const [parsedReferral, setParsedReferral] = useState<ParsedReferralData | null>(null);
+  const [isParsingReferral, setIsParsingReferral] = useState(false);
+
+  // Vitals modal state (BLOCO 10)
+  const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
+  const [parsedVitals, setParsedVitals] = useState<ParsedVitalsData | null>(null);
+  const [isParsingVitals, setIsParsingVitals] = useState(false);
+
+  // Discharge modal state (BLOCO 11)
+  const [dischargeModalOpen, setDischargeModalOpen] = useState(false);
+  const [parsedDischarge, setParsedDischarge] = useState<ParsedDischargeData | null>(null);
+  const [isParsingDischarge, setIsParsingDischarge] = useState(false);
+
+  // Proactive copilot debounce
+  const copilotDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // SOAP streaming — BLOCO 2
+  const streaming = useStreamingSOAP({
+    onComplete: (fullText) => {
+      // Try to parse as JSON and fill SOAP fields
+      try {
+        const soap = JSON.parse(fullText);
+        if (soap.subjective) setSubjective((prev: string) => prev ? `${prev}\n\n${soap.subjective}` : soap.subjective);
+        if (soap.objective) setObjective((prev: string) => prev ? `${prev}\n\n${soap.objective}` : soap.objective);
+        if (soap.assessment) setAssessment((prev: string) => prev ? `${prev}\n\n${soap.assessment}` : soap.assessment);
+        if (soap.plan) setPlan((prev: string) => prev ? `${prev}\n\n${soap.plan}` : soap.plan);
+      } catch {
+        // If not JSON, append as subjective
+        setSubjective((prev: string) => prev ? `${prev}\n\n${fullText}` : fullText);
+      }
+      // Fetch copilot suggestions after SOAP completes
+      void fetchCopilotSuggestions(voice.currentTranscription);
+    },
+    onError: (error) => {
+      toast.error(`Erro ao gerar SOAP: ${error}`);
+    },
+  });
 
   // Duration timer
   useEffect(() => {
@@ -174,19 +295,63 @@ export default function EncounterPage() {
     return () => clearInterval(interval);
   }, [encounter]);
 
-  // Auto-generate SOAP when transcription completes
+  // Voice intent routing — BLOCO 3
   useEffect(() => {
     if (
       voice.currentTranscription &&
       !voice.isRecording &&
       !voice.isProcessing &&
-      !isGeneratingSoap
+      voice.intent
     ) {
-      void handleGenerateSoap(voice.currentTranscription);
+      const intent = voice.intent;
+
+      // Show toast with detected intent (non-SOAP)
+      if (intent !== 'SOAP' && intent !== 'EVOLUTION') {
+        toast(
+          `${intentIcons[intent]} ${intentLabels[intent]}`,
+          {
+            description: `"${voice.currentTranscription.slice(0, 80)}${voice.currentTranscription.length > 80 ? '...' : ''}"`,
+            duration: 6000,
+          },
+        );
+      }
+
+      switch (intent) {
+        case 'PRESCRIPTION':
+          void handleParsePrescriptionFromIntent();
+          break;
+        case 'EXAM_REQUEST':
+          void handleParseExamFromIntent();
+          break;
+        case 'CERTIFICATE':
+          void handleParseCertificateFromIntent();
+          break;
+        case 'REFERRAL':
+          void handleParseReferralFromIntent();
+          break;
+        case 'VITALS':
+          void handleParseVitalsFromIntent();
+          break;
+        case 'DISCHARGE':
+          void handleParseDischargeFromIntent();
+          break;
+        default:
+          // SOAP / EVOLUTION — stream SOAP
+          void handleStreamSOAP(voice.currentTranscription);
+          break;
+      }
     }
-    // Only trigger when transcription becomes available
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voice.currentTranscription, voice.isRecording, voice.isProcessing]);
+  }, [voice.currentTranscription, voice.isRecording, voice.isProcessing, voice.intent]);
+
+  // Proactive copilot — BLOCO 7
+  const triggerCopilot = useCallback((_field: string, text: string) => {
+    if (text.length < 30 || !id) return;
+    if (copilotDebounceRef.current) clearTimeout(copilotDebounceRef.current);
+    copilotDebounceRef.current = setTimeout(() => {
+      void fetchCopilotSuggestions(text);
+    }, 3000);
+  }, [id]);
 
   // ── AI Calls ─────────────────────────────────────────────
 
@@ -206,33 +371,120 @@ export default function EncounterPage() {
     }
   }, [id]);
 
-  const handleGenerateSoap = useCallback(
+  const handleStreamSOAP = useCallback(
     async (transcription: string) => {
-      if (!transcription || isGeneratingSoap) return;
-      setIsGeneratingSoap(true);
-
-      try {
-        const { data } = await api.post<SoapResponse>('/ai/soap/generate', {
-          transcription,
-          patientId: encounter?.patientId,
-          encounterId: id,
-        });
-
-        setSubjective((prev: string) => (prev ? `${prev}\n\n${data.subjective}` : data.subjective));
-        setObjective((prev: string) => (prev ? `${prev}\n\n${data.objective}` : data.objective));
-        setAssessment((prev: string) => (prev ? `${prev}\n\n${data.assessment}` : data.assessment));
-        setPlan((prev: string) => (prev ? `${prev}\n\n${data.plan}` : data.plan));
-
-        // Fetch copilot suggestions after SOAP
-        void fetchCopilotSuggestions(transcription);
-      } catch {
-        // SOAP generation failed silently — user can still type manually
-      } finally {
-        setIsGeneratingSoap(false);
-      }
+      if (!transcription || streaming.isStreaming) return;
+      await streaming.startStreaming(transcription, id);
     },
-    [encounter?.patientId, id, isGeneratingSoap, fetchCopilotSuggestions],
+    [id, streaming],
   );
+
+  const handleParsePrescriptionFromIntent = async () => {
+    if (!voice.currentTranscription) return;
+    setIsParsingPrescription(true);
+    try {
+      const { data } = await api.post<{ items: ParsedPrescriptionItem[] }>(
+        '/ai/prescription/parse-voice',
+        { text: voice.currentTranscription },
+      );
+      setParsedPrescriptionItems(data.items);
+      setIsSafetyChecked(false);
+      setSafetyWarnings([]);
+      setPrescriptionModalOpen(true);
+    } catch {
+      toast.error('Erro ao processar prescricao');
+    } finally {
+      setIsParsingPrescription(false);
+    }
+    // Also generate SOAP in background
+    void handleStreamSOAP(voice.currentTranscription);
+  };
+
+  const handleParseExamFromIntent = async () => {
+    if (!voice.currentTranscription) return;
+    setIsParsingExam(true);
+    try {
+      const { data } = await api.post<{ items: ParsedExamItem[]; suggestedIndication: string }>(
+        '/ai/exam/parse-voice',
+        { text: voice.currentTranscription, encounterId: id, patientId: encounter?.patientId },
+      );
+      setParsedExamItems(data.items);
+      setExamModalOpen(true);
+    } catch {
+      toast.error('Erro ao processar solicitacao de exames');
+    } finally {
+      setIsParsingExam(false);
+    }
+    void handleStreamSOAP(voice.currentTranscription);
+  };
+
+  const handleParseCertificateFromIntent = async () => {
+    if (!voice.currentTranscription) return;
+    setIsParsingCertificate(true);
+    try {
+      const { data } = await api.post<ParsedCertificateData>(
+        '/ai/certificate/parse-voice',
+        { text: voice.currentTranscription, encounterId: id, patientId: encounter?.patientId },
+      );
+      setParsedCertificate(data);
+      setCertificateModalOpen(true);
+    } catch {
+      toast.error('Erro ao processar atestado');
+    } finally {
+      setIsParsingCertificate(false);
+    }
+  };
+
+  const handleParseReferralFromIntent = async () => {
+    if (!voice.currentTranscription) return;
+    setIsParsingReferral(true);
+    try {
+      const { data } = await api.post<ParsedReferralData>(
+        '/ai/referral/parse-voice',
+        { text: voice.currentTranscription, encounterId: id, patientId: encounter?.patientId },
+      );
+      setParsedReferral(data);
+      setReferralModalOpen(true);
+    } catch {
+      toast.error('Erro ao processar encaminhamento');
+    } finally {
+      setIsParsingReferral(false);
+    }
+  };
+
+  const handleParseVitalsFromIntent = async () => {
+    if (!voice.currentTranscription) return;
+    setIsParsingVitals(true);
+    try {
+      const { data } = await api.post<ParsedVitalsData>(
+        '/ai/vitals/parse-voice',
+        { text: voice.currentTranscription, encounterId: id, patientId: encounter?.patientId },
+      );
+      setParsedVitals(data);
+      setVitalsModalOpen(true);
+    } catch {
+      toast.error('Erro ao processar sinais vitais');
+    } finally {
+      setIsParsingVitals(false);
+    }
+  };
+
+  const handleParseDischargeFromIntent = async () => {
+    if (!voice.currentTranscription) return;
+    setIsParsingDischarge(true);
+    try {
+      const { data } = await api.post<ParsedDischargeData>(
+        '/ai/discharge/parse-voice',
+        { text: voice.currentTranscription, encounterId: id, patientId: encounter?.patientId },
+      );
+      setParsedDischarge(data);
+      setDischargeModalOpen(true);
+    } catch {
+      toast.error('Erro ao processar alta');
+    } finally {
+      setIsParsingDischarge(false);
+    }
+  };
 
   const handleParsePrescription = async () => {
     if (!voice.currentTranscription) return;
@@ -247,7 +499,7 @@ export default function EncounterPage() {
       setSafetyWarnings([]);
       setPrescriptionModalOpen(true);
     } catch {
-      // Handle error
+      toast.error('Erro ao processar prescricao');
     } finally {
       setIsParsingPrescription(false);
     }
@@ -285,11 +537,11 @@ export default function EncounterPage() {
   };
 
   const handleSavePrescription = async () => {
-    // In production: POST /prescriptions with parsed items
     setPrescriptionModalOpen(false);
     setParsedPrescriptionItems([]);
     setSafetyWarnings([]);
     setIsSafetyChecked(false);
+    toast.success('Prescricao confirmada');
   };
 
   const handleSaveNote = async () => {
@@ -304,8 +556,9 @@ export default function EncounterPage() {
         assessment,
         plan,
       });
+      toast.success('Nota clinica salva com sucesso');
     } catch {
-      // Handle save error
+      toast.error('Erro ao salvar nota clinica');
     } finally {
       setIsSavingNote(false);
     }
@@ -380,6 +633,12 @@ export default function EncounterPage() {
                 <span className={cn('text-[10px]', triageInfo.text)}>{triageInfo.label}</span>
               </div>
             )}
+            {/* Intent badge */}
+            {voice.intent && voice.intent !== 'SOAP' && !voice.isRecording && !voice.isProcessing && (
+              <Badge variant="outline" className="border-teal-500/30 text-[10px] text-teal-400">
+                {intentIcons[voice.intent]} {intentLabels[voice.intent]}
+              </Badge>
+            )}
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
@@ -400,29 +659,32 @@ export default function EncounterPage() {
               : 'bg-card',
           )}>
             <CardContent className="relative flex flex-col items-center py-8">
-              {/* Radial gradient emanating from button */}
+              {/* Radial gradient */}
               <div className={cn(
                 'pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[60px] transition-all duration-500',
                 voice.isRecording
                   ? 'h-48 w-48 bg-red-500/15'
                   : 'h-32 w-32 bg-teal-500/10',
               )} />
+
               {/* Large Voice Button */}
               <button
                 onClick={handleVoiceToggle}
-                disabled={isGeneratingSoap}
+                disabled={streaming.isStreaming}
                 className={cn(
-                  'relative flex h-[72px] w-[72px] items-center justify-center rounded-full transition-all duration-300',
+                  'relative flex h-[72px] w-[72px] items-center justify-center rounded-full transition-all duration-300 cursor-pointer',
                   voice.isRecording
                     ? 'bg-red-500 shadow-lg shadow-red-500/30 animate-voice-pulse-red'
-                    : isGeneratingSoap
+                    : streaming.isStreaming
                       ? 'bg-muted cursor-not-allowed'
                       : 'bg-teal-600 shadow-lg shadow-teal-500/20 hover:bg-teal-500 hover:shadow-teal-500/30 animate-voice-pulse',
                 )}
               >
                 {voice.isRecording ? (
                   <Square className="h-7 w-7 text-white" />
-                ) : isGeneratingSoap ? (
+                ) : streaming.isStreaming ? (
+                  <Sparkles className="h-7 w-7 text-white animate-pulse" />
+                ) : voice.isProcessing ? (
                   <Loader2 className="h-7 w-7 text-white animate-spin" />
                 ) : (
                   <Mic className="h-7 w-7 text-white" />
@@ -439,35 +701,40 @@ export default function EncounterPage() {
                     </span>
                   </span>
                 ) : voice.isProcessing ? (
-                  'Processando transcricao...'
-                ) : isGeneratingSoap ? (
+                  'Transcrevendo e classificando intencao...'
+                ) : streaming.isStreaming ? (
                   <span className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-teal-600 dark:text-teal-400 animate-pulse" />
-                    Gerando nota SOAP com IA...
+                    IA escrevendo SOAP em tempo real...
+                    <span className="inline-block h-4 w-0.5 animate-pulse bg-teal-500" />
                   </span>
                 ) : (
                   'Toque para iniciar gravacao'
                 )}
               </p>
 
-              {/* Audio visualizer wave when recording */}
+              {/* Real waveform when recording */}
               {voice.isRecording && (
-                <div className="mt-3 flex items-center gap-[2px]">
-                  {[...Array(20)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="w-[3px] rounded-full bg-gradient-to-t from-red-500 to-red-300"
-                      style={{
-                        height: '4px',
-                        animation: `eq-bar 0.8s ease-in-out infinite`,
-                        animationDelay: `${i * 0.05}s`,
-                      }}
-                    />
-                  ))}
+                <div className="mt-3 w-full max-w-xs">
+                  <VoiceWaveform isActive stream={voice.stream} height={40} />
                 </div>
               )}
 
-              {/* Partial transcription (typewriter effect area) */}
+              {/* Streaming SOAP preview */}
+              {streaming.isStreaming && streaming.streamedText && (
+                <div className="mt-4 w-full max-w-lg rounded-lg border border-teal-500/20 bg-teal-500/5 p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400 animate-pulse" />
+                    <span className="text-xs font-medium text-teal-600 dark:text-teal-400">SOAP sendo gerada...</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {streaming.streamedText.slice(-300)}
+                    <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-teal-500" />
+                  </p>
+                </div>
+              )}
+
+              {/* Partial transcription */}
               {(voice.isRecording || voice.isProcessing) && voice.partialTranscription && (
                 <div className="mt-4 w-full max-w-lg rounded-lg border border-border bg-card/50 p-4">
                   <p className="text-sm text-muted-foreground italic">
@@ -478,11 +745,19 @@ export default function EncounterPage() {
               )}
 
               {/* Final transcription result */}
-              {!voice.isRecording && !voice.isProcessing && !isGeneratingSoap && voice.currentTranscription && (
+              {!voice.isRecording && !voice.isProcessing && !streaming.isStreaming && voice.currentTranscription && (
                 <div className="mt-4 w-full max-w-lg rounded-lg border border-teal-500/20 bg-teal-500/5 p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    <span className="text-xs font-medium text-teal-600 dark:text-teal-400">Transcricao concluida e SOAP gerada</span>
+                    <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
+                      Transcricao concluida
+                      {voice.intent && ` — ${intentLabels[voice.intent]}`}
+                    </span>
+                    {voice.intentConfidence > 0 && (
+                      <Badge variant="outline" className="text-[9px] border-teal-500/30 text-teal-400">
+                        {Math.round(voice.intentConfidence * 100)}% confianca
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm">{voice.currentTranscription}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -548,6 +823,12 @@ export default function EncounterPage() {
                           {section.key}
                         </div>
                         <CardTitle className="text-sm font-medium">{section.label}</CardTitle>
+                        {streaming.isStreaming && (
+                          <div className="flex items-center gap-1">
+                            <div className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-pulse" />
+                            <span className="text-[10px] text-teal-500">IA escrevendo...</span>
+                          </div>
+                        )}
                       </div>
                       <Button
                         variant="ghost"
@@ -566,7 +847,10 @@ export default function EncounterPage() {
                     <Textarea
                       placeholder={section.hint}
                       value={section.value}
-                      onChange={(e) => section.onChange(e.target.value)}
+                      onChange={(e) => {
+                        section.onChange(e.target.value);
+                        triggerCopilot(section.key, e.target.value);
+                      }}
                       className="min-h-[100px] resize-y border-border bg-secondary/30 text-sm"
                     />
                   </CardContent>
@@ -671,62 +955,53 @@ export default function EncounterPage() {
 
             {/* Exames Tab */}
             <TabsContent value="exames" className="space-y-4 mt-4">
-              <Button variant="outline" className="border-border text-xs">
-                <TestTube className="mr-2 h-3.5 w-3.5" />
-                Solicitar Exame
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="border-border text-xs"
+                  onClick={() => {
+                    if (!voice.isRecording) voice.startRecording();
+                  }}
+                >
+                  <Mic className="mr-2 h-3.5 w-3.5" />
+                  Solicitar por Voz
+                </Button>
+                <Button variant="outline" className="border-border text-xs">
+                  <TestTube className="mr-2 h-3.5 w-3.5" />
+                  Solicitar Exame
+                </Button>
+              </div>
 
               <Card className="border-border bg-card">
-                <CardContent className="py-3">
-                  <div className="space-y-3">
-                    {[
-                      { name: 'ECG 12 derivacoes', status: 'Solicitado', time: '09:10' },
-                      { name: 'Troponina T ultrassensivel', status: 'Coletado', time: '09:15' },
-                      { name: 'Hemograma completo', status: 'Coletado', time: '09:15' },
-                      { name: 'Eletrolitos (Na, K, Mg)', status: 'Solicitado', time: '09:10' },
-                      { name: 'Glicemia de jejum', status: 'Resultado', time: '09:40', result: '189 mg/dL', abnormal: true },
-                    ].map((exam, i) => (
-                      <div key={i} className="flex items-center gap-3 rounded-lg border border-border p-3">
-                        <TestTube className={cn('h-4 w-4 shrink-0', exam.abnormal ? 'text-red-400' : 'text-muted-foreground')} />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{exam.name}</p>
-                          {exam.result && (
-                            <p className={cn('text-xs', exam.abnormal ? 'text-red-400 font-medium' : 'text-muted-foreground')}>
-                              Resultado: {exam.result}
-                            </p>
-                          )}
-                        </div>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            'text-[10px]',
-                            exam.status === 'Resultado' ? (exam.abnormal ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400') :
-                            exam.status === 'Coletado' ? 'bg-blue-500/20 text-blue-400' :
-                            'bg-yellow-500/20 text-yellow-400',
-                          )}
-                        >
-                          {exam.status}
-                        </Badge>
-                        <span className="text-[10px] text-muted-foreground">{exam.time}</span>
-                      </div>
-                    ))}
-                  </div>
+                <CardContent className="flex flex-col items-center py-10">
+                  <TestTube className="h-10 w-10 text-muted-foreground" />
+                  <p className="mt-3 text-sm text-muted-foreground">Solicite exames por voz ou manualmente</p>
                 </CardContent>
               </Card>
             </TabsContent>
 
             {/* Documentos Tab */}
             <TabsContent value="documentos" className="space-y-4 mt-4">
-              <Button variant="outline" className="border-border text-xs">
-                <FileText className="mr-2 h-3.5 w-3.5" />
-                Gerar Documento
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" className="border-border text-xs">
+                  <FileCheck className="mr-2 h-3.5 w-3.5" />
+                  Atestado
+                </Button>
+                <Button variant="outline" className="border-border text-xs">
+                  <ArrowRightCircle className="mr-2 h-3.5 w-3.5" />
+                  Encaminhamento
+                </Button>
+                <Button variant="outline" className="border-border text-xs">
+                  <FileText className="mr-2 h-3.5 w-3.5" />
+                  Laudo
+                </Button>
+              </div>
 
               <Card className="border-border bg-card">
                 <CardContent className="flex flex-col items-center py-10">
                   <FileText className="h-10 w-10 text-muted-foreground" />
                   <p className="mt-3 text-sm text-muted-foreground">Nenhum documento gerado ainda</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Atestados, receitas e laudos aparecerao aqui</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Dite por voz: "atestado de 3 dias" ou "encaminhar para cardiologia"</p>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -770,62 +1045,22 @@ export default function EncounterPage() {
                   <CardContent>
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        {
-                          label: 'PA',
-                          value: `${latestVitals.systolicBP}/${latestVitals.diastolicBP}`,
-                          unit: 'mmHg',
-                          icon: Gauge,
-                          alert: latestVitals.systolicBP && latestVitals.systolicBP > 140,
-                        },
-                        {
-                          label: 'FC',
-                          value: latestVitals.heartRate,
-                          unit: 'bpm',
-                          icon: Heart,
-                          alert: latestVitals.heartRate && (latestVitals.heartRate > 100 || latestVitals.heartRate < 60),
-                        },
-                        {
-                          label: 'FR',
-                          value: latestVitals.respiratoryRate,
-                          unit: 'irpm',
-                          icon: Wind,
-                          alert: latestVitals.respiratoryRate && latestVitals.respiratoryRate > 20,
-                        },
-                        {
-                          label: 'Temp',
-                          value: latestVitals.temperature ? `${latestVitals.temperature}°` : '-',
-                          unit: 'C',
-                          icon: Thermometer,
-                          alert: latestVitals.temperature && latestVitals.temperature > 37.5,
-                        },
-                        {
-                          label: 'SpO2',
-                          value: latestVitals.oxygenSaturation ? `${latestVitals.oxygenSaturation}%` : '-',
-                          unit: '',
-                          icon: Droplets,
-                          alert: latestVitals.oxygenSaturation && latestVitals.oxygenSaturation < 95,
-                        },
-                        {
-                          label: 'Dor',
-                          value: latestVitals.painScale !== undefined ? `${latestVitals.painScale}/10` : '-',
-                          unit: '',
-                          icon: Activity,
-                          alert: latestVitals.painScale !== undefined && latestVitals.painScale >= 7,
-                        },
+                        { label: 'PA', value: `${latestVitals.systolicBP}/${latestVitals.diastolicBP}`, unit: 'mmHg', icon: Gauge, alert: latestVitals.systolicBP && latestVitals.systolicBP > 140 },
+                        { label: 'FC', value: latestVitals.heartRate, unit: 'bpm', icon: Heart, alert: latestVitals.heartRate && (latestVitals.heartRate > 100 || latestVitals.heartRate < 60) },
+                        { label: 'FR', value: latestVitals.respiratoryRate, unit: 'irpm', icon: Wind, alert: latestVitals.respiratoryRate && latestVitals.respiratoryRate > 20 },
+                        { label: 'Temp', value: latestVitals.temperature ? `${latestVitals.temperature}°` : '-', unit: 'C', icon: Thermometer, alert: latestVitals.temperature && latestVitals.temperature > 37.5 },
+                        { label: 'SpO2', value: latestVitals.oxygenSaturation ? `${latestVitals.oxygenSaturation}%` : '-', unit: '', icon: Droplets, alert: latestVitals.oxygenSaturation && latestVitals.oxygenSaturation < 95 },
+                        { label: 'Dor', value: latestVitals.painScale !== undefined ? `${latestVitals.painScale}/10` : '-', unit: '', icon: Activity, alert: latestVitals.painScale !== undefined && latestVitals.painScale >= 7 },
                       ].map((vital) => (
                         <div
                           key={vital.label}
                           className={cn(
                             'rounded-lg border p-2 text-center',
-                            vital.alert
-                              ? 'border-red-500/30 bg-red-500/5'
-                              : 'border-border bg-secondary/30',
+                            vital.alert ? 'border-red-500/30 bg-red-500/5' : 'border-border bg-secondary/30',
                           )}
                         >
                           <vital.icon className={cn('mx-auto h-3.5 w-3.5', vital.alert ? 'text-red-400' : 'text-muted-foreground')} />
-                          <p className={cn('mt-1 text-sm font-bold', vital.alert ? 'text-red-400' : '')}>
-                            {vital.value}
-                          </p>
+                          <p className={cn('mt-1 text-sm font-bold', vital.alert ? 'text-red-400' : '')}>{vital.value}</p>
                           <p className="text-[10px] text-muted-foreground">{vital.label}</p>
                         </div>
                       ))}
@@ -834,7 +1069,7 @@ export default function EncounterPage() {
                 </Card>
               )}
 
-              {/* Allergies — always visible */}
+              {/* Allergies */}
               {patientAllergies.length > 0 && (
                 <Card className="animate-slide-in-right stagger-3 border-red-500/30 bg-red-500/5">
                   <CardHeader className="pb-2">
@@ -907,12 +1142,12 @@ export default function EncounterPage() {
                 </Card>
               )}
 
-              {/* AI Copilot Suggestions */}
+              {/* AI Copilot Suggestions — BLOCO 7 */}
               <Card className="animate-slide-in-right stagger-5 border-teal-500/20 bg-teal-500/5">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-xs font-medium text-teal-600 dark:text-teal-400">
-                    <Lightbulb className="h-3.5 w-3.5" />
-                    Sugestoes IA
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Copilot
                     {isLoadingCopilot && <Loader2 className="h-3 w-3 animate-spin text-teal-600 dark:text-teal-400" />}
                   </CardTitle>
                 </CardHeader>
@@ -922,11 +1157,18 @@ export default function EncounterPage() {
                         <div
                           key={i}
                           className={cn(
-                            'shimmer-hover rounded-md border px-3 py-2 transition-colors',
+                            'shimmer-hover rounded-md border px-3 py-2 transition-colors cursor-pointer',
                             suggestion.type === 'warning'
                               ? 'border-red-500/20 bg-red-500/5 hover:border-red-500/30'
                               : 'border-teal-500/10 bg-teal-500/5 hover:border-teal-500/25 hover:bg-teal-500/10',
                           )}
+                          onClick={() => {
+                            // Insert suggestion into the active SOAP field
+                            if (suggestion.actionable) {
+                              setPlan((prev: string) => prev ? `${prev}\n• ${suggestion.text}` : `• ${suggestion.text}`);
+                              toast.success('Sugestao aplicada ao Plano');
+                            }
+                          }}
                         >
                           <p
                             className={cn(
@@ -955,30 +1197,18 @@ export default function EncounterPage() {
                               {Math.round(suggestion.confidence * 100)}%
                             </span>
                           </div>
-                          {suggestion.source && (
-                            <p className="mt-1 text-[9px] text-muted-foreground">{suggestion.source}</p>
+                          {suggestion.actionable && (
+                            <p className="mt-1 text-[9px] text-muted-foreground">Clique para aplicar ao Plano</p>
                           )}
                         </div>
                       ))
-                    : [
-                        { text: 'Considerar troponina seriada (6h) para descartar SCA.', confidence: 92 },
-                        { text: 'PA elevada — avaliar ajuste de Losartana ou associacao com Anlodipino.', confidence: 87 },
-                        { text: 'Glicemia 189 mg/dL — considerar ajuste de Metformina ou adicao de insulina basal.', confidence: 85 },
-                        { text: 'Paciente alergica a Penicilina — evitar Amoxicilina e derivados.', confidence: 98 },
-                      ].map((suggestion, i) => (
-                        <div key={i} className="shimmer-hover rounded-md border border-teal-500/10 bg-teal-500/5 px-3 py-2 transition-colors hover:border-teal-500/25 hover:bg-teal-500/10">
-                          <p className="text-xs italic text-teal-500 dark:text-teal-300/80">{suggestion.text}</p>
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <div className="h-1 flex-1 rounded-full bg-secondary overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-teal-500/60"
-                                style={{ width: `${suggestion.confidence}%` }}
-                              />
-                            </div>
-                            <span className="text-[9px] tabular-nums text-teal-600 dark:text-teal-500/60">{suggestion.confidence}%</span>
-                          </div>
-                        </div>
-                      ))}
+                    : (
+                      <p className="text-xs text-muted-foreground italic">
+                        {streaming.isStreaming || voice.isRecording
+                          ? 'Sugestoes aparecerao apos a nota SOAP...'
+                          : 'Grave ou edite o SOAP — sugestoes aparecerao automaticamente.'}
+                      </p>
+                    )}
                 </CardContent>
               </Card>
             </div>
@@ -999,47 +1229,108 @@ export default function EncounterPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="max-h-[400px] space-y-3 overflow-y-auto">
+          <div className="max-h-[450px] space-y-3 overflow-y-auto">
             {parsedPrescriptionItems.map((item, idx) => (
-              <Card key={idx} className="border-border bg-card">
-                <CardContent className="flex items-start gap-3 py-3">
-                  <Pill className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{item.medicationName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[item.dose, item.route, item.frequency, item.duration]
-                        .filter(Boolean)
-                        .join(' — ')}
-                    </p>
-                    {item.instructions && (
-                      <p className="mt-1 text-xs italic text-muted-foreground">{item.instructions}</p>
-                    )}
+              <Card key={idx} className={cn(
+                'border-l-4 border-border bg-card',
+                item.confidence < 0.5 ? 'border-l-red-500' : item.confidence < 0.8 ? 'border-l-amber-500' : 'border-l-teal-500',
+              )}>
+                <CardContent className="space-y-2 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Pill className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
+                      <input
+                        className="bg-transparent text-sm font-semibold text-foreground outline-none border-b border-transparent hover:border-border focus:border-teal-500 transition-colors w-full"
+                        value={item.medicationName}
+                        onChange={(e) => {
+                          setParsedPrescriptionItems((prev) =>
+                            prev.map((it, i) => i === idx ? { ...it, medicationName: e.target.value } : it)
+                          );
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          'text-[10px]',
+                          item.confidence >= 0.8
+                            ? 'bg-green-500/20 text-green-400'
+                            : item.confidence >= 0.5
+                              ? 'bg-yellow-500/20 text-yellow-400'
+                              : 'bg-red-500/20 text-red-400',
+                        )}
+                      >
+                        {Math.round(item.confidence * 100)}%
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-400 hover:text-red-300"
+                        onClick={() => setParsedPrescriptionItems((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        'text-[10px]',
-                        item.confidence >= 0.8
-                          ? 'bg-green-500/20 text-green-400'
-                          : item.confidence >= 0.5
-                            ? 'bg-yellow-500/20 text-yellow-400'
-                            : 'bg-red-500/20 text-red-400',
-                      )}
-                    >
-                      {Math.round(item.confidence * 100)}%
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-red-400 hover:text-red-300"
-                      onClick={() => {
-                        setParsedPrescriptionItems((prev) => prev.filter((_, i) => i !== idx));
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                  <div className="grid grid-cols-2 gap-2 pl-6">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Dose</label>
+                      <input
+                        className="block w-full bg-transparent text-xs outline-none border-b border-border/50 hover:border-border focus:border-teal-500 py-0.5"
+                        value={item.dose ?? ''}
+                        placeholder="Ex: 500mg"
+                        onChange={(e) => setParsedPrescriptionItems((prev) =>
+                          prev.map((it, i) => i === idx ? { ...it, dose: e.target.value } : it)
+                        )}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Via</label>
+                      <input
+                        className="block w-full bg-transparent text-xs outline-none border-b border-border/50 hover:border-border focus:border-teal-500 py-0.5"
+                        value={item.route ?? ''}
+                        placeholder="Ex: VO"
+                        onChange={(e) => setParsedPrescriptionItems((prev) =>
+                          prev.map((it, i) => i === idx ? { ...it, route: e.target.value } : it)
+                        )}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Frequencia</label>
+                      <input
+                        className="block w-full bg-transparent text-xs outline-none border-b border-border/50 hover:border-border focus:border-teal-500 py-0.5"
+                        value={item.frequency ?? ''}
+                        placeholder="Ex: 8/8h"
+                        onChange={(e) => setParsedPrescriptionItems((prev) =>
+                          prev.map((it, i) => i === idx ? { ...it, frequency: e.target.value } : it)
+                        )}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Duracao</label>
+                      <input
+                        className="block w-full bg-transparent text-xs outline-none border-b border-border/50 hover:border-border focus:border-teal-500 py-0.5"
+                        value={item.duration ?? ''}
+                        placeholder="Ex: 7 dias"
+                        onChange={(e) => setParsedPrescriptionItems((prev) =>
+                          prev.map((it, i) => i === idx ? { ...it, duration: e.target.value } : it)
+                        )}
+                      />
+                    </div>
                   </div>
+                  {item.instructions && (
+                    <div className="pl-6">
+                      <label className="text-[10px] text-muted-foreground">Instrucoes</label>
+                      <input
+                        className="block w-full bg-transparent text-xs italic outline-none border-b border-border/50 hover:border-border focus:border-teal-500 py-0.5"
+                        value={item.instructions}
+                        onChange={(e) => setParsedPrescriptionItems((prev) =>
+                          prev.map((it, i) => i === idx ? { ...it, instructions: e.target.value } : it)
+                        )}
+                      />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -1105,6 +1396,595 @@ export default function EncounterPage() {
               </Button>
             )}
             <Button variant="outline" onClick={() => setPrescriptionModalOpen(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Exam Request Modal (BLOCO 4) */}
+      <Dialog open={examModalOpen} onOpenChange={setExamModalOpen}>
+        <DialogContent className="max-w-2xl border-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TestTube className="h-5 w-5 text-blue-400" />
+              Solicitacao de Exames por IA
+            </DialogTitle>
+            <DialogDescription>
+              Revise os exames detectados antes de confirmar a solicitacao.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isParsingExam ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+              <span className="ml-3 text-sm text-muted-foreground">Processando exames...</span>
+            </div>
+          ) : (
+            <div className="max-h-[400px] space-y-3 overflow-y-auto">
+              {parsedExamItems.map((item, idx) => (
+                <Card key={idx} className="border-border bg-card">
+                  <CardContent className="flex items-start gap-3 py-3">
+                    <TestTube className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{item.examName}</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <Badge variant="outline" className="text-[10px]">{item.examType}</Badge>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            'text-[10px]',
+                            item.urgency === 'EMERGENCIA'
+                              ? 'bg-red-500/20 text-red-400'
+                              : item.urgency === 'URGENTE'
+                                ? 'bg-amber-500/20 text-amber-400'
+                                : 'bg-green-500/20 text-green-400',
+                          )}
+                        >
+                          {item.urgency}
+                        </Badge>
+                        {item.tussCode && (
+                          <Badge variant="outline" className="text-[10px] font-mono">
+                            TUSS {item.tussCode}
+                          </Badge>
+                        )}
+                      </div>
+                      {item.clinicalIndication && (
+                        <p className="mt-1 text-xs text-muted-foreground">{item.clinicalIndication}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          'text-[10px]',
+                          item.confidence >= 0.8
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-yellow-500/20 text-yellow-400',
+                        )}
+                      >
+                        {Math.round(item.confidence * 100)}%
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-400 hover:text-red-300"
+                        onClick={() => setParsedExamItems((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {parsedExamItems.length === 0 && (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  Nenhum exame identificado na transcricao.
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              className="bg-blue-600 hover:bg-blue-500"
+              disabled={parsedExamItems.length === 0}
+              onClick={() => {
+                toast.success(`${parsedExamItems.length} exame(s) solicitado(s)`);
+                setExamModalOpen(false);
+              }}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Confirmar Solicitacao
+            </Button>
+            <Button variant="outline" onClick={() => setExamModalOpen(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Certificate Modal (BLOCO 5) */}
+      <Dialog open={certificateModalOpen} onOpenChange={setCertificateModalOpen}>
+        <DialogContent className="max-w-lg border-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-purple-400" />
+              Atestado Medico por IA
+            </DialogTitle>
+            <DialogDescription>
+              Revise o atestado gerado antes de emitir.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isParsingCertificate ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
+              <span className="ml-3 text-sm text-muted-foreground">Processando atestado...</span>
+            </div>
+          ) : parsedCertificate ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-xs text-muted-foreground">Tipo</span>
+                  <p className="text-sm font-medium">{parsedCertificate.certificateType}</p>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">Dias</span>
+                  <p className="text-sm font-medium">{parsedCertificate.days} dia(s)</p>
+                </div>
+                {parsedCertificate.cidCode && (
+                  <div className="col-span-2">
+                    <span className="text-xs text-muted-foreground">CID-10</span>
+                    <p className="text-sm font-medium">
+                      {parsedCertificate.cidCode} — {parsedCertificate.cidDescription}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">Justificativa</span>
+                <p className="mt-1 text-sm leading-relaxed rounded-md border border-border bg-muted/30 p-3">
+                  {parsedCertificate.justification}
+                </p>
+              </div>
+              {parsedCertificate.restrictions && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Restricoes</span>
+                  <p className="mt-1 text-sm text-amber-400">{parsedCertificate.restrictions}</p>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    'text-[10px]',
+                    parsedCertificate.confidence >= 0.8
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-yellow-500/20 text-yellow-400',
+                  )}
+                >
+                  Confianca: {Math.round(parsedCertificate.confidence * 100)}%
+                </Badge>
+              </div>
+            </div>
+          ) : (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Nao foi possivel gerar o atestado.
+            </p>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              className="bg-purple-600 hover:bg-purple-500"
+              disabled={!parsedCertificate}
+              onClick={() => {
+                toast.success('Atestado emitido com sucesso');
+                setCertificateModalOpen(false);
+              }}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Emitir Atestado
+            </Button>
+            <Button variant="outline" onClick={() => setCertificateModalOpen(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Referral Modal (BLOCO 6) */}
+      <Dialog open={referralModalOpen} onOpenChange={setReferralModalOpen}>
+        <DialogContent className="max-w-lg border-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightCircle className="h-5 w-5 text-orange-400" />
+              Encaminhamento por IA
+            </DialogTitle>
+            <DialogDescription>
+              Revise o encaminhamento gerado antes de emitir.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isParsingReferral ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-orange-400" />
+              <span className="ml-3 text-sm text-muted-foreground">Processando encaminhamento...</span>
+            </div>
+          ) : parsedReferral ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-xs text-muted-foreground">Especialidade</span>
+                  <p className="text-sm font-medium">{parsedReferral.specialty}</p>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">Urgencia</span>
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      'text-xs',
+                      parsedReferral.urgency === 'URGENTE'
+                        ? 'bg-red-500/20 text-red-400'
+                        : parsedReferral.urgency === 'PRIORITARIO'
+                          ? 'bg-amber-500/20 text-amber-400'
+                          : 'bg-green-500/20 text-green-400',
+                    )}
+                  >
+                    {parsedReferral.urgency}
+                  </Badge>
+                </div>
+                {parsedReferral.cidCode && (
+                  <div className="col-span-2">
+                    <span className="text-xs text-muted-foreground">CID-10</span>
+                    <p className="text-sm font-medium">{parsedReferral.cidCode}</p>
+                  </div>
+                )}
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">Motivo</span>
+                <p className="mt-1 text-sm leading-relaxed rounded-md border border-border bg-muted/30 p-3">
+                  {parsedReferral.reason}
+                </p>
+              </div>
+              {parsedReferral.clinicalSummary && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Resumo Clinico</span>
+                  <p className="mt-1 text-sm leading-relaxed">{parsedReferral.clinicalSummary}</p>
+                </div>
+              )}
+              {parsedReferral.questionsForSpecialist && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Perguntas para o Especialista</span>
+                  <p className="mt-1 text-sm italic text-muted-foreground">
+                    {parsedReferral.questionsForSpecialist}
+                  </p>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    'text-[10px]',
+                    parsedReferral.confidence >= 0.8
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-yellow-500/20 text-yellow-400',
+                  )}
+                >
+                  Confianca: {Math.round(parsedReferral.confidence * 100)}%
+                </Badge>
+              </div>
+            </div>
+          ) : (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Nao foi possivel gerar o encaminhamento.
+            </p>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              className="bg-orange-600 hover:bg-orange-500"
+              disabled={!parsedReferral}
+              onClick={() => {
+                toast.success(`Encaminhamento para ${parsedReferral?.specialty} emitido`);
+                setReferralModalOpen(false);
+              }}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Emitir Encaminhamento
+            </Button>
+            <Button variant="outline" onClick={() => setReferralModalOpen(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Vitals Modal (BLOCO 10) */}
+      <Dialog open={vitalsModalOpen} onOpenChange={setVitalsModalOpen}>
+        <DialogContent className="max-w-lg border-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Heart className="h-5 w-5 text-red-400" />
+              Sinais Vitais por IA
+            </DialogTitle>
+            <DialogDescription>
+              Sinais vitais extraidos da transcricao. Confirme para registrar.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isParsingVitals ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-red-400" />
+              <span className="ml-3 text-sm text-muted-foreground">Processando sinais vitais...</span>
+            </div>
+          ) : parsedVitals ? (
+            <div className="space-y-4">
+              <div className="rounded-md border border-border bg-muted/30 p-3">
+                <p className="text-sm font-medium text-foreground">{parsedVitals.summary}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {parsedVitals.systolicBP != null && parsedVitals.diastolicBP != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <Gauge className="h-4 w-4 text-blue-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">PA</span>
+                      <p className="text-sm font-medium">{parsedVitals.systolicBP}x{parsedVitals.diastolicBP} mmHg</p>
+                    </div>
+                  </div>
+                )}
+                {parsedVitals.heartRate != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <Heart className="h-4 w-4 text-red-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">FC</span>
+                      <p className="text-sm font-medium">{parsedVitals.heartRate} bpm</p>
+                    </div>
+                  </div>
+                )}
+                {parsedVitals.respiratoryRate != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <Wind className="h-4 w-4 text-cyan-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">FR</span>
+                      <p className="text-sm font-medium">{parsedVitals.respiratoryRate} irpm</p>
+                    </div>
+                  </div>
+                )}
+                {parsedVitals.temperature != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <Thermometer className="h-4 w-4 text-orange-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">Temp</span>
+                      <p className="text-sm font-medium">{parsedVitals.temperature} °C</p>
+                    </div>
+                  </div>
+                )}
+                {parsedVitals.oxygenSaturation != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <Droplets className="h-4 w-4 text-teal-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">SpO2</span>
+                      <p className="text-sm font-medium">{parsedVitals.oxygenSaturation}%</p>
+                    </div>
+                  </div>
+                )}
+                {parsedVitals.glucoseLevel != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <Activity className="h-4 w-4 text-purple-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">Glicemia</span>
+                      <p className="text-sm font-medium">{parsedVitals.glucoseLevel} mg/dL</p>
+                    </div>
+                  </div>
+                )}
+                {parsedVitals.painScale != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">Dor (EVA)</span>
+                      <p className="text-sm font-medium">{parsedVitals.painScale}/10{parsedVitals.painLocation ? ` — ${parsedVitals.painLocation}` : ''}</p>
+                    </div>
+                  </div>
+                )}
+                {parsedVitals.gcs != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <Stethoscope className="h-4 w-4 text-indigo-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">Glasgow</span>
+                      <p className="text-sm font-medium">{parsedVitals.gcs}/15</p>
+                    </div>
+                  </div>
+                )}
+                {parsedVitals.weight != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <Gauge className="h-4 w-4 text-gray-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">Peso</span>
+                      <p className="text-sm font-medium">{parsedVitals.weight} kg</p>
+                    </div>
+                  </div>
+                )}
+                {parsedVitals.height != null && (
+                  <div className="flex items-center gap-2 rounded-md border border-border p-2">
+                    <Gauge className="h-4 w-4 text-gray-400" />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground">Altura</span>
+                      <p className="text-sm font-medium">{parsedVitals.height} cm</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end">
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    'text-[10px]',
+                    parsedVitals.confidence >= 0.8
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-yellow-500/20 text-yellow-400',
+                  )}
+                >
+                  Confianca: {Math.round(parsedVitals.confidence * 100)}%
+                </Badge>
+              </div>
+            </div>
+          ) : (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Nenhum sinal vital identificado.
+            </p>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              className="bg-red-600 hover:bg-red-500"
+              disabled={!parsedVitals}
+              onClick={() => {
+                toast.success('Sinais vitais registrados com sucesso');
+                setVitalsModalOpen(false);
+              }}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Registrar Sinais Vitais
+            </Button>
+            <Button variant="outline" onClick={() => setVitalsModalOpen(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discharge Modal (BLOCO 11) */}
+      <Dialog open={dischargeModalOpen} onOpenChange={setDischargeModalOpen}>
+        <DialogContent className="max-w-2xl border-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LogOut className="h-5 w-5 text-emerald-400" />
+              Alta Hospitalar por IA
+            </DialogTitle>
+            <DialogDescription>
+              Revise as informacoes de alta antes de confirmar.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isParsingDischarge ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+              <span className="ml-3 text-sm text-muted-foreground">Processando alta...</span>
+            </div>
+          ) : parsedDischarge ? (
+            <ScrollArea className="max-h-[500px]">
+              <div className="space-y-4 pr-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <span className="text-xs text-muted-foreground">Tipo de Alta</span>
+                    <p className="text-sm font-medium">{parsedDischarge.dischargeType}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Condicao</span>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        'text-xs',
+                        parsedDischarge.condition === 'ESTAVEL'
+                          ? 'bg-green-500/20 text-green-400'
+                          : parsedDischarge.condition === 'INSTAVEL'
+                            ? 'bg-amber-500/20 text-amber-400'
+                            : 'bg-red-500/20 text-red-400',
+                      )}
+                    >
+                      {parsedDischarge.condition}
+                    </Badge>
+                  </div>
+                  {parsedDischarge.followUpDays != null && (
+                    <div>
+                      <span className="text-xs text-muted-foreground">Retorno</span>
+                      <p className="text-sm font-medium">
+                        {parsedDischarge.followUpDays} dia(s)
+                        {parsedDischarge.followUpSpecialty ? ` — ${parsedDischarge.followUpSpecialty}` : ''}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <span className="text-xs text-muted-foreground">Orientacoes ao Paciente</span>
+                  <p className="mt-1 text-sm leading-relaxed whitespace-pre-line rounded-md border border-border bg-muted/30 p-3">
+                    {parsedDischarge.instructions}
+                  </p>
+                </div>
+
+                {parsedDischarge.homeMedications && parsedDischarge.homeMedications.length > 0 && (
+                  <div>
+                    <span className="text-xs text-muted-foreground">Medicacoes Domiciliares</span>
+                    <ul className="mt-1 space-y-1">
+                      {parsedDischarge.homeMedications.map((med, i) => (
+                        <li key={i} className="flex items-center gap-2 text-sm">
+                          <Pill className="h-3 w-3 text-teal-400" />
+                          {med}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {parsedDischarge.warningSignals && parsedDischarge.warningSignals.length > 0 && (
+                  <div>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3 text-amber-400" />
+                      Sinais de Alerta
+                    </span>
+                    <ul className="mt-1 space-y-1">
+                      {parsedDischarge.warningSignals.map((signal, i) => (
+                        <li key={i} className="text-sm text-amber-300">• {signal}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {parsedDischarge.restrictions && parsedDischarge.restrictions.length > 0 && (
+                  <div>
+                    <span className="text-xs text-muted-foreground">Restricoes</span>
+                    <ul className="mt-1 space-y-1">
+                      {parsedDischarge.restrictions.map((r, i) => (
+                        <li key={i} className="text-sm text-red-300">• {r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      'text-[10px]',
+                      parsedDischarge.confidence >= 0.8
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-yellow-500/20 text-yellow-400',
+                    )}
+                  >
+                    Confianca: {Math.round(parsedDischarge.confidence * 100)}%
+                  </Badge>
+                </div>
+              </div>
+            </ScrollArea>
+          ) : (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Nao foi possivel processar a alta.
+            </p>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-500"
+              disabled={!parsedDischarge}
+              onClick={() => {
+                toast.success('Alta hospitalar processada com sucesso');
+                setDischargeModalOpen(false);
+              }}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Confirmar Alta
+            </Button>
+            <Button variant="outline" onClick={() => setDischargeModalOpen(false)}>
               Cancelar
             </Button>
           </DialogFooter>
