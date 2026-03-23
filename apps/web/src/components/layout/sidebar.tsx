@@ -23,6 +23,7 @@ import {
   ArrowRightLeft,
   ShieldAlert,
   UsersRound,
+  Heart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth.store';
@@ -59,6 +60,7 @@ const navItems: NavItem[] = [
   { label: 'Quimioterapia', icon: Syringe, href: '/quimioterapia' },
   { label: 'Saúde Populacional', icon: UsersRound, href: '/saude-populacional' },
   { label: 'CCIH', icon: ShieldAlert, href: '/ccih' },
+  { label: 'Portal do Paciente', icon: Heart, href: '/portal-paciente' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
   { label: 'Faturamento', icon: Receipt, href: '/faturamento' },
   { label: 'Configurações', icon: Settings, href: '/configuracoes' },

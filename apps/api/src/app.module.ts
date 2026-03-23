@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { CacheModule } from './common/cache/cache.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 import { AuthModule } from './modules/auth/auth.module';
@@ -44,12 +45,14 @@ import { BookingModule } from './modules/booking/booking.module';
 import { PharmacyModule } from './modules/pharmacy/pharmacy.module';
 import { PopulationHealthModule } from './modules/population-health/population-health.module';
 import { InfectionControlModule } from './modules/infection-control/infection-control.module';
+import { PatientPortalModule } from './modules/patient-portal/patient-portal.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     PrismaModule,
+    CacheModule,
     AuthModule,
     TenantsModule,
     UsersModule,
@@ -87,6 +90,7 @@ import { InfectionControlModule } from './modules/infection-control/infection-co
     PharmacyModule,
     PopulationHealthModule,
     InfectionControlModule,
+    PatientPortalModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
