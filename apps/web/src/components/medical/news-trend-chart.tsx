@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { memo } from 'react';
 import { Activity, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   LineChart,
@@ -71,7 +72,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<
   );
 }
 
-export function NEWSTrendChart({ data, className, defaultExpanded = false }: NEWSTrendChartProps) {
+export const NEWSTrendChart = memo(function NEWSTrendChart({ data, className, defaultExpanded = false }: NEWSTrendChartProps) {
   const [expanded, setExpanded] = React.useState(defaultExpanded);
 
   // Filter to last 24h and only those with a newsScore
@@ -173,4 +174,4 @@ export function NEWSTrendChart({ data, className, defaultExpanded = false }: NEW
       )}
     </Card>
   );
-}
+});

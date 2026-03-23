@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Loader2, TrendingUp } from 'lucide-react';
 import {
   Dialog,
@@ -46,7 +47,7 @@ interface LabTrendChartProps {
   analyte: string;
 }
 
-export function LabTrendChart({
+export const LabTrendChart = memo(function LabTrendChart({
   open,
   onOpenChange,
   patientId,
@@ -263,4 +264,4 @@ export function LabTrendChart({
       </DialogContent>
     </Dialog>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, memo, Fragment } from 'react';
 import {
   FileText,
   Pill,
@@ -87,7 +87,7 @@ interface PatientTimelineProps {
   patientId: string;
 }
 
-export function PatientTimeline({ patientId }: PatientTimelineProps) {
+export const PatientTimeline = memo(function PatientTimeline({ patientId }: PatientTimelineProps) {
   const [filters, setFilters] = useState<TimelineFilters>({});
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -324,7 +324,7 @@ export function PatientTimeline({ patientId }: PatientTimelineProps) {
       )}
     </div>
   );
-}
+});
 
 // ============================================================================
 // Detail renderers

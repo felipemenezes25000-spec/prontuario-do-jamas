@@ -10,6 +10,61 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 
+export interface VitalSignsPayload {
+  id: string;
+  patientId?: string;
+  encounterId?: string;
+  [key: string]: unknown;
+}
+
+export interface AlertPayload {
+  id: string;
+  type: string;
+  title: string;
+  [key: string]: unknown;
+}
+
+export interface PrescriptionPayload {
+  id: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+export interface MedicationCheckPayload {
+  id: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+export interface BedPayload {
+  id: string;
+  label: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+export interface TranscriptionCompletePayload {
+  text?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
+export interface TriageQueuePayload {
+  queue: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface EncounterStatusPayload {
+  id: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+export interface NotificationPayload {
+  type: string;
+  [key: string]: unknown;
+}
+
 @WebSocketGateway({
   cors: { origin: '*' },
   namespace: '/realtime',
@@ -76,57 +131,57 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   // === Emit methods (called by services) ===
 
-  // Vital signs recorded
-  emitVitalSigns(patientId: string, encounterId: string, vitals: any) {
+  // Vital signs recorded — scoped to patient + encounter rooms
+  emitVitalSigns(patientId: string, encounterId: string, vitals: VitalSignsPayload) {
     this.server.to(`patient:${patientId}`).emit('vitals:new', vitals);
     if (encounterId) {
       this.server.to(`encounter:${encounterId}`).emit('vitals:new', vitals);
     }
   }
 
-  // New clinical alert
-  emitAlert(tenantId: string, patientId: string, alert: any) {
+  // New clinical alert — scoped to tenant + patient rooms
+  emitAlert(tenantId: string, patientId: string, alert: AlertPayload) {
     this.server.to(`tenant:${tenantId}`).emit('alert:new', alert);
     this.server.to(`patient:${patientId}`).emit('alert:new', alert);
   }
 
-  // Prescription updated
-  emitPrescriptionUpdate(encounterId: string, prescription: any) {
+  // Prescription updated — scoped to encounter room
+  emitPrescriptionUpdate(encounterId: string, prescription: PrescriptionPayload) {
     this.server.to(`encounter:${encounterId}`).emit('prescription:updated', prescription);
   }
 
-  // Medication checked by nurse
-  emitMedicationCheck(encounterId: string, check: any) {
+  // Medication checked by nurse — scoped to encounter room
+  emitMedicationCheck(encounterId: string, check: MedicationCheckPayload) {
     this.server.to(`encounter:${encounterId}`).emit('medication:checked', check);
   }
 
-  // Bed status changed
-  emitBedUpdate(tenantId: string, ward: string, bed: any) {
+  // Bed status changed — scoped to ward + tenant rooms
+  emitBedUpdate(tenantId: string, ward: string, bed: BedPayload) {
     this.server.to(`ward:${ward}`).emit('bed:updated', bed);
     this.server.to(`tenant:${tenantId}`).emit('bed:updated', bed);
   }
 
-  // Voice transcription streaming (partial results)
+  // Voice transcription streaming (partial results) — scoped to user room
   emitTranscriptionPartial(userId: string, text: string) {
     this.server.to(`user:${userId}`).emit('transcription:partial', { text });
   }
 
-  emitTranscriptionComplete(userId: string, data: any) {
+  emitTranscriptionComplete(userId: string, data: TranscriptionCompletePayload) {
     this.server.to(`user:${userId}`).emit('transcription:complete', data);
   }
 
-  // Triage queue updated
-  emitTriageQueueUpdate(tenantId: string, queue: any) {
+  // Triage queue updated — scoped to tenant room
+  emitTriageQueueUpdate(tenantId: string, queue: TriageQueuePayload) {
     this.server.to(`tenant:${tenantId}`).emit('triage:queue-updated', queue);
   }
 
-  // Notification for specific user
-  emitNotification(userId: string, notification: any) {
+  // Notification for specific user — scoped to user room
+  emitNotification(userId: string, notification: NotificationPayload) {
     this.server.to(`user:${userId}`).emit('notification:new', notification);
   }
 
-  // Encounter status changed
-  emitEncounterStatusChange(tenantId: string, encounter: any) {
+  // Encounter status changed — scoped to tenant room
+  emitEncounterStatusChange(tenantId: string, encounter: EncounterStatusPayload) {
     this.server.to(`tenant:${tenantId}`).emit('encounter:status-changed', encounter);
   }
 }

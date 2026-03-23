@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { memo } from 'react';
 import {
   LineChart,
   Line,
@@ -89,7 +90,7 @@ function formatDate(dateStr: string): string {
   return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-export function VitalSignsChart({
+export const VitalSignsChart = memo(function VitalSignsChart({
   data,
   selectedMetric,
   className,
@@ -209,4 +210,4 @@ export function VitalSignsChart({
       </div>
     </Card>
   );
-}
+});
