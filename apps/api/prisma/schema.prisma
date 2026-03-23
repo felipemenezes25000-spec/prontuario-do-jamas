@@ -891,6 +891,7 @@ model Tenant {
   billingAppeals          BillingAppeal[]
   clinicalProtocols       ClinicalProtocol[]
   drugs                   Drug[]
+  manchesterFlowcharts    ManchesterFlowchart[]
 
   @@index([slug])
   @@index([cnpj])
@@ -1609,6 +1610,8 @@ model TriageAssessment {
   painScale                Int?          @map("pain_scale")
   painLocation             String?       @map("pain_location")
   painCharacter            String?       @map("pain_character")
+  flowchartCode            String?       @map("flowchart_code")
+  discriminatorPath        Json?         @map("discriminator_path")
   discriminators           Json?         @map("discriminators")
   selectedDiscriminator    String?       @map("selected_discriminator")
   level                    TriageLevel   @map("level")
@@ -1632,6 +1635,24 @@ model TriageAssessment {
   voiceTranscription VoiceTranscription? @relation(fields: [voiceTranscriptionId], references: [id], onDelete: SetNull)
 
   @@map("triage_assessments")
+}
+
+model ManchesterFlowchart {
+  id              String   @id @default(uuid()) @map("id")
+  name            String   @map("name")
+  code            String   @unique @map("code")
+  category        String   @map("category")
+  discriminators  Json     @map("discriminators")
+  isActive        Boolean  @default(true) @map("is_active")
+  tenantId        String   @map("tenant_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, isActive])
+  @@index([code])
+  @@map("manchester_flowcharts")
 }
 
 model Admission {

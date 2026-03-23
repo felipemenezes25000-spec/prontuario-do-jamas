@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -12,6 +13,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { TriageService } from './triage.service';
 import { CreateTriageDto, UpdateTriageDto } from './dto/create-triage.dto';
@@ -40,6 +42,34 @@ export class TriageController {
   @ApiResponse({ status: 200, description: 'Waiting queue' })
   async getWaitingQueue(@CurrentTenant() tenantId: string) {
     return this.triageService.getWaitingQueue(tenantId);
+  }
+
+  @Get('flowcharts')
+  @ApiOperation({ summary: 'List active Manchester flowcharts' })
+  @ApiResponse({ status: 200, description: 'List of flowcharts' })
+  async getFlowcharts(@CurrentTenant() tenantId: string) {
+    return this.triageService.getFlowcharts(tenantId);
+  }
+
+  @Get('flowcharts/:code')
+  @ApiParam({ name: 'code', description: 'Flowchart code' })
+  @ApiOperation({ summary: 'Get a Manchester flowchart by code with discriminators' })
+  @ApiResponse({ status: 200, description: 'Flowchart with discriminators' })
+  async getFlowchartByCode(
+    @Param('code') code: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    return this.triageService.getFlowchartByCode(code, tenantId);
+  }
+
+  @Post('suggest-flowchart')
+  @ApiOperation({ summary: 'AI suggests a Manchester flowchart based on chief complaint' })
+  @ApiResponse({ status: 200, description: 'Suggested flowchart' })
+  async suggestFlowchart(
+    @Body('chiefComplaint') chiefComplaint: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    return this.triageService.suggestFlowchart(chiefComplaint, tenantId);
   }
 
   @Get('encounter/:encounterId')

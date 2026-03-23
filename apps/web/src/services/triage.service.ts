@@ -5,6 +5,9 @@ import type {
   CreateTriageDto,
   TriageLevel,
   PaginatedResponse,
+  ManchesterFlowchart,
+  ManchesterFlowchartSummary,
+  FlowchartSuggestion,
 } from '@/types';
 
 // ============================================================================
@@ -16,6 +19,8 @@ export const triageKeys = {
   detail: (encounterId: string) => [...triageKeys.all, 'encounter', encounterId] as const,
   queue: () => [...triageKeys.all, 'queue'] as const,
   queueByLevel: (level?: TriageLevel) => [...triageKeys.queue(), level] as const,
+  flowcharts: () => [...triageKeys.all, 'flowcharts'] as const,
+  flowchart: (code: string) => [...triageKeys.all, 'flowchart', code] as const,
 };
 
 // ============================================================================
@@ -30,6 +35,8 @@ export interface TriageQueueItem {
   level: TriageLevel;
   waitTimeMinutes: number;
   arrivedAt: string;
+  triagedAt?: string;
+  maxWaitTimeMinutes?: number;
 }
 
 export interface TriageQueueFilters {
@@ -65,7 +72,7 @@ export function useTriageQueue(filters?: TriageQueueFilters) {
       );
       return data;
     },
-    refetchInterval: 30_000, // Refresh queue every 30 seconds
+    refetchInterval: 15_000, // Refresh queue every 15 seconds
   });
 }
 
@@ -128,6 +135,49 @@ export function useReassessTriage() {
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: triageKeys.queue() });
       qc.invalidateQueries({ queryKey: triageKeys.detail(result.encounterId) });
+    },
+  });
+}
+
+// ============================================================================
+// Manchester Flowchart Hooks
+// ============================================================================
+
+export function useFlowcharts() {
+  return useQuery({
+    queryKey: triageKeys.flowcharts(),
+    queryFn: async () => {
+      const { data } = await api.get<ManchesterFlowchartSummary[]>(
+        '/triage/flowcharts',
+      );
+      return data;
+    },
+    staleTime: 5 * 60 * 1000, // Flowcharts rarely change
+  });
+}
+
+export function useFlowchart(code: string) {
+  return useQuery({
+    queryKey: triageKeys.flowchart(code),
+    queryFn: async () => {
+      const { data } = await api.get<ManchesterFlowchart>(
+        `/triage/flowcharts/${code}`,
+      );
+      return data;
+    },
+    enabled: !!code,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSuggestFlowchart() {
+  return useMutation({
+    mutationFn: async (chiefComplaint: string) => {
+      const { data } = await api.post<FlowchartSuggestion>(
+        '/triage/suggest-flowchart',
+        { chiefComplaint },
+      );
+      return data;
     },
   });
 }

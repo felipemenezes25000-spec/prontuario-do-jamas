@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsEnum,
   IsInt,
+  IsArray,
   Min,
   Max,
 } from 'class-validator';
@@ -53,6 +54,16 @@ export class CreateTriageDto {
   @IsOptional()
   @IsString()
   painCharacter?: string;
+
+  @ApiPropertyOptional({ description: 'Manchester flowchart code' })
+  @IsOptional()
+  @IsString()
+  flowchartCode?: string;
+
+  @ApiPropertyOptional({ description: 'Discriminator response path (JSON array)' })
+  @IsOptional()
+  @IsArray()
+  discriminatorPath?: Array<{ question: string; answer: boolean; level?: string }>;
 
   @ApiPropertyOptional({ description: 'Selected discriminator' })
   @IsOptional()

@@ -593,6 +593,8 @@ export interface TriageAssessment {
   painScale?: number;
   painLocation?: string;
   painCharacter?: string;
+  flowchartCode?: string;
+  discriminatorPath?: DiscriminatorStep[];
   discriminators?: unknown;
   selectedDiscriminator?: string;
   level: TriageLevel;
@@ -610,6 +612,40 @@ export interface TriageAssessment {
   createdAt: string;
 }
 
+export interface DiscriminatorStep {
+  question: string;
+  answer: boolean;
+  level?: string;
+}
+
+export interface ManchesterDiscriminator {
+  question: string;
+  yesLevel: TriageLevel;
+  noNext: boolean;
+}
+
+export interface ManchesterFlowchart {
+  id: string;
+  name: string;
+  code: string;
+  category: string;
+  discriminators: ManchesterDiscriminator[];
+  isActive: boolean;
+}
+
+export interface ManchesterFlowchartSummary {
+  id: string;
+  name: string;
+  code: string;
+  category: string;
+  isActive: boolean;
+}
+
+export interface FlowchartSuggestion {
+  suggested: ManchesterFlowchartSummary | null;
+  confidence: number;
+}
+
 export interface CreateTriageDto {
   encounterId: string;
   protocol?: TriageProtocol;
@@ -618,7 +654,14 @@ export interface CreateTriageDto {
   symptomDuration?: string;
   painScale?: number;
   painLocation?: string;
+  painCharacter?: string;
+  flowchartCode?: string;
+  discriminatorPath?: DiscriminatorStep[];
+  selectedDiscriminator?: string;
   level: TriageLevel;
+  levelDescription?: string;
+  maxWaitTimeMinutes?: number;
+  reassessmentTimeMinutes?: number;
   vitalSignsId?: string;
 }
 

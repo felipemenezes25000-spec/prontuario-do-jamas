@@ -16,6 +16,7 @@ const PatientNewPage = lazy(() => import('@/pages/patients/new'));
 const EncountersListPage = lazy(() => import('@/pages/encounters'));
 const EncounterPage = lazy(() => import('@/pages/encounters/[id]'));
 const TriagePage = lazy(() => import('@/pages/triage'));
+const TriagePanelPage = lazy(() => import('@/pages/triage/panel'));
 const AdmissionsPage = lazy(() => import('@/pages/admissions'));
 const NursingPage = lazy(() => import('@/pages/nursing'));
 const AppointmentsPage = lazy(() => import('@/pages/appointments'));
@@ -112,6 +113,7 @@ export function AppRoutes() {
         <Route path="atendimentos/novo" element={<SuspenseWrap><EncounterNewPage /></SuspenseWrap>} />
         <Route path="atendimentos/:id" element={<SuspenseWrap><EncounterPage /></SuspenseWrap>} />
         <Route path="triagem" element={<SuspenseWrap><TriagePage /></SuspenseWrap>} />
+        <Route path="triagem/painel" element={<SuspenseWrap><TriagePanelPage /></SuspenseWrap>} />
         <Route path="internacoes" element={<SuspenseWrap><AdmissionsPage /></SuspenseWrap>} />
         <Route path="enfermagem" element={<SuspenseWrap><NursingPage /></SuspenseWrap>} />
         <Route path="agenda" element={<SuspenseWrap><AppointmentsPage /></SuspenseWrap>} />
