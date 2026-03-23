@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect } from './fixtures';
 
 test.describe('Pagina de Faturamento', () => {
   test.beforeEach(async ({ authenticatedPage }) => {

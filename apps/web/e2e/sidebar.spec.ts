@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect } from './fixtures';
 
 test.describe('Sidebar de navegacao completa', () => {
   test.beforeEach(async ({ authenticatedPage }) => {

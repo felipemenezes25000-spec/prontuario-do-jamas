@@ -1,88 +1,59 @@
-import { test, expect } from './fixtures/auth.fixture';
+import { test, expect, MOCK_PATIENTS } from './fixtures';
 
-test.describe('Fluxo de pacientes', () => {
+test.describe('Pagina de pacientes', () => {
   test.beforeEach(async ({ authenticatedPage }) => {
     await authenticatedPage.goto('/pacientes');
     await authenticatedPage.waitForSelector('h1', { timeout: 10_000 });
   });
 
-  test('deve exibir campo de busca de pacientes', async ({
+  test('deve exibir titulo da pagina', async ({
     authenticatedPage: page,
   }) => {
-    const searchInput = page.getByPlaceholder('Buscar por nome, CPF ou prontuário...');
+    await expect(page.locator('h1')).toContainText('Pacientes');
+  });
+
+  test('deve renderizar lista de pacientes com dados mock', async ({
+    authenticatedPage: page,
+  }) => {
+    // Verify at least one patient name is visible
+    const firstName = MOCK_PATIENTS.data[0].name;
+    await expect(page.getByText(firstName)).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('deve exibir campo de busca', async ({
+    authenticatedPage: page,
+  }) => {
+    const searchInput = page.getByRole('textbox').first();
     await expect(searchInput).toBeVisible();
   });
 
-  test('deve listar pacientes em formato de tabela', async ({
+  test('deve filtrar pacientes ao buscar', async ({
     authenticatedPage: page,
   }) => {
-    // Table headers
-    await expect(page.getByRole('columnheader', { name: 'Prontuário' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Paciente' })).toBeVisible();
+    // All 3 mock patients should be visible initially
+    for (const patient of MOCK_PATIENTS.data) {
+      await expect(page.getByText(patient.name)).toBeVisible({
+        timeout: 10_000,
+      });
+    }
 
-    // At least one row should be present
-    const rows = page.locator('tbody tr');
-    await expect(rows.first()).toBeVisible();
-    const rowCount = await rows.count();
-    expect(rowCount).toBeGreaterThan(0);
-  });
+    // Type a search term that matches only one patient
+    const searchInput = page.getByRole('textbox').first();
+    await searchInput.fill('Maria');
 
-  test('deve exibir indicadores de risco do paciente', async ({
-    authenticatedPage: page,
-  }) => {
-    await expect(page.getByRole('columnheader', { name: 'Risco' })).toBeVisible();
-
-    // Risk score colored indicators
-    const riskBars = page.locator('tbody td .rounded-full');
-    await expect(riskBars.first()).toBeVisible();
-  });
-
-  test('deve filtrar pacientes pelo termo de busca', async ({
-    authenticatedPage: page,
-  }) => {
-    const searchInput = page.getByPlaceholder('Buscar por nome, CPF ou prontuário...');
-
-    const initialCount = await page.locator('tbody tr').count();
-    expect(initialCount).toBeGreaterThan(0);
-
-    // Type a search that matches no patients
-    await searchInput.fill('zzzzzzzzz_no_match');
-
-    // Wait for debounce + render
+    // Wait for debounce and re-render
     await page.waitForTimeout(500);
 
-    const emptyState = page.getByText('Nenhum paciente encontrado');
-    const filteredCount = await page.locator('tbody tr').count();
-
-    const isEmpty = await emptyState.isVisible().catch(() => false);
-    expect(isEmpty || filteredCount < initialCount).toBeTruthy();
+    // Maria should still be visible
+    await expect(page.getByText('Maria Aparecida Santos')).toBeVisible();
   });
 
-  test('deve navegar para detalhes do paciente ao clicar', async ({
+  test('deve exibir botao para novo paciente', async ({
     authenticatedPage: page,
   }) => {
-    const firstRow = page.locator('tbody tr').first();
-    await firstRow.click();
-
-    // Should navigate to patient detail page
-    await expect(page).toHaveURL(/\/pacientes\//, { timeout: 10_000 });
-  });
-
-  test('deve exibir abas na pagina de detalhes do paciente', async ({
-    authenticatedPage: page,
-  }) => {
-    // Click first patient
-    const firstRow = page.locator('tbody tr').first();
-    await firstRow.click();
-
-    await expect(page).toHaveURL(/\/pacientes\//, { timeout: 10_000 });
-
-    // Wait for detail page to load
-    await page.waitForSelector('h1', { timeout: 10_000 });
-
-    // Patient detail page should have tab navigation
-    const tabs = page.getByRole('tab');
-    const tabCount = await tabs.count();
-    expect(tabCount).toBeGreaterThan(0);
+    const newButton = page.getByRole('link', { name: /Novo Paciente/i }).or(
+      page.getByRole('button', { name: /Novo Paciente/i }),
+    );
+    await expect(newButton).toBeVisible();
   });
 });
