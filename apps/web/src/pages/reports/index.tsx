@@ -24,6 +24,9 @@ import {
   Activity,
   AlertTriangle,
   Calendar,
+  LayoutDashboard,
+  Search,
+  Download,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -37,6 +40,14 @@ import {
 } from '@/components/ui/table';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   useHospitalMovement,
   useDailyCensus,
@@ -44,6 +55,11 @@ import {
   useQualityIndicators,
   useFinancialReport,
   useEncounterStats,
+  useOccupancyRate,
+  useLengthOfStay,
+  useTopDiagnoses,
+  useProduction,
+  useCustomQuery,
 } from '@/services/reports.service';
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -923,6 +939,626 @@ function EncounterStatsTab() {
   );
 }
 
+// ── Dashboard Gerencial Tab (BLOCO B5) ──────────────────────────────
+
+function DashboardGerencialTab() {
+  const defaults = defaultRange();
+  const [startDate, setStartDate] = useState(defaults.start);
+  const [endDate, setEndDate] = useState(defaults.end);
+
+  const { data: occupancy, isLoading: occLoading } = useOccupancyRate(startDate, endDate);
+  const { data: lengthOfStay, isLoading: losLoading } = useLengthOfStay(startDate, endDate);
+  const { data: topDiagnoses, isLoading: diagLoading } = useTopDiagnoses(startDate, endDate);
+  const { data: production, isLoading: prodLoading } = useProduction(startDate, endDate);
+
+  const isLoading = occLoading || losLoading || diagLoading || prodLoading;
+
+  if (isLoading) return <PageLoading cards={0} showTable={false} />;
+
+  return (
+    <div className="space-y-4">
+      <DateRangePicker
+        startDate={startDate}
+        endDate={endDate}
+        onStartChange={setStartDate}
+        onEndChange={setEndDate}
+      />
+
+      {/* KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <SummaryCard
+          title="Taxa de Ocupacao"
+          value={`${occupancy?.overallRate ?? 0}%`}
+          icon={BedDouble}
+          color="text-blue-400"
+          bgColor="bg-blue-500/10"
+        />
+        <SummaryCard
+          title="Leitos Ocupados"
+          value={`${occupancy?.totalOccupied ?? 0}/${occupancy?.totalBeds ?? 0}`}
+          icon={BedDouble}
+          color="text-emerald-400"
+          bgColor="bg-emerald-500/10"
+        />
+        <SummaryCard
+          title="Top CIDs"
+          value={topDiagnoses?.length ?? 0}
+          icon={Activity}
+          color="text-purple-400"
+          bgColor="bg-purple-500/10"
+        />
+        <SummaryCard
+          title="Medicos Ativos"
+          value={production?.length ?? 0}
+          icon={Stethoscope}
+          color="text-amber-400"
+          bgColor="bg-amber-500/10"
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Ocupacao por setor */}
+        {occupancy && occupancy.sectors.length > 0 && (
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Ocupacao por Setor
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={occupancy.sectors}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--color-border)"
+                      opacity={0.5}
+                    />
+                    <XAxis
+                      dataKey="ward"
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                      domain={[0, 100]}
+                      tickFormatter={(v: number) => `${v}%`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--color-card)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '8px',
+                        color: 'var(--color-foreground)',
+                      }}
+                      formatter={(value: number) => [`${value}%`, 'Ocupacao']}
+                    />
+                    <Bar dataKey="rate" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Ocupacao %" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Tempo medio de permanencia */}
+        {lengthOfStay && lengthOfStay.length > 0 && (
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Tempo Medio de Permanencia por CID
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={lengthOfStay.slice(0, 10)} layout="vertical">
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--color-border)"
+                      opacity={0.5}
+                    />
+                    <XAxis
+                      type="number"
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                      unit=" dias"
+                    />
+                    <YAxis
+                      dataKey="cid"
+                      type="category"
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      width={80}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--color-card)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '8px',
+                        color: 'var(--color-foreground)',
+                      }}
+                      formatter={(value: number) => [`${value} dias`, 'Media']}
+                    />
+                    <Bar dataKey="avgDays" fill="#f59e0b" radius={[0, 4, 4, 0]} name="Media (dias)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Top 20 CIDs */}
+        {topDiagnoses && topDiagnoses.length > 0 && (
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Top 20 Diagnosticos Mais Frequentes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topDiagnoses.slice(0, 20)}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--color-border)"
+                      opacity={0.5}
+                    />
+                    <XAxis
+                      dataKey="cid"
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                    />
+                    <YAxis
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--color-card)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '8px',
+                        color: 'var(--color-foreground)',
+                      }}
+                      labelFormatter={(label: string) => {
+                        const item = topDiagnoses.find((d) => d.cid === label);
+                        return item ? `${item.cid} — ${item.description}` : label;
+                      }}
+                    />
+                    <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Casos" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Producao por medico */}
+        {production && production.length > 0 && (
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Producao por Profissional
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={production.slice(0, 15)} layout="vertical">
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--color-border)"
+                      opacity={0.5}
+                    />
+                    <XAxis
+                      type="number"
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      dataKey="doctorName"
+                      type="category"
+                      stroke="var(--color-muted-foreground)"
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      width={140}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--color-card)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '8px',
+                        color: 'var(--color-foreground)',
+                      }}
+                    />
+                    <Bar dataKey="encounterCount" fill="#10b981" radius={[0, 4, 4, 0]} name="Atendimentos" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Table for top diagnoses */}
+      {topDiagnoses && topDiagnoses.length > 0 && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Detalhamento de Diagnosticos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>CID</TableHead>
+                  <TableHead>Descricao</TableHead>
+                  <TableHead className="text-right">Casos</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {topDiagnoses.map((d) => (
+                  <TableRow key={d.cid}>
+                    <TableCell className="font-mono text-xs">{d.cid}</TableCell>
+                    <TableCell>{d.description}</TableCell>
+                    <TableCell className="text-right">{d.count}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ── Consulta Avancada Tab (BLOCO B5) ────────────────────────────────
+
+function ConsultaAvancadaTab() {
+  const defaults = defaultRange();
+  const [startDate, setStartDate] = useState(defaults.start);
+  const [endDate, setEndDate] = useState(defaults.end);
+  const [dimension, setDimension] = useState('type');
+  const [metric, setMetric] = useState('count');
+  const [groupBy, setGroupBy] = useState('month');
+  const [queryEnabled, setQueryEnabled] = useState(false);
+
+  const { data, isLoading, isError, refetch } = useCustomQuery(
+    startDate,
+    endDate,
+    dimension,
+    metric,
+    groupBy,
+    queryEnabled,
+  );
+
+  const chartData = useMemo(() => {
+    if (!data?.rows) return [];
+    return data.rows.map((r) => ({
+      period: r.period,
+      total: r.total,
+      ...r.dimensions,
+    }));
+  }, [data]);
+
+  const dimensionKeys = useMemo(() => {
+    if (!data?.rows || data.rows.length === 0) return [];
+    const keys = new Set<string>();
+    for (const row of data.rows) {
+      for (const k of Object.keys(row.dimensions)) {
+        keys.add(k);
+      }
+    }
+    return Array.from(keys);
+  }, [data]);
+
+  const handleGenerate = () => {
+    setQueryEnabled(true);
+    void refetch();
+  };
+
+  const handleExportCsv = () => {
+    if (!data?.rows) return;
+    const headers = ['Periodo', ...dimensionKeys, 'Total'];
+    const csvRows = [headers.join(',')];
+    for (const row of data.rows) {
+      const values = [
+        row.period,
+        ...dimensionKeys.map((k) => String(row.dimensions[k] ?? 0)),
+        String(row.total),
+      ];
+      csvRows.push(values.join(','));
+    }
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `relatorio-${dimension}-${groupBy}-${startDate}-${endDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const dimensionLabels: Record<string, string> = {
+    type: 'Tipo de Atendimento',
+    doctor: 'Medico',
+    cid: 'CID',
+    status: 'Status',
+    period: 'Periodo',
+  };
+
+  const metricLabels: Record<string, string> = {
+    count: 'Contagem',
+    sum: 'Soma',
+    avg: 'Media',
+  };
+
+  const groupByLabels: Record<string, string> = {
+    day: 'Dia',
+    week: 'Semana',
+    month: 'Mes',
+    year: 'Ano',
+  };
+
+  return (
+    <div className="space-y-4">
+      <DateRangePicker
+        startDate={startDate}
+        endDate={endDate}
+        onStartChange={setStartDate}
+        onEndChange={setEndDate}
+      />
+
+      <Card className="border-border bg-card">
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Dimensao</label>
+              <Select value={dimension} onValueChange={setDimension}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(dimensionLabels).map(([val, label]) => (
+                    <SelectItem key={val} value={val}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Metrica</label>
+              <Select value={metric} onValueChange={setMetric}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(metricLabels).map(([val, label]) => (
+                    <SelectItem key={val} value={val}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Agrupar por</label>
+              <Select value={groupBy} onValueChange={setGroupBy}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(groupByLabels).map(([val, label]) => (
+                    <SelectItem key={val} value={val}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              onClick={handleGenerate}
+              className="bg-teal-600 hover:bg-teal-500"
+              disabled={isLoading}
+            >
+              <Search className="mr-2 h-4 w-4" />
+              Gerar
+            </Button>
+
+            {data && (
+              <Button variant="outline" onClick={handleExportCsv}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar CSV
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {isLoading && <PageLoading cards={0} showTable={false} />}
+      {isError && <PageError onRetry={handleGenerate} />}
+
+      {data && (
+        <>
+          <SummaryCard
+            title="Total de Registros"
+            value={data.totalRecords}
+            icon={BarChart3}
+            color="text-emerald-400"
+            bgColor="bg-emerald-500/10"
+          />
+
+          {/* Chart */}
+          {chartData.length > 0 && (
+            <Card className="border-border bg-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {dimensionLabels[dimension] ?? dimension} por{' '}
+                  {groupByLabels[groupBy] ?? groupBy}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {dimensionKeys.length <= 1 ? (
+                      <BarChart data={chartData}>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="var(--color-border)"
+                          opacity={0.5}
+                        />
+                        <XAxis
+                          dataKey="period"
+                          stroke="var(--color-muted-foreground)"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          stroke="var(--color-muted-foreground)"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'var(--color-card)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '8px',
+                            color: 'var(--color-foreground)',
+                          }}
+                        />
+                        <Bar
+                          dataKey="total"
+                          fill="#10b981"
+                          radius={[4, 4, 0, 0]}
+                          name="Total"
+                        />
+                      </BarChart>
+                    ) : (
+                      <LineChart data={chartData}>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="var(--color-border)"
+                          opacity={0.5}
+                        />
+                        <XAxis
+                          dataKey="period"
+                          stroke="var(--color-muted-foreground)"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          stroke="var(--color-muted-foreground)"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'var(--color-card)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: '8px',
+                            color: 'var(--color-foreground)',
+                          }}
+                        />
+                        <Legend />
+                        {dimensionKeys.slice(0, 8).map((key, idx) => (
+                          <Line
+                            key={key}
+                            type="monotone"
+                            dataKey={key}
+                            stroke={COLORS[idx % COLORS.length]}
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                            name={key}
+                          />
+                        ))}
+                      </LineChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Data table */}
+          {data.rows.length > 0 && (
+            <Card className="border-border bg-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Dados da Consulta
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Periodo</TableHead>
+                      {dimensionKeys.map((k) => (
+                        <TableHead key={k} className="text-right">
+                          {k}
+                        </TableHead>
+                      ))}
+                      <TableHead className="text-right font-bold">
+                        Total
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.rows.map((row) => (
+                      <TableRow key={row.period}>
+                        <TableCell className="font-mono text-xs">
+                          {row.period}
+                        </TableCell>
+                        {dimensionKeys.map((k) => (
+                          <TableCell key={k} className="text-right">
+                            {row.dimensions[k] ?? 0}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right font-bold">
+                          {row.total}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ───────────────────────────────────────────────────────
 
 export default function ReportsPage() {
@@ -956,6 +1592,14 @@ export default function ReportsPage() {
             <BarChart3 className="mr-1.5 h-4 w-4" />
             Atendimentos
           </TabsTrigger>
+          <TabsTrigger value="dashboard-gerencial">
+            <LayoutDashboard className="mr-1.5 h-4 w-4" />
+            Dashboard Gerencial
+          </TabsTrigger>
+          <TabsTrigger value="consulta-avancada">
+            <Search className="mr-1.5 h-4 w-4" />
+            Consulta Avancada
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="hospital-movement">
@@ -975,6 +1619,12 @@ export default function ReportsPage() {
         </TabsContent>
         <TabsContent value="encounter-stats">
           <EncounterStatsTab />
+        </TabsContent>
+        <TabsContent value="dashboard-gerencial">
+          <DashboardGerencialTab />
+        </TabsContent>
+        <TabsContent value="consulta-avancada">
+          <ConsultaAvancadaTab />
         </TabsContent>
       </Tabs>
     </div>

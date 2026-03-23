@@ -239,4 +239,247 @@ export class ReportsService {
 
     return { total: encounters.length, byType, byStatus, byDay };
   }
+
+  // ── BLOCO B5: New Analytics Endpoints ──────────────────────
+
+  async getOccupancyRate(tenantId: string, startDate: Date, endDate: Date) {
+    // Get all admissions that overlap with the date range, join bed for ward info
+    const admissions = await this.prisma.admission.findMany({
+      where: {
+        tenantId,
+        admissionDate: { lte: endDate },
+        OR: [
+          { actualDischargeDate: null },
+          { actualDischargeDate: { gte: startDate } },
+        ],
+      },
+      select: {
+        currentBed: { select: { ward: true } },
+      },
+    });
+
+    // Count total beds per ward
+    const beds = await this.prisma.bed.groupBy({
+      by: ['ward'],
+      where: { tenantId },
+      _count: true,
+    });
+
+    const bedsByWard = new Map(beds.map((b) => [b.ward, b._count]));
+
+    // Calculate occupancy per ward
+    const wardMap = new Map<string, number>();
+    for (const a of admissions) {
+      const ward = a.currentBed?.ward ?? 'Sem setor';
+      wardMap.set(ward, (wardMap.get(ward) ?? 0) + 1);
+    }
+
+    const sectors = Array.from(new Set([...wardMap.keys(), ...bedsByWard.keys()])).map(
+      (ward) => {
+        const occupied = wardMap.get(ward) ?? 0;
+        const totalBeds = bedsByWard.get(ward) ?? Math.max(occupied, 1);
+        return {
+          ward,
+          occupied,
+          totalBeds,
+          rate: totalBeds > 0 ? Math.round((occupied / totalBeds) * 100) : 0,
+        };
+      },
+    );
+
+    const totalOccupied = sectors.reduce((s, w) => s + w.occupied, 0);
+    const totalBeds = sectors.reduce((s, w) => s + w.totalBeds, 0);
+    const overallRate = totalBeds > 0 ? Math.round((totalOccupied / totalBeds) * 100) : 0;
+
+    return { overallRate, totalOccupied, totalBeds, sectors };
+  }
+
+  async getLengthOfStay(tenantId: string, startDate: Date, endDate: Date) {
+    const admissions = await this.prisma.admission.findMany({
+      where: {
+        tenantId,
+        actualDischargeDate: { gte: startDate, lte: endDate },
+      },
+      select: {
+        admissionDate: true,
+        actualDischargeDate: true,
+        diagnosisAtAdmission: true,
+      },
+    });
+
+    const byCid = new Map<string, { totalDays: number; count: number }>();
+
+    for (const a of admissions) {
+      if (!a.actualDischargeDate) continue;
+      const days = Math.ceil(
+        (a.actualDischargeDate.getTime() - a.admissionDate.getTime()) / 86_400_000,
+      );
+      const cid = a.diagnosisAtAdmission ?? 'Sem CID';
+      const entry = byCid.get(cid) ?? { totalDays: 0, count: 0 };
+      entry.totalDays += days;
+      entry.count++;
+      byCid.set(cid, entry);
+    }
+
+    const results = Array.from(byCid.entries())
+      .map(([cid, { totalDays, count }]) => ({
+        cid,
+        avgDays: count > 0 ? Math.round((totalDays / count) * 10) / 10 : 0,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
+
+    return results;
+  }
+
+  async getTopDiagnoses(tenantId: string, startDate: Date, endDate: Date) {
+    // Use ClinicalNote.diagnosisCodes (string[]) joined via encounter
+    const notes = await this.prisma.clinicalNote.findMany({
+      where: {
+        encounter: { tenantId },
+        createdAt: { gte: startDate, lte: endDate },
+        diagnosisCodes: { isEmpty: false },
+      },
+      select: { diagnosisCodes: true },
+    });
+
+    const cidCount = new Map<string, number>();
+    for (const note of notes) {
+      for (const cid of note.diagnosisCodes) {
+        cidCount.set(cid, (cidCount.get(cid) ?? 0) + 1);
+      }
+    }
+
+    // Also check admission diagnoses
+    const admissions = await this.prisma.admission.findMany({
+      where: {
+        tenantId,
+        admissionDate: { gte: startDate, lte: endDate },
+        diagnosisAtAdmission: { not: null },
+      },
+      select: { diagnosisAtAdmission: true },
+    });
+
+    for (const a of admissions) {
+      if (a.diagnosisAtAdmission) {
+        const cid = a.diagnosisAtAdmission;
+        cidCount.set(cid, (cidCount.get(cid) ?? 0) + 1);
+      }
+    }
+
+    return Array.from(cidCount.entries())
+      .map(([cid, count]) => ({ cid, description: cid, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
+  }
+
+  async getProductionByDoctor(tenantId: string, startDate: Date, endDate: Date) {
+    const encounters = await this.prisma.encounter.groupBy({
+      by: ['primaryDoctorId'],
+      where: { tenantId, createdAt: { gte: startDate, lte: endDate } },
+      _count: true,
+    });
+
+    const doctorIds = encounters
+      .map((e) => e.primaryDoctorId)
+      .filter((id): id is string => id !== null);
+
+    const doctors = await this.prisma.user.findMany({
+      where: { id: { in: doctorIds } },
+      select: { id: true, name: true },
+    });
+
+    const doctorMap = new Map(doctors.map((d) => [d.id, d.name]));
+
+    return encounters
+      .map((e) => ({
+        doctorId: e.primaryDoctorId,
+        doctorName: doctorMap.get(e.primaryDoctorId ?? '') ?? 'Desconhecido',
+        encounterCount: e._count,
+      }))
+      .sort((a, b) => b.encounterCount - a.encounterCount);
+  }
+
+  async getCustomQuery(
+    tenantId: string,
+    startDate: Date,
+    endDate: Date,
+    dimension: string,
+    metric: string,
+    groupBy: string,
+  ) {
+    const encounters = await this.prisma.encounter.findMany({
+      where: { tenantId, createdAt: { gte: startDate, lte: endDate } },
+      select: {
+        type: true,
+        status: true,
+        createdAt: true,
+        primaryDoctorId: true,
+        location: true,
+      },
+    });
+
+    // Determine group key
+    const getGroupKey = (date: Date, gb: string): string => {
+      const iso = date.toISOString();
+      switch (gb) {
+        case 'day':
+          return iso.slice(0, 10);
+        case 'week': {
+          const d = new Date(date);
+          d.setDate(d.getDate() - d.getDay());
+          return d.toISOString().slice(0, 10);
+        }
+        case 'month':
+          return iso.slice(0, 7);
+        case 'year':
+          return iso.slice(0, 4);
+        default:
+          return iso.slice(0, 7);
+      }
+    };
+
+    // Determine dimension value
+    const getDimension = (e: (typeof encounters)[0]): string => {
+      switch (dimension) {
+        case 'type':
+          return e.type ?? 'OTHER';
+        case 'doctor':
+          return e.primaryDoctorId ?? 'Desconhecido';
+        case 'cid':
+          return e.location ?? 'Sem setor';
+        case 'status':
+          return e.status ?? 'UNKNOWN';
+        default:
+          return 'Total';
+      }
+    };
+
+    const grouped = new Map<string, Map<string, number>>();
+
+    for (const e of encounters) {
+      const gKey = getGroupKey(e.createdAt, groupBy);
+      const dKey = getDimension(e);
+      if (!grouped.has(gKey)) grouped.set(gKey, new Map());
+      const dimMap = grouped.get(gKey)!;
+      dimMap.set(dKey, (dimMap.get(dKey) ?? 0) + 1);
+    }
+
+    const rows = Array.from(grouped.entries())
+      .map(([period, dimensions]) => ({
+        period,
+        dimensions: Object.fromEntries(dimensions),
+        total: Array.from(dimensions.values()).reduce((s, v) => s + v, 0),
+      }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+
+    return {
+      dimension,
+      metric,
+      groupBy,
+      rows,
+      totalRecords: encounters.length,
+    };
+  }
 }

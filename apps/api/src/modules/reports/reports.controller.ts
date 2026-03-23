@@ -110,4 +110,100 @@ export class ReportsController {
       new Date(endDate),
     );
   }
+
+  // ── BLOCO B5: New Analytics Endpoints ──────────────────────
+
+  @Get('occupancy')
+  @ApiOperation({ summary: 'Taxa de ocupação por setor' })
+  @ApiQuery({ name: 'startDate', required: true, type: String })
+  @ApiQuery({ name: 'endDate', required: true, type: String })
+  @ApiResponse({ status: 200, description: 'Taxa de ocupação' })
+  async getOccupancyRate(
+    @CurrentTenant() tenantId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.reportsService.getOccupancyRate(
+      tenantId,
+      new Date(startDate),
+      new Date(endDate),
+    );
+  }
+
+  @Get('length-of-stay')
+  @ApiOperation({ summary: 'Tempo médio de permanência por CID' })
+  @ApiQuery({ name: 'startDate', required: true, type: String })
+  @ApiQuery({ name: 'endDate', required: true, type: String })
+  @ApiResponse({ status: 200, description: 'Tempo de permanência' })
+  async getLengthOfStay(
+    @CurrentTenant() tenantId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.reportsService.getLengthOfStay(
+      tenantId,
+      new Date(startDate),
+      new Date(endDate),
+    );
+  }
+
+  @Get('top-diagnoses')
+  @ApiOperation({ summary: 'Top 20 diagnósticos mais frequentes' })
+  @ApiQuery({ name: 'startDate', required: true, type: String })
+  @ApiQuery({ name: 'endDate', required: true, type: String })
+  @ApiResponse({ status: 200, description: 'CIDs mais frequentes' })
+  async getTopDiagnoses(
+    @CurrentTenant() tenantId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.reportsService.getTopDiagnoses(
+      tenantId,
+      new Date(startDate),
+      new Date(endDate),
+    );
+  }
+
+  @Get('production')
+  @ApiOperation({ summary: 'Produção médica por profissional' })
+  @ApiQuery({ name: 'startDate', required: true, type: String })
+  @ApiQuery({ name: 'endDate', required: true, type: String })
+  @ApiResponse({ status: 200, description: 'Produção por médico' })
+  async getProduction(
+    @CurrentTenant() tenantId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    return this.reportsService.getProductionByDoctor(
+      tenantId,
+      new Date(startDate),
+      new Date(endDate),
+    );
+  }
+
+  @Get('custom-query')
+  @ApiOperation({ summary: 'Consulta avançada com dimensões e métricas' })
+  @ApiQuery({ name: 'startDate', required: true, type: String })
+  @ApiQuery({ name: 'endDate', required: true, type: String })
+  @ApiQuery({ name: 'dimension', required: true, type: String })
+  @ApiQuery({ name: 'metric', required: true, type: String })
+  @ApiQuery({ name: 'groupBy', required: true, type: String })
+  @ApiResponse({ status: 200, description: 'Resultado da consulta' })
+  async getCustomQuery(
+    @CurrentTenant() tenantId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('dimension') dimension: string,
+    @Query('metric') metric: string,
+    @Query('groupBy') groupBy: string,
+  ) {
+    return this.reportsService.getCustomQuery(
+      tenantId,
+      new Date(startDate),
+      new Date(endDate),
+      dimension,
+      metric,
+      groupBy,
+    );
+  }
 }

@@ -57,6 +57,8 @@ import { PageError } from '@/components/common/page-error';
 import { useVoice } from '@/hooks/use-voice';
 import { useStreamingSOAP } from '@/hooks/use-streaming-soap';
 import { VoiceWaveform } from '@/components/voice/voice-waveform';
+import { ProactiveCopilotSidebar } from '@/components/medical/proactive-copilot';
+import { VoiceIntentRouter } from '@/components/voice/voice-intent-router';
 import type { VoiceIntent } from '@/stores/voice.store';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -265,6 +267,15 @@ export default function EncounterPage() {
   const [dischargeModalOpen, setDischargeModalOpen] = useState(false);
   const [parsedDischarge, setParsedDischarge] = useState<ParsedDischargeData | null>(null);
   const [isParsingDischarge, setIsParsingDischarge] = useState(false);
+
+  // Voice Intent Router state (BLOCO C2)
+  const [intentRouterOpen, setIntentRouterOpen] = useState(false);
+  const [intentRouterIntent, setIntentRouterIntent] = useState<VoiceIntent | null>(null);
+  const [intentRouterData, setIntentRouterData] = useState<Record<string, unknown>>({});
+
+  // Proactive copilot — combined SOAP text for sidebar (BLOCO C1)
+  const combinedSoapText = [subjective, objective, assessment, plan].filter(Boolean).join('\n');
+  const [activeField, setActiveField] = useState('subjective');
 
   // Proactive copilot debounce
   const copilotDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -857,6 +868,7 @@ export default function EncounterPage() {
                     <Textarea
                       placeholder={section.hint}
                       value={section.value}
+                      onFocus={() => setActiveField(section.key.toLowerCase())}
                       onChange={(e) => {
                         section.onChange(e.target.value);
                         triggerCopilot(section.key, e.target.value);
@@ -1154,6 +1166,30 @@ export default function EncounterPage() {
                     ))}
                   </CardContent>
                 </Card>
+              )}
+
+              {/* Proactive Copilot Sidebar — BLOCO C1 */}
+              {id && (
+                <ProactiveCopilotSidebar
+                  soapText={combinedSoapText}
+                  encounterId={id}
+                  currentField={activeField}
+                  onApplySuggestion={(text, field) => {
+                    const fieldMap: Record<string, (fn: (prev: string) => string) => void> = {
+                      s: setSubjective,
+                      subjective: setSubjective,
+                      o: setObjective,
+                      objective: setObjective,
+                      a: setAssessment,
+                      assessment: setAssessment,
+                      p: setPlan,
+                      plan: setPlan,
+                    };
+                    const setter = fieldMap[field.toLowerCase()] ?? setPlan;
+                    setter((prev: string) => prev ? `${prev}\n• ${text}` : `• ${text}`);
+                    toast.success('Sugestao do copilot aplicada');
+                  }}
+                />
               )}
 
               {/* AI Copilot Suggestions — BLOCO 7 */}
@@ -2014,6 +2050,25 @@ export default function EncounterPage() {
           patientId={encounter.patientId}
         />
       )}
+
+      {/* Voice Intent Router (BLOCO C2) */}
+      <VoiceIntentRouter
+        intent={intentRouterIntent}
+        extractedData={intentRouterData}
+        open={intentRouterOpen}
+        onOpenChange={setIntentRouterOpen}
+        patientId={encounter.patientId}
+        encounterId={id}
+        onConfirm={(_intent, _data) => {
+          setIntentRouterOpen(false);
+          void refetch();
+        }}
+        onDiscard={() => {
+          setIntentRouterOpen(false);
+          setIntentRouterIntent(null);
+          setIntentRouterData({});
+        }}
+      />
     </div>
   );
 }
