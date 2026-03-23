@@ -7,7 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PrescriptionSafetyService } from './prescription-safety.service';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { CreatePrescriptionItemDto } from './dto/create-prescription-item.dto';
-import { PrescriptionStatus, MedCheckStatus } from '@prisma/client';
+import { PrescriptionStatus, MedCheckStatus, type Prisma } from '@prisma/client';
 
 @Injectable()
 export class PrescriptionsService {
@@ -154,6 +154,172 @@ export class PrescriptionsService {
     });
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // B9 — Automatic Schedule Generation
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Generates schedule times for the next 24h based on frequency.
+   *
+   * Frequency mapping:
+   *   "6/6h"   → [00:00, 06:00, 12:00, 18:00]
+   *   "8/8h"   → [06:00, 14:00, 22:00]
+   *   "12/12h" → [06:00, 18:00]
+   *   "1x/dia" → [06:00]
+   *   "2x/dia" → [06:00, 18:00]
+   *   "3x/dia" → [06:00, 14:00, 22:00]
+   *   "4x/dia" → [06:00, 12:00, 18:00, 00:00]
+   *   "SOS"    → [] (as needed)
+   *   "ACM"    → [] (at doctor's discretion)
+   */
+  generateSchedule(frequency: string, startDate: Date): Date[] {
+    const trimmed = frequency.trim().toLowerCase();
+
+    // SOS / ACM — no fixed schedule
+    if (trimmed === 'sos' || trimmed === 'acm' || trimmed === 'se necessário') {
+      return [];
+    }
+
+    const defaultTimes = this.getDefaultTimesForFrequency(trimmed);
+    if (!defaultTimes) return [];
+
+    const baseDate = new Date(startDate);
+    baseDate.setHours(0, 0, 0, 0);
+
+    return defaultTimes.map(([h, m]) => {
+      const dt = new Date(baseDate);
+      dt.setHours(h, m, 0, 0);
+      return dt;
+    });
+  }
+
+  /**
+   * Returns default hour:minute pairs for a given frequency.
+   */
+  private getDefaultTimesForFrequency(frequency: string): Array<[number, number]> | null {
+    // Exact matches for named frequencies
+    const namedFrequencies: Record<string, Array<[number, number]>> = {
+      '6/6h': [[0, 0], [6, 0], [12, 0], [18, 0]],
+      '8/8h': [[6, 0], [14, 0], [22, 0]],
+      '12/12h': [[6, 0], [18, 0]],
+      '1x/dia': [[6, 0]],
+      '2x/dia': [[6, 0], [18, 0]],
+      '3x/dia': [[6, 0], [14, 0], [22, 0]],
+      '4x/dia': [[6, 0], [12, 0], [18, 0], [0, 0]],
+    };
+
+    if (namedFrequencies[frequency]) {
+      return namedFrequencies[frequency];
+    }
+
+    // Pattern: N/Nh — calculate from interval
+    const intervalMatch = frequency.match(/^(\d+)\/\d+\s*h$/);
+    if (intervalMatch) {
+      const hours = parseInt(intervalMatch[1], 10);
+      if (hours > 0 && hours <= 24) {
+        const times: Array<[number, number]> = [];
+        const startHour = hours <= 6 ? 0 : 6;
+        for (let h = startHour; h < startHour + 24; h += hours) {
+          times.push([h % 24, 0]);
+        }
+        return times;
+      }
+    }
+
+    // Pattern: Nx/dia
+    const timesPerDayMatch = frequency.match(/^(\d+)\s*x\s*\/?\s*dia$/);
+    if (timesPerDayMatch) {
+      const count = parseInt(timesPerDayMatch[1], 10);
+      const defaultSchedules: Record<number, Array<[number, number]>> = {
+        1: [[6, 0]],
+        2: [[6, 0], [18, 0]],
+        3: [[6, 0], [14, 0], [22, 0]],
+        4: [[6, 0], [12, 0], [18, 0], [0, 0]],
+        5: [[6, 0], [10, 0], [14, 0], [18, 0], [22, 0]],
+        6: [[0, 0], [4, 0], [8, 0], [12, 0], [16, 0], [20, 0]],
+      };
+      return defaultSchedules[count] ?? null;
+    }
+
+    // Pattern: "de N em N horas"
+    const deEmMatch = frequency.match(/^de\s+(\d+)\s+em\s+\d+\s+hora/);
+    if (deEmMatch) {
+      const hours = parseInt(deEmMatch[1], 10);
+      if (hours > 0 && hours <= 24) {
+        const times: Array<[number, number]> = [];
+        for (let h = 6; h < 6 + 24; h += hours) {
+          times.push([h % 24, 0]);
+        }
+        return times;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Creates MedicationCheck entries (PENDING) for the next 24h for all items in a prescription.
+   */
+  private async generateMedicationChecksForPrescription(
+    tx: Prisma.TransactionClient,
+    prescriptionId: string,
+  ): Promise<number> {
+    const prescription = await tx.prescription.findUnique({
+      where: { id: prescriptionId },
+      include: { items: true },
+    });
+
+    if (!prescription) return 0;
+
+    const now = new Date();
+    let totalCreated = 0;
+
+    for (const item of prescription.items) {
+      if (!item.frequency) continue;
+
+      // Use custom schedule if provided
+      let customScheduleTimes: Array<{ hour: number; minute: number }> | null = null;
+      if (item.customSchedule && Array.isArray(item.customSchedule)) {
+        customScheduleTimes = item.customSchedule as Array<{ hour: number; minute: number }>;
+      }
+
+      let scheduleDates: Date[];
+
+      if (customScheduleTimes && customScheduleTimes.length > 0) {
+        // Use custom times
+        const baseDate = new Date(now);
+        baseDate.setHours(0, 0, 0, 0);
+        scheduleDates = customScheduleTimes.map((t) => {
+          const dt = new Date(baseDate);
+          dt.setHours(t.hour, t.minute, 0, 0);
+          return dt;
+        });
+      } else {
+        scheduleDates = this.generateSchedule(item.frequency, now);
+      }
+
+      if (scheduleDates.length === 0) continue;
+
+      // Create PENDING MedicationCheck for each scheduled time
+      for (const scheduledAt of scheduleDates) {
+        // Skip times that are already past by more than 1 hour
+        if (scheduledAt.getTime() < now.getTime() - 60 * 60 * 1000) continue;
+
+        await tx.medicationCheck.create({
+          data: {
+            prescriptionItemId: item.id,
+            nurseId: prescription.doctorId, // Placeholder — nurse will check later
+            scheduledAt,
+            status: MedCheckStatus.SCHEDULED,
+          },
+        });
+        totalCreated++;
+      }
+    }
+
+    return totalCreated;
+  }
+
   async sign(id: string, _doctorId: string) {
     const prescription = await this.findById(id);
 
@@ -190,12 +356,22 @@ export class PrescriptionsService {
       );
     }
 
-    return this.prisma.prescription.update({
-      where: { id },
-      data: {
-        signedAt: new Date(),
-        status: 'ACTIVE',
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.prescription.update({
+        where: { id },
+        data: {
+          signedAt: new Date(),
+          status: 'ACTIVE',
+        },
+        include: {
+          items: { orderBy: { sortOrder: 'asc' } },
+        },
+      });
+
+      // B9: Auto-generate medication check schedule for the next 24h
+      await this.generateMedicationChecksForPrescription(tx, id);
+
+      return updated;
     });
   }
 

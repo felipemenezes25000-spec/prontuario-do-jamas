@@ -37,6 +37,8 @@ const TelemedicinePage = lazy(() => import('@/pages/telemedicine'));
 const TelemedicineRoomPage = lazy(() => import('@/pages/telemedicine/[roomName]'));
 const EncounterNewPage = lazy(() => import('@/pages/encounters/new'));
 const HandoffPage = lazy(() => import('@/pages/nursing/handoff'));
+const PopulationHealthPage = lazy(() => import('@/pages/population-health'));
+const InfectionControlPage = lazy(() => import('@/pages/infection-control'));
 
 function PageLoader() {
   return (
@@ -133,6 +135,8 @@ export function AppRoutes() {
         <Route path="telemedicina" element={<SuspenseWrap><TelemedicinePage /></SuspenseWrap>} />
         <Route path="telemedicina/:roomName" element={<SuspenseWrap><TelemedicineRoomPage /></SuspenseWrap>} />
         <Route path="faturamento" element={<SuspenseWrap><BillingPage /></SuspenseWrap>} />
+        <Route path="saude-populacional" element={<SuspenseWrap><PopulationHealthPage /></SuspenseWrap>} />
+        <Route path="ccih" element={<SuspenseWrap><InfectionControlPage /></SuspenseWrap>} />
         <Route path="relatorios" element={<SuspenseWrap><ReportsPage /></SuspenseWrap>} />
         <Route path="configuracoes" element={<SuspenseWrap><SettingsPage /></SuspenseWrap>} />
         <Route
