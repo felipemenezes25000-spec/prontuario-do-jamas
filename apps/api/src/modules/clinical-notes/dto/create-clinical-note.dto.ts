@@ -71,4 +71,9 @@ export class CreateClinicalNoteDto {
   @IsOptional()
   @IsBoolean()
   wasGeneratedByAI?: boolean;
+
+  @ApiPropertyOptional({ description: 'CFM-standard signature block' })
+  @IsOptional()
+  @IsString()
+  signatureBlock?: string;
 }

@@ -24,3 +24,6 @@ export { DocumentPrefill } from './document-prefill';
 export { QuickAntecedents } from './quick-antecedents';
 export { ExamRequestModal } from './exam-request-modal';
 export { LabTrendChart } from './lab-trend-chart';
+export { SignatureBlock, generateSignatureText } from './signature-block';
+export { NEWSBadge } from './news-badge';
+export { NEWSTrendChart } from './news-trend-chart';

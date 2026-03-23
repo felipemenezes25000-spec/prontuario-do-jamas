@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,7 +17,9 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { PatientsService } from './patients.service';
+import { WristbandService } from './wristband.service';
 import {
   CreatePatientDto,
   UpdatePatientDto,
@@ -30,7 +33,10 @@ import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 @ApiBearerAuth('access-token')
 @Controller('patients')
 export class PatientsController {
-  constructor(private readonly patientsService: PatientsService) {}
+  constructor(
+    private readonly patientsService: PatientsService,
+    private readonly wristbandService: WristbandService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new patient' })
@@ -86,6 +92,26 @@ export class PatientsController {
     @CurrentTenant() tenantId: string,
   ) {
     return this.patientsService.softDelete(id, tenantId);
+  }
+
+  // --- Wristband PDF ---
+
+  @Get(':id/wristband-pdf')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Generate wristband PDF with QR code' })
+  @ApiResponse({ status: 200, description: 'Wristband PDF' })
+  @ApiResponse({ status: 404, description: 'Patient not found' })
+  async getWristbandPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.wristbandService.generateWristbandPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="pulseira-${id}.pdf"`,
+      'Content-Length': pdfBuffer.length.toString(),
+    });
+    res.end(pdfBuffer);
   }
 
   // --- Timeline ---

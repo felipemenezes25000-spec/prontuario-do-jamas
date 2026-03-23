@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { VitalSignsService } from './vital-signs.service';
+import { NEWSScoreService } from './news-score.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
 
 describe('VitalSignsService', () => {
@@ -21,6 +23,8 @@ describe('VitalSignsService', () => {
     weight: 70,
     height: 175,
     bmi: 22.86,
+    newsScore: 0,
+    newsClassification: 'LOW',
     recordedBy: { id: 'nurse-1', name: 'Nurse Test' },
   };
 
@@ -32,13 +36,25 @@ describe('VitalSignsService', () => {
       findUnique: jest.fn(),
       count: jest.fn(),
     },
+    patient: {
+      findUnique: jest.fn(),
+    },
+    clinicalAlert: {
+      create: jest.fn(),
+    },
+  };
+
+  const mockRealtimeGateway = {
+    emitAlert: jest.fn(),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         VitalSignsService,
+        NEWSScoreService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: RealtimeGateway, useValue: mockRealtimeGateway },
       ],
     }).compile();
 
@@ -122,6 +138,61 @@ describe('VitalSignsService', () => {
         }),
       });
     });
+
+    it('should include NEWS score in created vital signs', async () => {
+      mockPrismaService.vitalSigns.create.mockResolvedValue(mockVitalSigns);
+
+      await service.create('nurse-1', {
+        patientId: 'patient-1',
+        encounterId: 'enc-1',
+        systolicBP: 120,
+        diastolicBP: 80,
+        heartRate: 72,
+        respiratoryRate: 16,
+        temperature: 36.5,
+        oxygenSaturation: 98,
+      } as any);
+
+      expect(mockPrismaService.vitalSigns.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          newsScore: 0,
+          newsClassification: 'LOW',
+        }),
+      });
+    });
+
+    it('should create alert and emit event when NEWS >= 7', async () => {
+      const highNewsVitals = {
+        ...mockVitalSigns,
+        newsScore: 10,
+        newsClassification: 'HIGH',
+      };
+      mockPrismaService.vitalSigns.create.mockResolvedValue(highNewsVitals);
+      mockPrismaService.patient.findUnique.mockResolvedValue({
+        tenantId: 'tenant-1',
+        fullName: 'Test Patient',
+      });
+      mockPrismaService.clinicalAlert.create.mockResolvedValue({ id: 'alert-1' });
+
+      await service.create('nurse-1', {
+        patientId: 'patient-1',
+        encounterId: 'enc-1',
+        systolicBP: 85,    // score 3
+        heartRate: 135,     // score 3
+        respiratoryRate: 25, // score 3
+        oxygenSaturation: 91, // score 3
+        temperature: 35.0,  // score 3
+      } as any);
+
+      expect(mockPrismaService.clinicalAlert.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'DETERIORATION',
+          severity: 'CRITICAL',
+          source: 'CLINICAL_RULE',
+        }),
+      });
+      expect(mockRealtimeGateway.emitAlert).toHaveBeenCalled();
+    });
   });
 
   describe('getLatest', () => {
@@ -166,6 +237,8 @@ describe('VitalSignsService', () => {
           diastolicBP: true,
           heartRate: true,
           temperature: true,
+          newsScore: true,
+          newsClassification: true,
         }),
       });
     });

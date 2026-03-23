@@ -32,6 +32,7 @@ export class ClinicalNotesService {
         procedureCodes: dto.procedureCodes ?? [],
         voiceTranscriptionId: dto.voiceTranscriptionId,
         wasGeneratedByAI: dto.wasGeneratedByAI ?? false,
+        signatureBlock: dto.signatureBlock,
       },
     });
   }

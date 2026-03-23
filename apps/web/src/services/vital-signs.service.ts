@@ -11,6 +11,7 @@ export const vitalSignsKeys = {
   byPatient: (patientId: string) => [...vitalSignsKeys.all, 'patient', patientId] as const,
   byEncounter: (encounterId: string) => [...vitalSignsKeys.all, 'encounter', encounterId] as const,
   latest: (patientId: string) => [...vitalSignsKeys.byPatient(patientId), 'latest'] as const,
+  trends: (patientId: string) => [...vitalSignsKeys.byPatient(patientId), 'trends'] as const,
 };
 
 // ============================================================================
@@ -56,6 +57,33 @@ export function useLatestVitalSigns(patientId: string) {
   });
 }
 
+interface VitalSignsTrendPoint {
+  id: string;
+  recordedAt: string;
+  systolicBP: number | null;
+  diastolicBP: number | null;
+  heartRate: number | null;
+  respiratoryRate: number | null;
+  temperature: number | null;
+  oxygenSaturation: number | null;
+  newsScore: number | null;
+  newsClassification: string | null;
+}
+
+export function useVitalSignsTrends(patientId: string, count = 20) {
+  return useQuery({
+    queryKey: vitalSignsKeys.trends(patientId),
+    queryFn: async () => {
+      const { data } = await api.get<VitalSignsTrendPoint[]>(
+        `/vital-signs/patient/${patientId}/trends`,
+        { params: { count } },
+      );
+      return data;
+    },
+    enabled: !!patientId,
+  });
+}
+
 export function useRecordVitalSigns() {
   const qc = useQueryClient();
   return useMutation({
@@ -64,9 +92,11 @@ export function useRecordVitalSigns() {
       return data;
     },
     onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: vitalSignsKeys.byPatient(vars.patientId) });
+      void qc.invalidateQueries({ queryKey: vitalSignsKeys.byPatient(vars.patientId) });
+      void qc.invalidateQueries({ queryKey: vitalSignsKeys.trends(vars.patientId) });
+      void qc.invalidateQueries({ queryKey: vitalSignsKeys.latest(vars.patientId) });
       if (vars.encounterId) {
-        qc.invalidateQueries({ queryKey: vitalSignsKeys.byEncounter(vars.encounterId) });
+        void qc.invalidateQueries({ queryKey: vitalSignsKeys.byEncounter(vars.encounterId) });
       }
     },
   });

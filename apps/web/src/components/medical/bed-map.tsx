@@ -5,6 +5,7 @@ import { Bed } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { NEWSBadge } from './news-badge';
 
 interface BedData {
   id: string;
@@ -13,7 +14,7 @@ interface BedData {
   bedNumber: string;
   type: string;
   status: 'AVAILABLE' | 'OCCUPIED' | 'CLEANING' | 'MAINTENANCE' | 'RESERVED';
-  patient?: { name: string; admissionDays: number };
+  patient?: { name: string; admissionDays: number; newsScore?: number; newsClassification?: string };
 }
 
 interface BedMapProps {
@@ -137,12 +138,22 @@ export function BedMap({ beds, onBedClick, className }: BedMapProps) {
                   >
                     {bed.patient.name}
                   </p>
-                  <Badge
-                    variant="outline"
-                    className="text-[9px] px-1 py-0"
-                  >
-                    {bed.patient.admissionDays}d internado
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] px-1 py-0"
+                    >
+                      {bed.patient.admissionDays}d internado
+                    </Badge>
+                    {bed.patient.newsScore != null && (
+                      <NEWSBadge
+                        score={bed.patient.newsScore}
+                        classification={bed.patient.newsClassification as 'LOW' | 'MEDIUM' | 'HIGH' | undefined}
+                        compact
+                        className="text-[9px] px-1 py-0"
+                      />
+                    )}
+                  </div>
                 </div>
               )}
               {bed.status !== 'OCCUPIED' && (

@@ -439,6 +439,8 @@ export interface VitalSigns {
   bmi?: number;
   glucoseLevel?: number;
   gcs?: number;
+  newsScore?: number;
+  newsClassification?: string;
   source?: string;
   createdAt: string;
 }

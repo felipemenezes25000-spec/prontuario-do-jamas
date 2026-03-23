@@ -18,6 +18,7 @@ import {
   Pill,
   ClipboardList,
   FileCheck,
+  Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -658,20 +659,33 @@ export default function AdmissionsPage() {
                   </p>
                 </div>
               )}
-              {/* Discharge button - only visible for occupied beds */}
+              {/* Action buttons - only visible for occupied beds */}
               {bedDetail.status === 'OCCUPIED' && bedDetail.currentPatient && (
-                <div className="pt-2">
-                  <Button
-                    className="w-full gap-2 bg-emerald-600 hover:bg-emerald-500"
-                    onClick={() => {
-                      // We need an admissionId; prompt user for it or derive from context
-                      setDischargeWizardBed(bedDetail);
-                      setSelectedBed(null);
-                    }}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Dar Alta
-                  </Button>
+                <div className="pt-2 space-y-2">
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-500"
+                      onClick={() => {
+                        setDischargeWizardBed(bedDetail);
+                        setSelectedBed(null);
+                      }}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Dar Alta
+                    </Button>
+                    {bedDetail.currentPatientId && (
+                      <Button
+                        variant="outline"
+                        className="gap-2 border-border"
+                        onClick={() => {
+                          window.open(`/api/v1/patients/${bedDetail.currentPatientId}/wristband-pdf`, '_blank');
+                        }}
+                      >
+                        <Printer className="h-4 w-4" />
+                        Pulseira
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

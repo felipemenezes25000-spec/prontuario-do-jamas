@@ -50,13 +50,17 @@ import { useAllergies, useConditions } from '@/services/patient-details.service'
 import { QuickAntecedents } from '@/components/medical/quick-antecedents';
 import { ExamRequestModal } from '@/components/medical/exam-request-modal';
 import { usePrescriptions } from '@/services/prescriptions.service';
-import { useLatestVitalSigns } from '@/services/vital-signs.service';
+import { useLatestVitalSigns, useVitalSignsTrends } from '@/services/vital-signs.service';
 import { useAlerts } from '@/services/alerts.service';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
 import { useVoice } from '@/hooks/use-voice';
 import { useStreamingSOAP } from '@/hooks/use-streaming-soap';
 import { VoiceWaveform } from '@/components/voice/voice-waveform';
+import { SignatureBlock, generateSignatureText } from '@/components/medical/signature-block';
+import { NEWSBadge } from '@/components/medical/news-badge';
+import { NEWSTrendChart } from '@/components/medical/news-trend-chart';
+import { useAuthStore } from '@/stores/auth.store';
 import type { VoiceIntent } from '@/stores/voice.store';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -206,7 +210,9 @@ export default function EncounterPage() {
   const { data: prescriptionsData } = usePrescriptions(id ? { encounterId: id } : undefined);
   const patientPrescriptions = prescriptionsData?.data ?? [];
   const { data: latestVitals } = useLatestVitalSigns(encounter?.patientId ?? '');
+  const { data: vitalsTrends = [] } = useVitalSignsTrends(encounter?.patientId ?? '');
   const { data: alertsData } = useAlerts({ patientId: encounter?.patientId, isActive: true });
+  const authUser = useAuthStore((s) => s.user);
   const patientAlerts = alertsData?.data ?? [];
   const { data: patientConditions = [] } = useConditions(encounter?.patientId ?? '');
 
@@ -553,6 +559,16 @@ export default function EncounterPage() {
     if (!id) return;
     setIsSavingNote(true);
     try {
+      // Generate CFM-standard signature block
+      const signatureBlock = authUser
+        ? generateSignatureText({
+            name: authUser.name,
+            crm: authUser.crm,
+            crmState: undefined, // CRM state not available in User type yet
+            specialty: authUser.specialty,
+          })
+        : undefined;
+
       await api.post('/clinical-notes', {
         encounterId: id,
         patientId: encounter?.patientId,
@@ -560,8 +576,9 @@ export default function EncounterPage() {
         objective,
         assessment,
         plan,
+        signatureBlock,
       });
-      toast.success('Nota clinica salva com sucesso');
+      toast.success('Nota clinica assinada com sucesso');
     } catch {
       toast.error('Erro ao salvar nota clinica');
     } finally {
@@ -637,6 +654,14 @@ export default function EncounterPage() {
                 <div className={cn('h-2.5 w-2.5 rounded-full', triageInfo.bg)} />
                 <span className={cn('text-[10px]', triageInfo.text)}>{triageInfo.label}</span>
               </div>
+            )}
+            {/* NEWS Badge */}
+            {latestVitals?.newsScore != null && (
+              <NEWSBadge
+                score={latestVitals.newsScore}
+                classification={latestVitals.newsClassification as 'LOW' | 'MEDIUM' | 'HIGH' | undefined}
+                compact
+              />
             )}
             {/* Intent badge */}
             {voice.intent && voice.intent !== 'SOAP' && !voice.isRecording && !voice.isProcessing && (
@@ -866,6 +891,33 @@ export default function EncounterPage() {
                   </CardContent>
                 </Card>
               ))}
+
+              {/* NEWS Trend Chart (collapsible) */}
+              {encounter.patientId && vitalsTrends.length > 0 && (
+                <NEWSTrendChart
+                  data={vitalsTrends.map((v) => ({
+                    id: v.id,
+                    recordedAt: v.recordedAt,
+                    newsScore: v.newsScore ?? null,
+                    newsClassification: v.newsClassification ?? null,
+                  }))}
+                />
+              )}
+
+              {/* Signature Preview */}
+              {authUser && (
+                <Card className="border-border bg-card">
+                  <CardContent className="py-3">
+                    <SignatureBlock
+                      user={{
+                        name: authUser.name,
+                        crm: authUser.crm,
+                        specialty: authUser.specialty,
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
 
               <Button
                 className="w-full bg-teal-600 hover:bg-teal-500 h-11 font-semibold"

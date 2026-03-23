@@ -1,14 +1,23 @@
 import {
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateVitalSignsDto } from './dto/create-vital-signs.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { NEWSScoreService } from './news-score.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 
 @Injectable()
 export class VitalSignsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(VitalSignsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly newsScoreService: NEWSScoreService,
+    private readonly realtimeGateway: RealtimeGateway,
+  ) {}
 
   async create(recordedById: string, dto: CreateVitalSignsDto) {
     // Auto-calculate BMI
@@ -32,7 +41,18 @@ export class VitalSignsService {
       gcs = dto.gcsEye + dto.gcsVerbal + dto.gcsMotor;
     }
 
-    return this.prisma.vitalSigns.create({
+    // Calculate NEWS score
+    const newsResult = this.newsScoreService.calculateNEWS({
+      respiratoryRate: dto.respiratoryRate,
+      oxygenSaturation: dto.oxygenSaturation,
+      oxygenSupplementation: dto.oxygenSupplementation,
+      temperature: dto.temperature,
+      systolicBP: dto.systolicBP,
+      heartRate: dto.heartRate,
+      gcs,
+    });
+
+    const vitalSigns = await this.prisma.vitalSigns.create({
       data: {
         patientId: dto.patientId,
         encounterId: dto.encounterId,
@@ -71,10 +91,58 @@ export class VitalSignsService {
         edema: dto.edema,
         edemaLocation: dto.edemaLocation,
         diuresis24h: dto.diuresis24h,
+        newsScore: newsResult.totalScore,
+        newsClassification: newsResult.classification,
         source: dto.source ?? 'MANUAL',
         deviceId: dto.deviceId,
       },
     });
+
+    // If NEWS >= 7 — create ClinicalAlert and emit Socket.IO event
+    if (newsResult.totalScore >= 7) {
+      await this.createHighNEWSAlert(dto.patientId, dto.encounterId, newsResult.totalScore);
+    }
+
+    return { ...vitalSigns, newsResult };
+  }
+
+  private async createHighNEWSAlert(
+    patientId: string,
+    encounterId: string | undefined,
+    newsScore: number,
+  ) {
+    try {
+      // Find patient to get tenantId
+      const patient = await this.prisma.patient.findUnique({
+        where: { id: patientId },
+        select: { tenantId: true, fullName: true },
+      });
+
+      if (!patient) return;
+
+      const alert = await this.prisma.clinicalAlert.create({
+        data: {
+          tenantId: patient.tenantId,
+          patientId,
+          encounterId,
+          type: 'DETERIORATION',
+          severity: 'CRITICAL',
+          title: `NEWS Score Crítico: ${newsScore}`,
+          message: `Acionar Time de Resposta Rápida (TRR) — Paciente ${patient.fullName} com NEWS = ${newsScore}`,
+          source: 'CLINICAL_RULE',
+          triggeredAt: new Date(),
+        },
+      });
+
+      // Emit real-time alert
+      this.realtimeGateway.emitAlert(patient.tenantId, patientId, alert);
+
+      this.logger.warn(
+        `HIGH NEWS alert created for patient ${patientId}: score=${newsScore}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to create NEWS alert for patient ${patientId}`, error);
+    }
   }
 
   async findByPatient(patientId: string, pagination: PaginationQueryDto) {
@@ -160,6 +228,8 @@ export class VitalSignsService {
         bmi: true,
         glucoseLevel: true,
         gcs: true,
+        newsScore: true,
+        newsClassification: true,
       },
     });
   }

@@ -15,6 +15,7 @@ import {
   Stethoscope,
   Mic,
   Square,
+  Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -814,14 +815,28 @@ export default function TriagePage() {
                   </div>
                 )}
 
-                <Button
-                  onClick={handleSave}
-                  disabled={createTriage.isPending}
-                  className="w-full bg-teal-600 hover:bg-teal-500 h-12 text-base font-semibold"
-                >
-                  <CheckCircle2 className="mr-2 h-5 w-5" />
-                  {createTriage.isPending ? 'Salvando...' : 'Salvar Triagem'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSave}
+                    disabled={createTriage.isPending}
+                    className="flex-1 bg-teal-600 hover:bg-teal-500 h-12 text-base font-semibold"
+                  >
+                    <CheckCircle2 className="mr-2 h-5 w-5" />
+                    {createTriage.isPending ? 'Salvando...' : 'Salvar Triagem'}
+                  </Button>
+                  {selectedPatient && (
+                    <Button
+                      variant="outline"
+                      className="h-12 px-4 border-border"
+                      onClick={() => {
+                        window.open(`/api/v1/patients/${selectedPatient.id}/wristband-pdf`, '_blank');
+                      }}
+                    >
+                      <Printer className="mr-2 h-4 w-4" />
+                      Pulseira
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}
