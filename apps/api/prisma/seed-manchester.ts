@@ -8,7 +8,7 @@
  * Usage: import { seedManchester } from './seed-manchester' and call it from seed.ts
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 interface Discriminator {
   question: string;
@@ -290,14 +290,14 @@ export async function seedManchester(prisma: PrismaClient, tenantId: string): Pr
       update: {
         name: flowchart.name,
         category: flowchart.category,
-        discriminators: flowchart.discriminators,
+        discriminators: flowchart.discriminators as unknown as Prisma.InputJsonValue,
         isActive: true,
       },
       create: {
         name: flowchart.name,
         code: flowchart.code,
         category: flowchart.category,
-        discriminators: flowchart.discriminators,
+        discriminators: flowchart.discriminators as unknown as Prisma.InputJsonValue,
         isActive: true,
         tenantId,
       },
