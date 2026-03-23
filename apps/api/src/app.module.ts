@@ -42,6 +42,8 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { TelemedicineModule } from './modules/telemedicine/telemedicine.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { PharmacyModule } from './modules/pharmacy/pharmacy.module';
+import { PopulationHealthModule } from './modules/population-health/population-health.module';
+import { InfectionControlModule } from './modules/infection-control/infection-control.module';
 
 @Module({
   imports: [
@@ -83,6 +85,8 @@ import { PharmacyModule } from './modules/pharmacy/pharmacy.module';
     TelemedicineModule,
     BookingModule,
     PharmacyModule,
+    PopulationHealthModule,
+    InfectionControlModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

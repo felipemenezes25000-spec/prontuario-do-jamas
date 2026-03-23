@@ -20,6 +20,8 @@ import {
   CalendarClock,
   ClipboardList,
   Droplets,
+  ShieldAlert,
+  UsersRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth.store';
@@ -53,6 +55,8 @@ const navItems: NavItem[] = [
   { label: 'SAE', icon: ClipboardList, href: '/enfermagem/sae', isSubItem: true },
   { label: 'Balanço Hídrico', icon: Droplets, href: '/enfermagem/balanco-hidrico', isSubItem: true },
   { label: 'Quimioterapia', icon: Syringe, href: '/quimioterapia' },
+  { label: 'Saúde Populacional', icon: UsersRound, href: '/saude-populacional' },
+  { label: 'CCIH', icon: ShieldAlert, href: '/ccih' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
   { label: 'Faturamento', icon: Receipt, href: '/faturamento' },
   { label: 'Configurações', icon: Settings, href: '/configuracoes' },

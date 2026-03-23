@@ -152,6 +152,71 @@ const ROUTE_LABELS: Record<MedicationRoute, string> = {
 const PAGE_SIZE = 15;
 
 // ============================================================================
+// B9 — Schedule Preview Helper
+// ============================================================================
+
+const NAMED_FREQUENCIES: Record<string, Array<[number, number]>> = {
+  '6/6h': [[0, 0], [6, 0], [12, 0], [18, 0]],
+  '8/8h': [[6, 0], [14, 0], [22, 0]],
+  '12/12h': [[6, 0], [18, 0]],
+  '1x/dia': [[6, 0]],
+  '2x/dia': [[6, 0], [18, 0]],
+  '3x/dia': [[6, 0], [14, 0], [22, 0]],
+  '4x/dia': [[6, 0], [12, 0], [18, 0], [0, 0]],
+};
+
+function getSchedulePreview(frequency: string): string[] {
+  const trimmed = frequency.trim().toLowerCase();
+  if (!trimmed || trimmed === 'sos' || trimmed === 'acm' || trimmed === 'se necessário') {
+    return [];
+  }
+
+  const named = NAMED_FREQUENCIES[trimmed];
+  if (named) {
+    return named.map(([h, m]) =>
+      `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+    );
+  }
+
+  // Pattern: N/Nh
+  const intervalMatch = trimmed.match(/^(\d+)\/\d+\s*h$/);
+  if (intervalMatch?.[1]) {
+    const hours = parseInt(intervalMatch[1], 10);
+    if (hours > 0 && hours <= 24) {
+      const times: string[] = [];
+      const startH = hours <= 6 ? 0 : 6;
+      for (let h = startH; h < startH + 24; h += hours) {
+        const hh = h % 24;
+        times.push(`${String(hh).padStart(2, '0')}:00`);
+      }
+      return times;
+    }
+  }
+
+  // Pattern: Nx/dia
+  const timesPerDayMatch = trimmed.match(/^(\d+)\s*x\s*\/?\s*dia$/);
+  if (timesPerDayMatch?.[1]) {
+    const count = parseInt(timesPerDayMatch[1], 10);
+    const schedules: Record<number, Array<[number, number]>> = {
+      1: [[6, 0]],
+      2: [[6, 0], [18, 0]],
+      3: [[6, 0], [14, 0], [22, 0]],
+      4: [[6, 0], [12, 0], [18, 0], [0, 0]],
+      5: [[6, 0], [10, 0], [14, 0], [18, 0], [22, 0]],
+      6: [[0, 0], [4, 0], [8, 0], [12, 0], [16, 0], [20, 0]],
+    };
+    const sched = schedules[count];
+    if (sched) {
+      return sched.map(([h, m]) =>
+        `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+      );
+    }
+  }
+
+  return [];
+}
+
+// ============================================================================
 // Zod Schemas
 // ============================================================================
 
@@ -1031,21 +1096,44 @@ function CreatePrescriptionDialog({
                       <FormField
                         control={form.control}
                         name={`items.${index}.frequency`}
-                        render={({ field: f }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs">
-                              Frequência
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Ex: 8/8h"
-                                {...f}
-                                className="bg-card border-border"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field: f }) => {
+                          const scheduleTimes = getSchedulePreview(f.value ?? '');
+                          return (
+                            <FormItem>
+                              <FormLabel className="text-xs">
+                                Frequência
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Ex: 8/8h"
+                                  {...f}
+                                  className="bg-card border-border"
+                                />
+                              </FormControl>
+                              {scheduleTimes.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  <span className="text-[10px] text-muted-foreground mr-1">Horários:</span>
+                                  {scheduleTimes.map((time) => (
+                                    <Badge
+                                      key={time}
+                                      variant="outline"
+                                      className="text-[10px] px-1.5 py-0 h-5 border-primary/40 text-primary cursor-default"
+                                    >
+                                      <Clock className="h-2.5 w-2.5 mr-0.5" />
+                                      {time}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                              {(f.value?.toLowerCase() === 'sos' || f.value?.toLowerCase() === 'acm') && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  {f.value.toLowerCase() === 'sos' ? 'Se necessário — sem horários fixos' : 'A critério médico — sem horários fixos'}
+                                </p>
+                              )}
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
 
                       <FormField
