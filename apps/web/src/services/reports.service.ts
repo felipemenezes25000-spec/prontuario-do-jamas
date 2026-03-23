@@ -141,3 +141,123 @@ export function useEncounterStats(startDate: string, endDate: string) {
     enabled: !!startDate && !!endDate,
   });
 }
+
+// ── BLOCO B5: New Analytics Hooks ────────────────────────────────
+
+export interface OccupancySector {
+  ward: string;
+  occupied: number;
+  totalBeds: number;
+  rate: number;
+}
+
+export interface OccupancyData {
+  overallRate: number;
+  totalOccupied: number;
+  totalBeds: number;
+  sectors: OccupancySector[];
+}
+
+export interface LengthOfStayRow {
+  cid: string;
+  avgDays: number;
+  count: number;
+}
+
+export interface TopDiagnosisRow {
+  cid: string;
+  description: string;
+  count: number;
+}
+
+export interface ProductionRow {
+  doctorId: string | null;
+  doctorName: string;
+  encounterCount: number;
+}
+
+export interface CustomQueryRow {
+  period: string;
+  dimensions: Record<string, number>;
+  total: number;
+}
+
+export interface CustomQueryData {
+  dimension: string;
+  metric: string;
+  groupBy: string;
+  rows: CustomQueryRow[];
+  totalRecords: number;
+}
+
+export function useOccupancyRate(startDate: string, endDate: string) {
+  return useQuery<OccupancyData>({
+    queryKey: ['reports', 'occupancy', startDate, endDate],
+    queryFn: () =>
+      api
+        .get<OccupancyData>('/reports/occupancy', {
+          params: { startDate, endDate },
+        })
+        .then((r) => r.data),
+    enabled: !!startDate && !!endDate,
+  });
+}
+
+export function useLengthOfStay(startDate: string, endDate: string) {
+  return useQuery<LengthOfStayRow[]>({
+    queryKey: ['reports', 'length-of-stay', startDate, endDate],
+    queryFn: () =>
+      api
+        .get<LengthOfStayRow[]>('/reports/length-of-stay', {
+          params: { startDate, endDate },
+        })
+        .then((r) => r.data),
+    enabled: !!startDate && !!endDate,
+  });
+}
+
+export function useTopDiagnoses(startDate: string, endDate: string) {
+  return useQuery<TopDiagnosisRow[]>({
+    queryKey: ['reports', 'top-diagnoses', startDate, endDate],
+    queryFn: () =>
+      api
+        .get<TopDiagnosisRow[]>('/reports/top-diagnoses', {
+          params: { startDate, endDate },
+        })
+        .then((r) => r.data),
+    enabled: !!startDate && !!endDate,
+  });
+}
+
+export function useProduction(startDate: string, endDate: string) {
+  return useQuery<ProductionRow[]>({
+    queryKey: ['reports', 'production', startDate, endDate],
+    queryFn: () =>
+      api
+        .get<ProductionRow[]>('/reports/production', {
+          params: { startDate, endDate },
+        })
+        .then((r) => r.data),
+    enabled: !!startDate && !!endDate,
+  });
+}
+
+export function useCustomQuery(
+  startDate: string,
+  endDate: string,
+  dimension: string,
+  metric: string,
+  groupBy: string,
+  enabled: boolean,
+) {
+  return useQuery<CustomQueryData>({
+    queryKey: ['reports', 'custom-query', startDate, endDate, dimension, metric, groupBy],
+    queryFn: () =>
+      api
+        .get<CustomQueryData>('/reports/custom-query', {
+          params: { startDate, endDate, dimension, metric, groupBy },
+        })
+        .then((r) => r.data),
+    enabled: enabled && !!startDate && !!endDate,
+  });
+}
