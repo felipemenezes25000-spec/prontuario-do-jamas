@@ -58,6 +58,7 @@ import { useVoice } from '@/hooks/use-voice';
 import { useStreamingSOAP } from '@/hooks/use-streaming-soap';
 import { VoiceWaveform } from '@/components/voice/voice-waveform';
 import type { VoiceIntent } from '@/stores/voice.store';
+import { EncounterAlerts, AlertCountBadge } from '@/components/medical/encounter-alerts';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -638,6 +639,7 @@ export default function EncounterPage() {
                 <span className={cn('text-[10px]', triageInfo.text)}>{triageInfo.label}</span>
               </div>
             )}
+            {patient && <AlertCountBadge patientId={patient.id} />}
             {/* Intent badge */}
             {voice.intent && voice.intent !== 'SOAP' && !voice.isRecording && !voice.isProcessing && (
               <Badge variant="outline" className="border-teal-500/30 text-[10px] text-teal-400">
@@ -651,6 +653,11 @@ export default function EncounterPage() {
           <span>{elapsed}</span>
         </div>
       </div>
+
+      {/* Patient Alerts */}
+      {patient && (
+        <EncounterAlerts patientId={patient.id} encounterId={encounter.id} />
+      )}
 
       {/* Main Split Layout */}
       <div className="flex flex-col gap-4 lg:flex-row">

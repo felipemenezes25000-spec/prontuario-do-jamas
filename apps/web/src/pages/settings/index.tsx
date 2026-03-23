@@ -14,6 +14,8 @@ import {
   ClipboardList,
   Plus,
   Pencil,
+  AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -52,6 +54,14 @@ import {
   type TriggerCriterion,
   type ProtocolAction,
 } from '@/services/protocols.service';
+import {
+  useAlertRules,
+  useCreateAlertRule,
+  useUpdateAlertRule,
+  useDeleteAlertRule,
+  type ClinicalAlertRule,
+  type CreateAlertRuleDto,
+} from '@/services/alert-rules.service';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   Table,
@@ -116,6 +126,124 @@ export default function SettingsPage() {
     priority: 0,
     isActive: true,
   });
+
+  // Alert rules state
+  const { data: alertRules = [], isLoading: alertRulesLoading } = useAlertRules();
+  const createAlertRule = useCreateAlertRule();
+  const updateAlertRule = useUpdateAlertRule();
+  const deleteAlertRule = useDeleteAlertRule();
+  const [alertRuleDialogOpen, setAlertRuleDialogOpen] = useState(false);
+  const [editingAlertRule, setEditingAlertRule] = useState<ClinicalAlertRule | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [alertRuleForm, setAlertRuleForm] = useState<CreateAlertRuleDto>({
+    name: '',
+    field: 'spo2',
+    operator: 'lt',
+    value: 0,
+    severity: 'WARNING',
+    message: '',
+    isActive: true,
+  });
+
+  const ALERT_FIELDS: Record<string, string> = {
+    spo2: 'SpO2 (%)',
+    systolicBp: 'PA Sistólica (mmHg)',
+    diastolicBp: 'PA Diastólica (mmHg)',
+    heartRate: 'Freq. Cardíaca (bpm)',
+    respiratoryRate: 'Freq. Respiratória (irpm)',
+    temperature: 'Temperatura (°C)',
+    gcs: 'Glasgow (GCS)',
+    glucose: 'Glicemia (mg/dL)',
+    painScale: 'Escala de Dor (0-10)',
+  };
+
+  const ALERT_OPERATORS: Record<string, string> = {
+    lt: '< Menor que',
+    gt: '> Maior que',
+    lte: '<= Menor ou igual',
+    gte: '>= Maior ou igual',
+    eq: '= Igual a',
+    between: 'Entre',
+  };
+
+  const SEVERITY_LABELS: Record<string, string> = {
+    INFO: 'Info',
+    WARNING: 'Médio',
+    CRITICAL: 'Alto',
+    EMERGENCY: 'Emergência',
+  };
+
+  const SEVERITY_COLORS: Record<string, string> = {
+    INFO: 'bg-blue-500/20 text-blue-400',
+    WARNING: 'bg-yellow-500/20 text-yellow-400',
+    CRITICAL: 'bg-red-500/20 text-red-400',
+    EMERGENCY: 'bg-red-700/20 text-red-300',
+  };
+
+  const handleOpenCreateAlertRule = () => {
+    setEditingAlertRule(null);
+    setAlertRuleForm({
+      name: '',
+      field: 'spo2',
+      operator: 'lt',
+      value: 0,
+      severity: 'WARNING',
+      message: '',
+      isActive: true,
+    });
+    setAlertRuleDialogOpen(true);
+  };
+
+  const handleOpenEditAlertRule = (rule: ClinicalAlertRule) => {
+    setEditingAlertRule(rule);
+    setAlertRuleForm({
+      name: rule.name,
+      description: rule.description ?? undefined,
+      field: rule.field,
+      operator: rule.operator,
+      value: rule.value,
+      value2: rule.value2 ?? undefined,
+      severity: rule.severity,
+      message: rule.message,
+      action: rule.action ?? undefined,
+      isActive: rule.isActive,
+    });
+    setAlertRuleDialogOpen(true);
+  };
+
+  const handleSaveAlertRule = async () => {
+    try {
+      if (editingAlertRule) {
+        await updateAlertRule.mutateAsync({ id: editingAlertRule.id, ...alertRuleForm });
+        toast.success('Regra de alerta atualizada!');
+      } else {
+        await createAlertRule.mutateAsync(alertRuleForm);
+        toast.success('Regra de alerta criada!');
+      }
+      setAlertRuleDialogOpen(false);
+    } catch {
+      toast.error('Erro ao salvar regra de alerta.');
+    }
+  };
+
+  const handleDeleteAlertRule = async (id: string) => {
+    try {
+      await deleteAlertRule.mutateAsync(id);
+      toast.success('Regra de alerta excluída.');
+      setDeleteConfirmId(null);
+    } catch {
+      toast.error('Erro ao excluir regra de alerta.');
+    }
+  };
+
+  const handleToggleAlertRule = async (rule: ClinicalAlertRule) => {
+    try {
+      await updateAlertRule.mutateAsync({ id: rule.id, isActive: !rule.isActive });
+      toast.success(rule.isActive ? 'Regra desativada.' : 'Regra ativada.');
+    } catch {
+      toast.error('Erro ao alterar status da regra.');
+    }
+  };
 
   const PROTOCOL_CATEGORIES: Record<string, string> = {
     SEPSIS: 'Sepse',
@@ -314,6 +442,9 @@ export default function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="protocolos" className="text-xs data-[state=active]:bg-teal-600">
             <ClipboardList className="mr-1.5 h-3.5 w-3.5" /> Protocolos
+          </TabsTrigger>
+          <TabsTrigger value="alertas" className="text-xs data-[state=active]:bg-teal-600">
+            <AlertTriangle className="mr-1.5 h-3.5 w-3.5" /> Alertas Clínicos
           </TabsTrigger>
         </TabsList>
 
@@ -1019,6 +1150,235 @@ export default function SettingsPage() {
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
                     {editingProtocol ? 'Salvar' : 'Criar'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
+        {/* Alertas Clinicos */}
+        <TabsContent value="alertas" className="mt-4">
+          <Card className="border-border bg-card">
+            <CardContent className="space-y-4 pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-400" />
+                    Regras de Alertas Clínicos (CDS)
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Configure regras automáticas para alertas baseados em sinais vitais e valores laboratoriais.
+                  </p>
+                </div>
+                <Button onClick={handleOpenCreateAlertRule} className="bg-teal-600 hover:bg-teal-500">
+                  <Plus className="mr-2 h-4 w-4" /> Nova Regra
+                </Button>
+              </div>
+
+              <Separator className="bg-secondary" />
+
+              {alertRulesLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : alertRules.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Nenhuma regra de alerta configurada.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Nome</TableHead>
+                      <TableHead className="text-xs">Campo</TableHead>
+                      <TableHead className="text-xs">Condição</TableHead>
+                      <TableHead className="text-xs">Severidade</TableHead>
+                      <TableHead className="text-xs">Ativa</TableHead>
+                      <TableHead className="text-xs text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {alertRules.map((rule) => (
+                      <TableRow key={rule.id}>
+                        <TableCell className="text-xs font-medium">{rule.name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {ALERT_FIELDS[rule.field] ?? rule.field}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {ALERT_OPERATORS[rule.operator]?.split(' ')[0] ?? rule.operator} {rule.value}
+                          {rule.operator === 'between' && rule.value2 != null ? ` - ${rule.value2}` : ''}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={cn('text-[10px]', SEVERITY_COLORS[rule.severity])}>
+                            {SEVERITY_LABELS[rule.severity] ?? rule.severity}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={rule.isActive}
+                            onCheckedChange={() => handleToggleAlertRule(rule)}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenEditAlertRule(rule)}
+                              className="h-7 w-7 p-0"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            {deleteConfirmId === rule.id ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteAlertRule(rule.id)}
+                                className="h-7 px-2 text-xs text-red-400 hover:text-red-300"
+                              >
+                                Confirmar
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteConfirmId(rule.id)}
+                                className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Alert Rule Create/Edit Dialog */}
+          <Dialog open={alertRuleDialogOpen} onOpenChange={setAlertRuleDialogOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingAlertRule ? 'Editar Regra de Alerta' : 'Nova Regra de Alerta'}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-xs text-muted-foreground">Nome</Label>
+                    <Input
+                      value={alertRuleForm.name}
+                      onChange={(e) => setAlertRuleForm((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="Ex: SpO2 Baixa"
+                      className="bg-secondary/30 border-border text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Campo</Label>
+                    <Select
+                      value={alertRuleForm.field}
+                      onValueChange={(v) => setAlertRuleForm((prev) => ({ ...prev, field: v }))}
+                    >
+                      <SelectTrigger className="bg-secondary/30 border-border text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(ALERT_FIELDS).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Operador</Label>
+                    <Select
+                      value={alertRuleForm.operator}
+                      onValueChange={(v) => setAlertRuleForm((prev) => ({ ...prev, operator: v }))}
+                    >
+                      <SelectTrigger className="bg-secondary/30 border-border text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(ALERT_OPERATORS).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Valor</Label>
+                    <Input
+                      type="number"
+                      value={alertRuleForm.value}
+                      onChange={(e) => setAlertRuleForm((prev) => ({ ...prev, value: parseFloat(e.target.value) || 0 }))}
+                      className="bg-secondary/30 border-border text-xs"
+                    />
+                  </div>
+                  {alertRuleForm.operator === 'between' && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Valor 2</Label>
+                      <Input
+                        type="number"
+                        value={alertRuleForm.value2 ?? ''}
+                        onChange={(e) => setAlertRuleForm((prev) => ({ ...prev, value2: parseFloat(e.target.value) || undefined }))}
+                        className="bg-secondary/30 border-border text-xs"
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Severidade</Label>
+                    <Select
+                      value={alertRuleForm.severity}
+                      onValueChange={(v) => setAlertRuleForm((prev) => ({ ...prev, severity: v as CreateAlertRuleDto['severity'] }))}
+                    >
+                      <SelectTrigger className="bg-secondary/30 border-border text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(SEVERITY_LABELS).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-xs text-muted-foreground">Mensagem do Alerta</Label>
+                    <Input
+                      value={alertRuleForm.message}
+                      onChange={(e) => setAlertRuleForm((prev) => ({ ...prev, message: e.target.value }))}
+                      placeholder="Ex: Avaliar oxigenoterapia"
+                      className="bg-secondary/30 border-border text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-xs text-muted-foreground">Ação Sugerida (opcional)</Label>
+                    <Input
+                      value={alertRuleForm.action ?? ''}
+                      onChange={(e) => setAlertRuleForm((prev) => ({ ...prev, action: e.target.value || undefined }))}
+                      placeholder="Ex: ORDER_O2"
+                      className="bg-secondary/30 border-border text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button variant="outline" onClick={() => setAlertRuleDialogOpen(false)} className="border-border">
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSaveAlertRule}
+                    disabled={createAlertRule.isPending || updateAlertRule.isPending}
+                    className="bg-teal-600 hover:bg-teal-500"
+                  >
+                    {(createAlertRule.isPending || updateAlertRule.isPending) && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    {editingAlertRule ? 'Salvar' : 'Criar'}
                   </Button>
                 </div>
               </div>

@@ -36,6 +36,7 @@ const PrescriptionsPage = lazy(() => import('@/pages/prescriptions'));
 const TelemedicinePage = lazy(() => import('@/pages/telemedicine'));
 const TelemedicineRoomPage = lazy(() => import('@/pages/telemedicine/[roomName]'));
 const EncounterNewPage = lazy(() => import('@/pages/encounters/new'));
+const HandoffPage = lazy(() => import('@/pages/nursing/handoff'));
 
 function PageLoader() {
   return (
@@ -122,6 +123,7 @@ export function AppRoutes() {
         <Route path="enfermagem/aprazamento" element={<SuspenseWrap><NursingSchedulePage /></SuspenseWrap>} />
         <Route path="enfermagem/sae" element={<SuspenseWrap><SAEPage /></SuspenseWrap>} />
         <Route path="enfermagem/balanco-hidrico" element={<SuspenseWrap><FluidBalancePage /></SuspenseWrap>} />
+        <Route path="enfermagem/passagem-plantao" element={<SuspenseWrap><HandoffPage /></SuspenseWrap>} />
         <Route path="agenda" element={<SuspenseWrap><AppointmentsPage /></SuspenseWrap>} />
         <Route path="centro-cirurgico" element={<SuspenseWrap><SurgicalPage /></SuspenseWrap>} />
         <Route path="exames" element={<SuspenseWrap><ExamsPage /></SuspenseWrap>} />

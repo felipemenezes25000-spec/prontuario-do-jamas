@@ -19,7 +19,7 @@ export class AlertsService {
         severity: dto.severity,
         title: dto.title,
         message: dto.message,
-        details: (dto.details as any) ?? undefined,
+        details: dto.details ? (dto.details as Record<string, unknown>) : undefined,
         source: dto.source,
         triggeredAt: new Date(),
       },

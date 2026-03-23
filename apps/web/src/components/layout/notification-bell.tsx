@@ -1,4 +1,5 @@
-import { Bell, Check, CheckCheck } from 'lucide-react';
+import { useState } from 'react';
+import { Bell, Check, CheckCheck, Volume2, VolumeX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +14,7 @@ import {
   useMarkRead,
   useMarkAllRead,
 } from '@/services/notifications.service';
+import { useRealtimeNotifications } from '@/hooks/use-realtime-notifications';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from '@/lib/date-utils';
 
@@ -36,6 +38,8 @@ export function NotificationBell() {
   const { data: notifData } = useNotifications();
   const markRead = useMarkRead();
   const markAllRead = useMarkAllRead();
+  const { setSoundEnabled } = useRealtimeNotifications();
+  const [soundOn, setSoundOn] = useState(true);
 
   const unreadCount = countData?.unreadCount ?? 0;
   const notifications = notifData?.data ?? [];
@@ -53,13 +57,19 @@ export function NotificationBell() {
     }
   };
 
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setSoundEnabled(next);
+  };
+
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative h-9 w-9">
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
@@ -68,17 +78,32 @@ export function NotificationBell() {
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h4 className="text-sm font-semibold">Notificações</h4>
-          {unreadCount > 0 && (
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
-              size="sm"
-              className="h-auto px-2 py-1 text-xs"
-              onClick={() => markAllRead.mutate()}
+              size="icon"
+              className="h-7 w-7"
+              onClick={toggleSound}
+              title={soundOn ? 'Desativar som' : 'Ativar som'}
             >
-              <CheckCheck className="mr-1 h-3 w-3" />
-              Marcar todas como lidas
+              {soundOn ? (
+                <Volume2 className="h-3.5 w-3.5" />
+              ) : (
+                <VolumeX className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
             </Button>
-          )}
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto px-2 py-1 text-xs"
+                onClick={() => markAllRead.mutate()}
+              >
+                <CheckCheck className="mr-1 h-3 w-3" />
+                Marcar todas como lidas
+              </Button>
+            )}
+          </div>
         </div>
         <ScrollArea className="max-h-80">
           {notifications.length === 0 ? (
@@ -114,7 +139,7 @@ export function NotificationBell() {
                     </p>
                   </div>
                   {!notif.readAt && (
-                    <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-500" />
                   )}
                   {notif.readAt && (
                     <Check className="mt-1 h-3 w-3 shrink-0 text-muted-foreground/50" />
