@@ -22,6 +22,7 @@ import {
   UpdatePatientDto,
   PatientQueryDto,
 } from './dto/create-patient.dto';
+import { TimelineQueryDto } from './dto/timeline-query.dto';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 
@@ -85,6 +86,20 @@ export class PatientsController {
     @CurrentTenant() tenantId: string,
   ) {
     return this.patientsService.softDelete(id, tenantId);
+  }
+
+  // --- Timeline ---
+
+  @Get(':id/timeline')
+  @ApiParam({ name: 'id', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get patient timeline with cursor-based pagination' })
+  @ApiResponse({ status: 200, description: 'Timeline events' })
+  async getTimeline(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+    @Query() query: TimelineQueryDto,
+  ) {
+    return this.patientsService.getTimeline(id, tenantId, query);
   }
 
   // --- Allergies sub-routes ---

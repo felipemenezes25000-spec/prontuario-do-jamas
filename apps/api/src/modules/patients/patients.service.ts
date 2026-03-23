@@ -9,6 +9,7 @@ import {
   UpdatePatientDto,
   PatientQueryDto,
 } from './dto/create-patient.dto';
+import { TimelineQueryDto } from './dto/timeline-query.dto';
 import {
   AllergyType,
   AllergySeverity,
@@ -19,6 +20,25 @@ import {
   DrugUseStatus,
   ExerciseLevel,
 } from '@prisma/client';
+
+// ============================================================================
+// Timeline types
+// ============================================================================
+
+interface TimelineEntry {
+  id: string;
+  type: 'clinical_note' | 'prescription' | 'exam' | 'vital_signs' | 'triage' | 'document';
+  date: string;
+  professional: { id: string; name: string } | null;
+  summary: string;
+  details: Record<string, unknown>;
+}
+
+interface TimelineResponse {
+  items: TimelineEntry[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
 
 @Injectable()
 export class PatientsService {
@@ -314,5 +334,268 @@ export class PatientsService {
         patientId,
       },
     });
+  }
+
+  // === Timeline (A9) ===
+
+  async getTimeline(
+    patientId: string,
+    tenantId: string,
+    query: TimelineQueryDto,
+  ): Promise<TimelineResponse> {
+    const limit = query.limit ?? 20;
+    const cursorDate = query.cursor ? new Date(query.cursor) : undefined;
+    const startDate = query.startDate ? new Date(query.startDate) : undefined;
+    const endDate = query.endDate ? new Date(query.endDate) : undefined;
+    const typeFilter = query.type;
+
+    // Verify patient exists in tenant
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: patientId, tenantId },
+    });
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID "${patientId}" not found`);
+    }
+
+    // Build date filter
+    const dateFilter: Record<string, Date> = {};
+    if (cursorDate) dateFilter.lt = cursorDate;
+    if (startDate) dateFilter.gte = startDate;
+    if (endDate) dateFilter.lte = endDate;
+
+    const hasDateFilter = Object.keys(dateFilter).length > 0;
+
+    // Fetch all types in parallel (or only the requested type)
+    const shouldFetch = (type: string) => !typeFilter || typeFilter === type;
+
+    const [
+      clinicalNotes,
+      prescriptions,
+      examResults,
+      vitalSigns,
+      triageAssessments,
+      clinicalDocuments,
+    ] = await Promise.all([
+      shouldFetch('clinical_note')
+        ? this.prisma.clinicalNote.findMany({
+            where: {
+              encounter: { patientId },
+              ...(hasDateFilter ? { createdAt: dateFilter } : {}),
+            },
+            include: {
+              author: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit + 1,
+          })
+        : Promise.resolve([]),
+
+      shouldFetch('prescription')
+        ? this.prisma.prescription.findMany({
+            where: {
+              patientId,
+              ...(hasDateFilter ? { createdAt: dateFilter } : {}),
+            },
+            include: {
+              doctor: { select: { id: true, name: true } },
+              items: { take: 3, orderBy: { sortOrder: 'asc' } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit + 1,
+          })
+        : Promise.resolve([]),
+
+      shouldFetch('exam')
+        ? this.prisma.examResult.findMany({
+            where: {
+              patientId,
+              ...(hasDateFilter ? { createdAt: dateFilter } : {}),
+            },
+            include: {
+              requestedBy: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit + 1,
+          })
+        : Promise.resolve([]),
+
+      shouldFetch('vital_signs')
+        ? this.prisma.vitalSigns.findMany({
+            where: {
+              patientId,
+              ...(hasDateFilter ? { recordedAt: dateFilter } : {}),
+            },
+            include: {
+              recordedBy: { select: { id: true, name: true } },
+            },
+            orderBy: { recordedAt: 'desc' },
+            take: limit + 1,
+          })
+        : Promise.resolve([]),
+
+      shouldFetch('triage')
+        ? this.prisma.triageAssessment.findMany({
+            where: {
+              encounter: { patientId },
+              ...(hasDateFilter ? { createdAt: dateFilter } : {}),
+            },
+            include: {
+              nurse: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit + 1,
+          })
+        : Promise.resolve([]),
+
+      shouldFetch('document')
+        ? this.prisma.clinicalDocument.findMany({
+            where: {
+              patientId,
+              ...(hasDateFilter ? { createdAt: dateFilter } : {}),
+            },
+            include: {
+              author: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit + 1,
+          })
+        : Promise.resolve([]),
+    ]);
+
+    // Transform to timeline entries
+    const entries: TimelineEntry[] = [];
+
+    for (const note of clinicalNotes) {
+      const summary = note.subjective
+        ? `${note.type}: ${note.subjective.slice(0, 120)}`
+        : `${note.type}: ${(note.freeText ?? '').slice(0, 120)}`;
+      entries.push({
+        id: note.id,
+        type: 'clinical_note',
+        date: note.createdAt.toISOString(),
+        professional: note.author ?? null,
+        summary,
+        details: {
+          noteType: note.type,
+          status: note.status,
+          subjective: note.subjective,
+          objective: note.objective,
+          assessment: note.assessment,
+          plan: note.plan,
+          freeText: note.freeText,
+        },
+      });
+    }
+
+    for (const presc of prescriptions) {
+      const itemNames = presc.items
+        .map((i) => i.medicationName ?? i.examName ?? i.procedureName ?? 'Item')
+        .join(', ');
+      entries.push({
+        id: presc.id,
+        type: 'prescription',
+        date: presc.createdAt.toISOString(),
+        professional: presc.doctor ?? null,
+        summary: `${presc.type}: ${itemNames}`,
+        details: {
+          prescriptionType: presc.type,
+          status: presc.status,
+          itemCount: presc.items.length,
+          items: presc.items.map((i) => ({
+            name: i.medicationName ?? i.examName ?? i.procedureName,
+            dose: i.dose,
+            route: i.route,
+            frequency: i.frequency,
+          })),
+        },
+      });
+    }
+
+    for (const exam of examResults) {
+      entries.push({
+        id: exam.id,
+        type: 'exam',
+        date: exam.createdAt.toISOString(),
+        professional: exam.requestedBy ?? null,
+        summary: `${exam.examType}: ${exam.examName}`,
+        details: {
+          examName: exam.examName,
+          examType: exam.examType,
+          status: exam.status,
+          completedAt: exam.completedAt?.toISOString() ?? null,
+          aiInterpretation: exam.aiInterpretation,
+        },
+      });
+    }
+
+    for (const vs of vitalSigns) {
+      const parts: string[] = [];
+      if (vs.systolicBP != null) parts.push(`PA ${vs.systolicBP}/${vs.diastolicBP}`);
+      if (vs.heartRate != null) parts.push(`FC ${vs.heartRate}`);
+      if (vs.oxygenSaturation != null) parts.push(`SpO2 ${vs.oxygenSaturation}%`);
+      if (vs.temperature != null) parts.push(`T ${vs.temperature}C`);
+      entries.push({
+        id: vs.id,
+        type: 'vital_signs',
+        date: vs.recordedAt.toISOString(),
+        professional: vs.recordedBy ?? null,
+        summary: parts.join(' | ') || 'Sinais vitais registrados',
+        details: {
+          systolicBP: vs.systolicBP,
+          diastolicBP: vs.diastolicBP,
+          heartRate: vs.heartRate,
+          respiratoryRate: vs.respiratoryRate,
+          temperature: vs.temperature,
+          oxygenSaturation: vs.oxygenSaturation,
+          painScale: vs.painScale,
+        },
+      });
+    }
+
+    for (const triage of triageAssessments) {
+      entries.push({
+        id: triage.id,
+        type: 'triage',
+        date: triage.createdAt.toISOString(),
+        professional: triage.nurse ?? null,
+        summary: `Triagem ${triage.protocol} — ${triage.level}: ${triage.chiefComplaint}`,
+        details: {
+          protocol: triage.protocol,
+          level: triage.level,
+          chiefComplaint: triage.chiefComplaint,
+          painScale: triage.painScale,
+          maxWaitTimeMinutes: triage.maxWaitTimeMinutes,
+        },
+      });
+    }
+
+    for (const doc of clinicalDocuments) {
+      entries.push({
+        id: doc.id,
+        type: 'document',
+        date: doc.createdAt.toISOString(),
+        professional: doc.author ?? null,
+        summary: `${doc.type}: ${doc.title}`,
+        details: {
+          documentType: doc.type,
+          title: doc.title,
+          status: doc.status,
+          content: doc.content?.slice(0, 300) ?? null,
+          pdfUrl: doc.pdfUrl,
+        },
+      });
+    }
+
+    // Sort all entries by date descending
+    entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Apply limit + check hasMore
+    const hasMore = entries.length > limit;
+    const items = entries.slice(0, limit);
+    const nextCursor = hasMore && items.length > 0
+      ? items[items.length - 1].date
+      : null;
+
+    return { items, nextCursor, hasMore };
   }
 }

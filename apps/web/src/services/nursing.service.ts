@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type {
   MedicationCheck,
@@ -10,6 +10,81 @@ import type {
   CreateNursingNoteDto,
   CreateFluidBalanceDto,
 } from '@/types';
+
+// ============================================================================
+// Schedule types (A3)
+// ============================================================================
+
+export interface ScheduleSlot {
+  scheduledAt: string;
+  status: 'PENDING' | 'DONE' | 'LATE' | 'SKIPPED' | 'SUSPENDED';
+  checkId: string | null;
+  administeredBy: { id: string; name: string } | null;
+  lot: string | null;
+  observations: string | null;
+  checkedAt: string | null;
+}
+
+export interface ScheduleRow {
+  prescriptionItem: {
+    id: string;
+    name: string;
+    dose: string | null;
+    route: string | null;
+    frequency: string | null;
+    frequencyHours: number | null;
+    isHighAlert: boolean;
+    isControlled: boolean;
+  };
+  schedule: ScheduleSlot[];
+}
+
+export interface AdministerMedicationDto {
+  prescriptionItemId: string;
+  encounterId: string;
+  scheduledAt: string;
+  checkedAt?: string;
+  lot?: string;
+  observations?: string;
+}
+
+export interface SkipMedicationDto {
+  prescriptionItemId: string;
+  encounterId: string;
+  scheduledAt: string;
+  observations: string;
+}
+
+export interface SuspendMedicationDto {
+  prescriptionItemId: string;
+  encounterId: string;
+  observations: string;
+}
+
+// ============================================================================
+// Timeline types (A9)
+// ============================================================================
+
+export interface TimelineEntry {
+  id: string;
+  type: 'clinical_note' | 'prescription' | 'exam' | 'vital_signs' | 'triage' | 'document';
+  date: string;
+  professional: { id: string; name: string } | null;
+  summary: string;
+  details: Record<string, unknown>;
+}
+
+export interface TimelineResponse {
+  items: TimelineEntry[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface TimelineFilters {
+  type?: string;
+  startDate?: string;
+  endDate?: string;
+}
 
 // ============================================================================
 // Filter types
@@ -39,6 +114,8 @@ export const nursingKeys = {
   all: ['nursing'] as const,
   medicationChecks: (filters?: MedicationCheckFilters) =>
     [...nursingKeys.all, 'medication-checks', filters] as const,
+  schedule: (encounterId: string) =>
+    [...nursingKeys.all, 'schedule', encounterId] as const,
   processes: () => [...nursingKeys.all, 'processes'] as const,
   processByEncounter: (encounterId: string) =>
     [...nursingKeys.processes(), 'encounter', encounterId] as const,
@@ -53,10 +130,78 @@ export const nursingKeys = {
     [...nursingKeys.fluidBalance(), 'encounter', encounterId] as const,
   fluidBalanceByPatient: (patientId: string) =>
     [...nursingKeys.fluidBalance(), 'patient', patientId] as const,
+  timeline: (patientId: string, filters?: TimelineFilters) =>
+    ['patients', patientId, 'timeline', filters] as const,
 };
 
 // ============================================================================
-// Medication Checks
+// Medication Schedule (A3)
+// ============================================================================
+
+export function useMedicationSchedule(encounterId: string) {
+  return useQuery({
+    queryKey: nursingKeys.schedule(encounterId),
+    queryFn: async () => {
+      const { data } = await api.get<ScheduleRow[]>(
+        `/nursing/schedule/${encounterId}`,
+      );
+      return data;
+    },
+    enabled: !!encounterId,
+    refetchInterval: 30000, // Refresh every 30s for real-time updates
+  });
+}
+
+export function useAdministerMedication() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: AdministerMedicationDto) => {
+      const { data } = await api.post<MedicationCheck>(
+        '/nursing/administer',
+        dto,
+      );
+      return data;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: nursingKeys.schedule(vars.encounterId) });
+      qc.invalidateQueries({ queryKey: [...nursingKeys.all, 'medication-checks'] });
+    },
+  });
+}
+
+export function useSkipMedication() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: SkipMedicationDto) => {
+      const { data } = await api.post<MedicationCheck>(
+        '/nursing/skip',
+        dto,
+      );
+      return data;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: nursingKeys.schedule(vars.encounterId) });
+      qc.invalidateQueries({ queryKey: [...nursingKeys.all, 'medication-checks'] });
+    },
+  });
+}
+
+export function useSuspendMedication() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: SuspendMedicationDto) => {
+      const { data } = await api.post('/nursing/suspend', dto);
+      return data;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: nursingKeys.schedule(vars.encounterId) });
+      qc.invalidateQueries({ queryKey: [...nursingKeys.all, 'medication-checks'] });
+    },
+  });
+}
+
+// ============================================================================
+// Medication Checks (A6 — legacy endpoint for nursing index)
 // ============================================================================
 
 export function useMedicationChecks(filters?: MedicationCheckFilters) {
@@ -72,35 +217,30 @@ export function useMedicationChecks(filters?: MedicationCheckFilters) {
   });
 }
 
-export function useAdministerMedication() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, notes }: { id: string; notes?: string }) => {
-      const { data } = await api.post<MedicationCheck>(
-        `/nursing/medication-administrations/${id}/administer`,
-        { notes },
-      );
-      return data;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [...nursingKeys.all, 'medication-checks'] });
-    },
-  });
-}
+// ============================================================================
+// Patient Timeline (A9)
+// ============================================================================
 
-export function useSkipMedication() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { data } = await api.post<MedicationCheck>(
-        `/nursing/medication-administrations/${id}/skip`,
-        { reason },
+export function usePatientTimeline(patientId: string, filters?: TimelineFilters) {
+  return useInfiniteQuery({
+    queryKey: nursingKeys.timeline(patientId, filters),
+    queryFn: async ({ pageParam }) => {
+      const { data } = await api.get<TimelineResponse>(
+        `/patients/${patientId}/timeline`,
+        {
+          params: {
+            ...filters,
+            cursor: pageParam,
+            limit: 20,
+          },
+        },
       );
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [...nursingKeys.all, 'medication-checks'] });
-    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? lastPage.nextCursor ?? undefined : undefined,
+    enabled: !!patientId,
   });
 }
 

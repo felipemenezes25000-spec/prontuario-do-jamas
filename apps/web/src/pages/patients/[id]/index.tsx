@@ -34,6 +34,7 @@ import { useVitalSigns } from '@/services/vital-signs.service';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
 import { PdfDownloadButton } from '@/components/pdf-download-button';
+import { PatientTimeline } from '@/components/medical/patient-timeline';
 import type { RiskLevel } from '@/types';
 
 function riskLevelFromScore(score?: number): RiskLevel | undefined {
@@ -173,6 +174,7 @@ export default function PatientDetailPage() {
           <TabsTrigger value="prescricoes" className="text-xs data-[state=active]:bg-teal-600">Prescrições</TabsTrigger>
           <TabsTrigger value="sinais" className="text-xs data-[state=active]:bg-teal-600">Sinais Vitais</TabsTrigger>
           <TabsTrigger value="exames" className="text-xs data-[state=active]:bg-teal-600">Exames</TabsTrigger>
+          <TabsTrigger value="historico" className="text-xs data-[state=active]:bg-teal-600">Historico</TabsTrigger>
         </TabsList>
 
         {/* Resumo */}
@@ -570,6 +572,20 @@ export default function PatientDetailPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Historico / Timeline (A9) */}
+        <TabsContent value="historico">
+          {id ? (
+            <PatientTimeline patientId={id} />
+          ) : (
+            <Card className="border-border bg-card">
+              <CardContent className="flex flex-col items-center py-12">
+                <Clock className="h-10 w-10 text-muted-foreground" />
+                <p className="mt-3 text-sm text-muted-foreground">Paciente nao encontrado</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>
