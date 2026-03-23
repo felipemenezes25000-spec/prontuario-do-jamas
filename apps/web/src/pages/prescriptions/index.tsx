@@ -20,6 +20,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Copy,
+  Droplets,
+  Calculator,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -79,8 +82,12 @@ import {
   useCancelPrescription,
   useAddPrescriptionItem,
   useDownloadPrescriptionPdf,
+  useDuplicatePrescription,
   type PrescriptionFilters,
 } from '@/services/prescriptions.service';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSearchPatients } from '@/services/patients.service';
 import { useEncounters } from '@/services/encounters.service';
 import type {
@@ -155,7 +162,43 @@ const prescriptionItemSchema = z.object({
   frequency: z.string().min(1, 'Frequência é obrigatória'),
   duration: z.string().optional(),
   specialInstructions: z.string().optional(),
+  dilutionSolution: z.string().optional(),
+  dilutionVolume: z.string().optional(),
+  infusionRate: z.string().optional(),
+  infusionRateUnit: z.string().optional(),
 });
+
+// ============================================================================
+// IV / Infusion Constants & Calculator
+// ============================================================================
+
+const DILUENT_OPTIONS = [
+  { value: 'SF 0.9%', label: 'SF 0,9% (Soro Fisiológico)' },
+  { value: 'SG 5%', label: 'SG 5% (Soro Glicosado)' },
+  { value: 'Ringer Lactato', label: 'Ringer Lactato' },
+  { value: 'Água destilada', label: 'Água destilada' },
+] as const;
+
+const IV_ROUTES: readonly string[] = ['IV', 'IM', 'PARENTERAL'] as const;
+
+function isIVRoute(route: string): boolean {
+  return IV_ROUTES.includes(route);
+}
+
+/**
+ * Calculates drip rate in drops/min
+ * Formula: drops/min = (Volume_mL * dropFactor) / (time_min)
+ * Macro drip set factor = 20, Micro drip set factor = 60
+ */
+function calculateDripRate(
+  volumeMl: number,
+  timeMinutes: number,
+  equipType: 'macro' | 'micro',
+): number {
+  if (timeMinutes <= 0) return 0;
+  const factor = equipType === 'macro' ? 20 : 60;
+  return Math.round((volumeMl * factor) / timeMinutes);
+}
 
 const createPrescriptionSchema = z.object({
   patientId: z.string().min(1, 'Paciente é obrigatório'),
@@ -443,6 +486,17 @@ function PrescriptionItemCard({ item }: { item: PrescriptionItem }) {
         {item.frequency && <span>Freq: {item.frequency}</span>}
         {item.duration && <span>Duração: {item.duration}</span>}
       </div>
+      {/* IV / Infusion details */}
+      {item.route && isIVRoute(item.route) && (item.dilutionSolution || item.infusionRate) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-blue-400">
+          <Droplets className="h-3 w-3" />
+          {item.dilutionSolution && <span>Diluente: {item.dilutionSolution}</span>}
+          {item.dilutionVolume && <span>Volume: {item.dilutionVolume} mL</span>}
+          {item.infusionRate && (
+            <span>Infusão: {item.infusionRate} {item.infusionRateUnit ?? 'mL/h'}</span>
+          )}
+        </div>
+      )}
       {item.specialInstructions && (
         <p className="text-xs italic text-muted-foreground">
           {item.specialInstructions}
@@ -467,6 +521,8 @@ function CreatePrescriptionDialog({
 }: CreatePrescriptionDialogProps) {
   const createPrescription = useCreatePrescription();
   const addPrescriptionItem = useAddPrescriptionItem();
+  const [equipType, setEquipType] = useState<'macro' | 'micro'>('macro');
+  const [infusionTimeMin, setInfusionTimeMin] = useState<Record<number, string>>({});
 
   const form = useForm<CreatePrescriptionFormData>({
     resolver: zodResolver(createPrescriptionSchema),
@@ -484,6 +540,10 @@ function CreatePrescriptionDialog({
           frequency: '',
           duration: '',
           specialInstructions: '',
+          dilutionSolution: '',
+          dilutionVolume: '',
+          infusionRate: '',
+          infusionRateUnit: 'mL/h',
         },
       ],
     },
@@ -520,6 +580,10 @@ function CreatePrescriptionDialog({
             frequency: item.frequency,
             duration: item.duration || undefined,
             specialInstructions: item.specialInstructions || undefined,
+            dilutionSolution: item.dilutionSolution || undefined,
+            dilutionVolume: item.dilutionVolume || undefined,
+            infusionRate: item.infusionRate || undefined,
+            infusionRateUnit: item.infusionRateUnit || undefined,
           })),
         });
 
@@ -535,6 +599,10 @@ function CreatePrescriptionDialog({
                 frequency: item.frequency,
                 duration: item.duration || undefined,
                 specialInstructions: item.specialInstructions || undefined,
+                dilutionSolution: item.dilutionSolution || undefined,
+                dilutionVolume: item.dilutionVolume || undefined,
+                infusionRate: item.infusionRate || undefined,
+                infusionRateUnit: item.infusionRateUnit || undefined,
               },
             });
           }
@@ -707,6 +775,10 @@ function CreatePrescriptionDialog({
                       frequency: '',
                       duration: '',
                       specialInstructions: '',
+                      dilutionSolution: '',
+                      dilutionVolume: '',
+                      infusionRate: '',
+                      infusionRateUnit: 'mL/h',
                     })
                   }
                 >
@@ -804,6 +876,156 @@ function CreatePrescriptionDialog({
                         )}
                       />
                     </div>
+
+                    {/* IV / Infusion Conditional Fields */}
+                    {isIVRoute(form.watch(`items.${index}.route`)) && (
+                      <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-medium text-blue-400">
+                          <Droplets className="h-3.5 w-3.5" />
+                          Parâmetros de Infusão IV
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField
+                            control={form.control}
+                            name={`items.${index}.dilutionSolution`}
+                            render={({ field: f }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Diluente</FormLabel>
+                                <Select value={f.value ?? ''} onValueChange={f.onChange}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecione diluente" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {DILUENT_OPTIONS.map((opt) => (
+                                      <SelectItem key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name={`items.${index}.dilutionVolume`}
+                            render={({ field: f }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Volume diluente (mL)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="Ex: 250"
+                                    {...f}
+                                    className="bg-card border-border"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField
+                            control={form.control}
+                            name={`items.${index}.infusionRate`}
+                            render={({ field: f }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Velocidade infusão</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="Ex: 80"
+                                    {...f}
+                                    className="bg-card border-border"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name={`items.${index}.infusionRateUnit`}
+                            render={({ field: f }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs">Unidade</FormLabel>
+                                <Select value={f.value ?? 'mL/h'} onValueChange={f.onChange}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="mL/h">mL/h</SelectItem>
+                                    <SelectItem value="gotas/min">gotas/min</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        {/* Drip Rate Calculator */}
+                        <div className="rounded-md border border-border bg-card/50 p-2.5 space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                            <Calculator className="h-3 w-3" />
+                            Calculadora de Gotejamento
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-xs">Equipo:</Label>
+                              <div className="flex items-center gap-1.5">
+                                <span className={cn('text-xs', equipType === 'macro' ? 'text-blue-400 font-medium' : 'text-muted-foreground')}>Macro</span>
+                                <Switch
+                                  checked={equipType === 'micro'}
+                                  onCheckedChange={(checked) => setEquipType(checked ? 'micro' : 'macro')}
+                                />
+                                <span className={cn('text-xs', equipType === 'micro' ? 'text-blue-400 font-medium' : 'text-muted-foreground')}>Micro</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Label className="text-xs whitespace-nowrap">Tempo (min):</Label>
+                              <Input
+                                type="number"
+                                placeholder="60"
+                                value={infusionTimeMin[index] ?? ''}
+                                onChange={(e) => setInfusionTimeMin((prev) => ({ ...prev, [index]: e.target.value }))}
+                                className="h-7 w-20 bg-card border-border text-xs"
+                              />
+                            </div>
+                          </div>
+                          {(() => {
+                            const vol = parseFloat(form.watch(`items.${index}.dilutionVolume`) ?? '0');
+                            const time = parseFloat(infusionTimeMin[index] ?? '0');
+                            if (vol > 0 && time > 0) {
+                              const dripRate = calculateDripRate(vol, time, equipType);
+                              const mlPerHour = Math.round((vol / time) * 60);
+                              return (
+                                <div className="flex gap-4 text-xs">
+                                  <span className="text-emerald-400 font-medium">{dripRate} gotas/min</span>
+                                  <span className="text-muted-foreground">({mlPerHour} mL/h)</span>
+                                  <span className="text-muted-foreground">Equipo {equipType === 'macro' ? 'macro (20 gts/mL)' : 'micro (60 gts/mL)'}</span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <p className="text-[10px] text-muted-foreground">
+                                Preencha volume e tempo para calcular o gotejamento.
+                              </p>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-3">
                       <FormField
@@ -1059,6 +1281,7 @@ export default function PrescriptionsPage() {
   const suspendPrescription = useSuspendPrescription();
   const cancelPrescription = useCancelPrescription();
   const downloadPdf = useDownloadPrescriptionPdf();
+  const duplicatePrescription = useDuplicatePrescription();
 
   // Build filters
   const filters = useMemo<PrescriptionFilters>(() => {
@@ -1150,6 +1373,26 @@ export default function PrescriptionsPage() {
     [downloadPdf],
   );
 
+  const handleDuplicateLast = useCallback(async () => {
+    // Find the last ACTIVE or most recent prescription to duplicate
+    const lastPrescription = prescriptions.find(
+      (p) => p.status === 'ACTIVE',
+    ) ?? prescriptions[0];
+
+    if (!lastPrescription) {
+      toast.error('Nenhuma prescrição encontrada para copiar.');
+      return;
+    }
+
+    try {
+      const duplicated = await duplicatePrescription.mutateAsync(lastPrescription.id);
+      toast.success('Prescrição copiada como rascunho.');
+      setDetailSheetId(duplicated.id);
+    } catch {
+      toast.error('Erro ao copiar prescrição.');
+    }
+  }, [prescriptions, duplicatePrescription]);
+
   const handleConfirmAction = useCallback(() => {
     if (!confirmAction) return;
     switch (confirmAction.type) {
@@ -1202,13 +1445,37 @@ export default function PrescriptionsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Prescrições</h1>
-        <Button
-          onClick={() => setCreateDialogOpen(true)}
-          className="bg-emerald-600 hover:bg-emerald-500"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Prescrição
-        </Button>
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  onClick={handleDuplicateLast}
+                  disabled={duplicatePrescription.isPending || prescriptions.length === 0}
+                  className="gap-2 border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                >
+                  {duplicatePrescription.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                  Copiar Última
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Duplica a última prescrição ativa como rascunho para edição</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Button
+            onClick={() => setCreateDialogOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-500"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nova Prescrição
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}

@@ -153,6 +153,19 @@ export class PrescriptionsController {
     return this.prescriptionsService.findById(id);
   }
 
+  @Post(':id/duplicate')
+  @ApiParam({ name: 'id', description: 'Prescription UUID' })
+  @ApiOperation({ summary: 'Duplicate a prescription as a new DRAFT' })
+  @ApiResponse({ status: 201, description: 'Prescription duplicated' })
+  @ApiResponse({ status: 404, description: 'Original prescription not found' })
+  async duplicate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.prescriptionsService.duplicate(id, tenantId, user.sub);
+  }
+
   @Post(':id/sign')
   @ApiParam({ name: 'id', description: 'Prescription UUID' })
   @ApiOperation({ summary: 'Sign a prescription' })

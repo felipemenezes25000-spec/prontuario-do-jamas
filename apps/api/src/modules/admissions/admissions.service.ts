@@ -116,6 +116,14 @@ export class AdmissionsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // Build full discharge summary from all fields
+      const summaryParts: string[] = [];
+      if (dto.dischargeNotes) summaryParts.push(dto.dischargeNotes);
+      if (dto.restrictions) summaryParts.push(`Restrições: ${dto.restrictions}`);
+      if (dto.alertSigns) summaryParts.push(`Sinais de alerta: ${dto.alertSigns}`);
+      if (dto.followUpSpecialty) summaryParts.push(`Acompanhamento: ${dto.followUpSpecialty}`);
+      const combinedNotes = summaryParts.length > 0 ? summaryParts.join('\n\n') : dto.dischargeNotes;
+
       const updated = await tx.admission.update({
         where: { id },
         data: {
@@ -123,7 +131,7 @@ export class AdmissionsService {
           dischargeType: dto.dischargeType,
           diagnosisAtDischarge: dto.diagnosisAtDischarge,
           procedurePerformed: dto.procedurePerformed,
-          dischargeNotes: dto.dischargeNotes,
+          dischargeNotes: combinedNotes,
           dischargePrescription: dto.dischargePrescription,
           dischargeInstructions: dto.dischargeInstructions,
           followUpDate: dto.followUpDate ? new Date(dto.followUpDate) : undefined,

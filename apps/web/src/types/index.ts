@@ -553,6 +553,11 @@ export interface PrescriptionItem {
   examType?: ExamType;
   procedureName?: string;
   dietType?: string;
+  infusionRate?: string;
+  infusionRateUnit?: string;
+  dilution?: string;
+  dilutionVolume?: string;
+  dilutionSolution?: string;
   isControlled?: boolean;
   isAntibiotic?: boolean;
   isHighAlert?: boolean;
@@ -575,6 +580,11 @@ export interface CreatePrescriptionItemDto {
   route?: MedicationRoute;
   frequency?: string;
   duration?: string;
+  infusionRate?: string;
+  infusionRateUnit?: string;
+  dilution?: string;
+  dilutionVolume?: string;
+  dilutionSolution?: string;
   specialInstructions?: string;
   examName?: string;
   examCode?: string;
