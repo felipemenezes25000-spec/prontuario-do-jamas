@@ -62,6 +62,7 @@ import { NEWSBadge } from '@/components/medical/news-badge';
 import { NEWSTrendChart } from '@/components/medical/news-trend-chart';
 import { useAuthStore } from '@/stores/auth.store';
 import type { VoiceIntent } from '@/stores/voice.store';
+import { EncounterAlerts, AlertCountBadge } from '@/components/medical/encounter-alerts';
 import api from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -663,6 +664,7 @@ export default function EncounterPage() {
                 compact
               />
             )}
+            {patient && <AlertCountBadge patientId={patient.id} />}
             {/* Intent badge */}
             {voice.intent && voice.intent !== 'SOAP' && !voice.isRecording && !voice.isProcessing && (
               <Badge variant="outline" className="border-teal-500/30 text-[10px] text-teal-400">
@@ -676,6 +678,11 @@ export default function EncounterPage() {
           <span>{elapsed}</span>
         </div>
       </div>
+
+      {/* Patient Alerts */}
+      {patient && (
+        <EncounterAlerts patientId={patient.id} encounterId={encounter.id} />
+      )}
 
       {/* Main Split Layout */}
       <div className="flex flex-col gap-4 lg:flex-row">

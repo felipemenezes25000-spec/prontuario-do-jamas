@@ -903,6 +903,8 @@ model Tenant {
   examCatalogs            ExamCatalog[]
   dispensations           Dispensation[]
   drugInventory           DrugInventory[]
+  clinicalAlertRules      ClinicalAlertRule[]
+  nursingHandoffs         NursingHandoff[]
 
   @@index([slug])
   @@index([cnpj])
@@ -985,6 +987,8 @@ model User {
   digitalSignatures         DigitalSignature[]  @relation("DigitalSignatureSigner")
   billingAppeals            BillingAppeal[]     @relation("AppealCreator")
   pharmacistDispensations   Dispensation[]      @relation("PharmacistDispensations")
+  handoffsFrom              NursingHandoff[]    @relation("HandoffFrom")
+  handoffsTo                NursingHandoff[]    @relation("HandoffTo")
 
   @@unique([oauthProvider, oauthProviderId])
   @@index([tenantId, email])
@@ -2653,4 +2657,56 @@ model DrugInventory {
   @@index([drugName])
   @@index([status])
   @@map("drug_inventory")
+}
+
+// ============================================================================
+// CLINICAL ALERT RULES (CDS - Clinical Decision Support)
+// ============================================================================
+
+model ClinicalAlertRule {
+  id          String        @id @default(uuid()) @map("id")
+  name        String        @map("name")
+  description String?       @map("description")
+  field       String        @map("field")
+  operator    String        @map("operator")
+  value       Float         @map("value")
+  value2      Float?        @map("value2")
+  severity    AlertSeverity @default(WARNING) @map("severity")
+  message     String        @map("message")
+  action      String?       @map("action")
+  isActive    Boolean       @default(true) @map("is_active")
+  tenantId    String        @map("tenant_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, isActive])
+  @@index([field])
+  @@map("clinical_alert_rules")
+}
+
+// ============================================================================
+// NURSING HANDOFF (Passagem de Plantao)
+// ============================================================================
+
+model NursingHandoff {
+  id          String   @id @default(uuid()) @map("id")
+  sectorId    String?  @map("sector_id")
+  fromNurseId String   @map("from_nurse_id")
+  toNurseId   String   @map("to_nurse_id")
+  patients    Json     @map("patients")
+  shift       String?  @map("shift")
+  tenantId    String   @map("tenant_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  fromNurse User   @relation("HandoffFrom", fields: [fromNurseId], references: [id], onDelete: Restrict)
+  toNurse   User   @relation("HandoffTo", fields: [toNurseId], references: [id], onDelete: Restrict)
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([fromNurseId])
+  @@index([toNurseId])
+  @@index([createdAt])
+  @@map("nursing_handoffs")
 }

@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Param,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,7 +27,9 @@ import {
   SkipMedicationDto,
   SuspendMedicationDto,
 } from './dto/administer-medication.dto';
+import { CreateHandoffDto } from './dto/create-handoff.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 
 @ApiTags('Nursing')
@@ -210,5 +213,33 @@ export class NursingController {
     @Param('patientId', ParseUUIDPipe) patientId: string,
   ) {
     return this.nursingService.findByPatient(patientId);
+  }
+
+  // --- Handoff (Passagem de Plantao) ---
+
+  @Post('handoff')
+  @ApiOperation({ summary: 'Create a nursing shift handoff' })
+  @ApiResponse({ status: 201, description: 'Handoff created' })
+  async createHandoff(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: CreateHandoffDto,
+  ) {
+    return this.nursingService.createHandoff(tenantId, dto);
+  }
+
+  @Get('handoff/history')
+  @ApiOperation({ summary: 'Get handoff history' })
+  @ApiResponse({ status: 200, description: 'Paginated handoff history' })
+  async getHandoffHistory(
+    @CurrentTenant() tenantId: string,
+    @Query('sectorId') sectorId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.nursingService.getHandoffHistory(tenantId, {
+      sectorId,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
   }
 }

@@ -78,7 +78,7 @@ importers:
         specifier: ^11.0.0
         version: 11.1.17(@nestjs/common@11.1.17(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.17)(@nestjs/platform-socket.io@11.1.17)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@prisma/client':
-        specifier: ^6.0.0
+        specifier: ^6.19.2
         version: 6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3)
       '@simplewebauthn/server':
         specifier: ^13.3.0
@@ -226,7 +226,7 @@ importers:
         specifier: ^3.4.0
         version: 3.8.1
       prisma:
-        specifier: ^6.0.0
+        specifier: ^6.19.2
         version: 6.19.2(typescript@5.9.3)
       source-map-support:
         specifier: ^0.5.21

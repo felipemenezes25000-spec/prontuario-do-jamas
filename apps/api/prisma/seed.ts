@@ -3192,6 +3192,130 @@ async function main(): Promise<void> {
     ],
   });
 
+  // ─── Clinical Alert Rules (CDS) ──────────────────────────────────────
+
+  await prisma.clinicalAlertRule.createMany({
+    data: [
+      {
+        tenantId: IDS.tenant,
+        name: 'SpO2 Baixa',
+        description: 'Saturação de oxigênio abaixo do limite seguro',
+        field: 'spo2',
+        operator: 'lt',
+        value: 92,
+        severity: 'CRITICAL',
+        message: 'Avaliar oxigenoterapia',
+        action: 'ORDER_O2',
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'GCS Grave',
+        description: 'Escala de coma de Glasgow gravemente alterada',
+        field: 'gcs',
+        operator: 'lt',
+        value: 9,
+        severity: 'EMERGENCY',
+        message: 'Considerar IOT',
+        action: 'CALL_RAPID_RESPONSE',
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Febre',
+        description: 'Temperatura axilar acima de 38.3°C',
+        field: 'temperature',
+        operator: 'gt',
+        value: 38.3,
+        severity: 'WARNING',
+        message: 'Avaliar protocolo febril',
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Hipotensão Arterial',
+        description: 'Pressão sistólica abaixo de 90 mmHg',
+        field: 'systolicBp',
+        operator: 'lt',
+        value: 90,
+        severity: 'CRITICAL',
+        message: 'Hipotensão — avaliar volume',
+        action: 'FLUID_RESUSCITATION',
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Crise Hipertensiva',
+        description: 'Pressão sistólica acima de 180 mmHg',
+        field: 'systolicBp',
+        operator: 'gt',
+        value: 180,
+        severity: 'CRITICAL',
+        message: 'Crise hipertensiva',
+        action: 'ANTIHYPERTENSIVE',
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Taquicardia',
+        description: 'Frequência cardíaca acima de 130 bpm',
+        field: 'heartRate',
+        operator: 'gt',
+        value: 130,
+        severity: 'WARNING',
+        message: 'Taquicardia — investigar causa',
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Bradicardia',
+        description: 'Frequência cardíaca abaixo de 50 bpm',
+        field: 'heartRate',
+        operator: 'lt',
+        value: 50,
+        severity: 'CRITICAL',
+        message: 'Bradicardia — avaliar atropina',
+        action: 'ATROPINE',
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Taquipneia',
+        description: 'Frequência respiratória acima de 30 irpm',
+        field: 'respiratoryRate',
+        operator: 'gt',
+        value: 30,
+        severity: 'WARNING',
+        message: 'Taquipneia — avaliar causa',
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Hipoglicemia',
+        description: 'Glicemia capilar abaixo de 70 mg/dL',
+        field: 'glucose',
+        operator: 'lt',
+        value: 70,
+        severity: 'CRITICAL',
+        message: 'Hipoglicemia — administrar glicose',
+        action: 'DEXTROSE_IV',
+        isActive: true,
+      },
+      {
+        tenantId: IDS.tenant,
+        name: 'Hiperglicemia Grave',
+        description: 'Glicemia capilar acima de 400 mg/dL',
+        field: 'glucose',
+        operator: 'gt',
+        value: 400,
+        severity: 'CRITICAL',
+        message: 'Hiperglicemia grave — protocolo CAD',
+        action: 'INSULIN_PROTOCOL',
+        isActive: true,
+      },
+    ],
+  });
+
   // ─── Done ──────────────────────────────────────────────────────────────
 
   console.log('\n✅ Seed completed successfully!');
@@ -3224,6 +3348,7 @@ async function main(): Promise<void> {
   console.log('   - 3 Chemotherapy Protocols + 4 Lucia AC Cycles');
   console.log('   - 8 LGPD Data Retention Policies');
   console.log('   - 6 LGPD Consent Records');
+  console.log('   - 10 Clinical Alert Rules (CDS)');
 
   // ─── Drug Database ─────────────────────────────────────────────────────
   await seedDrugs(prisma);

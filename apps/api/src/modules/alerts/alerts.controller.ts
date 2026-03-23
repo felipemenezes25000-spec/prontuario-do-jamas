@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -16,7 +17,12 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { AlertsService } from './alerts.service';
+import { AlertRulesService } from './alert-rules.service';
 import { CreateAlertDto } from './dto/create-alert.dto';
+import {
+  CreateAlertRuleDto,
+  UpdateAlertRuleDto,
+} from './dto/create-alert-rule.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
@@ -25,7 +31,54 @@ import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
 @ApiBearerAuth('access-token')
 @Controller('alerts')
 export class AlertsController {
-  constructor(private readonly alertsService: AlertsService) {}
+  constructor(
+    private readonly alertsService: AlertsService,
+    private readonly alertRulesService: AlertRulesService,
+  ) {}
+
+  // =========================================================================
+  // ALERT RULES (CDS)
+  // =========================================================================
+
+  @Get('rules')
+  @ApiOperation({ summary: 'List all clinical alert rules' })
+  @ApiResponse({ status: 200, description: 'Alert rules list' })
+  async findAllRules(@CurrentTenant() tenantId: string) {
+    return this.alertRulesService.findAll(tenantId);
+  }
+
+  @Post('rules')
+  @ApiOperation({ summary: 'Create a clinical alert rule' })
+  @ApiResponse({ status: 201, description: 'Rule created' })
+  async createRule(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: CreateAlertRuleDto,
+  ) {
+    return this.alertRulesService.create(tenantId, dto);
+  }
+
+  @Patch('rules/:id')
+  @ApiParam({ name: 'id', description: 'Rule UUID' })
+  @ApiOperation({ summary: 'Update a clinical alert rule' })
+  @ApiResponse({ status: 200, description: 'Rule updated' })
+  async updateRule(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAlertRuleDto,
+  ) {
+    return this.alertRulesService.update(id, dto);
+  }
+
+  @Delete('rules/:id')
+  @ApiParam({ name: 'id', description: 'Rule UUID' })
+  @ApiOperation({ summary: 'Delete a clinical alert rule' })
+  @ApiResponse({ status: 200, description: 'Rule deleted' })
+  async deleteRule(@Param('id', ParseUUIDPipe) id: string) {
+    return this.alertRulesService.remove(id);
+  }
+
+  // =========================================================================
+  // ALERTS
+  // =========================================================================
 
   @Get()
   @ApiOperation({ summary: 'List alerts with filters' })

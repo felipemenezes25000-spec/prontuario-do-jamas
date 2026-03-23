@@ -16,6 +16,8 @@ import {
   SkipMedicationDto,
   SuspendMedicationDto,
 } from './dto/administer-medication.dto';
+import { CreateHandoffDto } from './dto/create-handoff.dto';
+import type { Prisma } from '@prisma/client';
 
 // ============================================================================
 // Interfaces for schedule response
@@ -592,5 +594,54 @@ export class NursingService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // =========================================================================
+  // HANDOFF (Passagem de Plantao)
+  // =========================================================================
+
+  async createHandoff(tenantId: string, dto: CreateHandoffDto) {
+    return this.prisma.nursingHandoff.create({
+      data: {
+        tenantId,
+        sectorId: dto.sectorId,
+        fromNurseId: dto.fromNurseId,
+        toNurseId: dto.toNurseId,
+        patients: dto.patients as unknown as Prisma.InputJsonValue,
+        shift: dto.shift,
+      },
+      include: {
+        fromNurse: { select: { id: true, name: true } },
+        toNurse: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async getHandoffHistory(
+    tenantId: string,
+    filters: { sectorId?: string; page?: number; limit?: number },
+  ) {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const where: Record<string, unknown> = { tenantId };
+    if (filters.sectorId) where.sectorId = filters.sectorId;
+
+    const [data, total] = await Promise.all([
+      this.prisma.nursingHandoff.findMany({
+        where,
+        include: {
+          fromNurse: { select: { id: true, name: true } },
+          toNurse: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.nursingHandoff.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 }
