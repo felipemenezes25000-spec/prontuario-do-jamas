@@ -5,6 +5,7 @@ import type {
   PaginatedResponse,
   CreateBillingEntryDto,
   BillingStatus,
+  BillingDashboardData,
 } from '@/types';
 
 // ============================================================================
@@ -170,6 +171,28 @@ export function useAppealBilling() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: billingKeys.detail(vars.id) });
       qc.invalidateQueries({ queryKey: billingKeys.all });
+    },
+  });
+}
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+export const billingDashboardKeys = {
+  all: ['billing-dashboard'] as const,
+  dashboard: (params?: { startDate?: string; endDate?: string }) =>
+    [...billingDashboardKeys.all, params] as const,
+};
+
+export function useBillingDashboard(params?: { startDate?: string; endDate?: string }) {
+  return useQuery({
+    queryKey: billingDashboardKeys.dashboard(params),
+    queryFn: async () => {
+      const { data } = await api.get<BillingDashboardData>('/billing/dashboard', {
+        params,
+      });
+      return data;
     },
   });
 }
