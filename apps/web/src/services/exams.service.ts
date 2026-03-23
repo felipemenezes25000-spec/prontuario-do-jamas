@@ -162,3 +162,89 @@ export function useCancelExam() {
     },
   });
 }
+
+// ============================================================================
+// Hooks — Exam Catalog (A10)
+// ============================================================================
+
+export interface ExamCatalogItem {
+  id: string;
+  name: string;
+  code: string;
+  examType: ExamType;
+  category: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export function useExamCatalog(search?: string, examType?: string) {
+  return useQuery({
+    queryKey: [...examKeys.all, 'catalog', search, examType] as const,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (search) params.search = search;
+      if (examType) params.examType = examType;
+      const { data } = await api.get<ExamCatalogItem[]>('/exams/catalog', { params });
+      return data;
+    },
+    enabled: !search || search.length >= 2,
+  });
+}
+
+export interface BulkExamRequestItem {
+  examName: string;
+  examCode: string;
+  examType: ExamType;
+  priority?: string;
+  clinicalIndication?: string;
+}
+
+export interface BulkExamRequestPayload {
+  encounterId: string;
+  patientId: string;
+  items: BulkExamRequestItem[];
+}
+
+export function useBulkRequestExams() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: BulkExamRequestPayload) => {
+      const { data } = await api.post<{ count: number; items: ExamResult[] }>(
+        '/exams/request',
+        payload,
+      );
+      return data;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: examKeys.lists() });
+      qc.invalidateQueries({ queryKey: examKeys.byPatient(vars.patientId) });
+      qc.invalidateQueries({ queryKey: examKeys.byEncounter(vars.encounterId) });
+    },
+  });
+}
+
+// ============================================================================
+// Hooks — Lab Trending (A13)
+// ============================================================================
+
+export interface TrendingPoint {
+  date: string;
+  value: number;
+  unit: string;
+  referenceMin: number | null;
+  referenceMax: number | null;
+  isAbnormal: boolean;
+}
+
+export function useExamTrending(patientId: string, analyte: string, enabled = true) {
+  return useQuery({
+    queryKey: [...examKeys.all, 'trending', patientId, analyte] as const,
+    queryFn: async () => {
+      const { data } = await api.get<TrendingPoint[]>(`/exams/trending/${patientId}`, {
+        params: { analyte, limit: 20 },
+      });
+      return data;
+    },
+    enabled: enabled && !!patientId && !!analyte,
+  });
+}

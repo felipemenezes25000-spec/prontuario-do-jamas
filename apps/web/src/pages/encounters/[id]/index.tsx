@@ -47,6 +47,8 @@ import { cn, getInitials, calculateAge } from '@/lib/utils';
 import { encounterStatusLabels, encounterTypeLabels, triageLevelColors } from '@/lib/constants';
 import { useEncounter } from '@/services/encounters.service';
 import { useAllergies, useConditions } from '@/services/patient-details.service';
+import { QuickAntecedents } from '@/components/medical/quick-antecedents';
+import { ExamRequestModal } from '@/components/medical/exam-request-modal';
 import { usePrescriptions } from '@/services/prescriptions.service';
 import { useLatestVitalSigns } from '@/services/vital-signs.service';
 import { useAlerts } from '@/services/alerts.service';
@@ -255,6 +257,9 @@ export default function EncounterPage() {
   const [vitalsModalOpen, setVitalsModalOpen] = useState(false);
   const [parsedVitals, setParsedVitals] = useState<ParsedVitalsData | null>(null);
   const [isParsingVitals, setIsParsingVitals] = useState(false);
+
+  // Manual exam request modal state (BLOCO A10)
+  const [manualExamModalOpen, setManualExamModalOpen] = useState(false);
 
   // Discharge modal state (BLOCO 11)
   const [dischargeModalOpen, setDischargeModalOpen] = useState(false);
@@ -798,6 +803,11 @@ export default function EncounterPage() {
             </CardContent>
           </Card>
 
+          {/* Quick Antecedents — BLOCO A1 */}
+          {encounter.patientId && (
+            <QuickAntecedents patientId={encounter.patientId} />
+          )}
+
           {/* Content Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="bg-card border border-border w-full justify-start">
@@ -966,7 +976,11 @@ export default function EncounterPage() {
                   <Mic className="mr-2 h-3.5 w-3.5" />
                   Solicitar por Voz
                 </Button>
-                <Button variant="outline" className="border-border text-xs">
+                <Button
+                  variant="outline"
+                  className="border-border text-xs"
+                  onClick={() => setManualExamModalOpen(true)}
+                >
                   <TestTube className="mr-2 h-3.5 w-3.5" />
                   Solicitar Exame
                 </Button>
@@ -1990,6 +2004,16 @@ export default function EncounterPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Manual Exam Request Modal (BLOCO A10) */}
+      {encounter.patientId && id && (
+        <ExamRequestModal
+          open={manualExamModalOpen}
+          onOpenChange={setManualExamModalOpen}
+          encounterId={id}
+          patientId={encounter.patientId}
+        />
+      )}
     </div>
   );
 }

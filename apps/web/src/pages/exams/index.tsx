@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   Search,
   FileX,
+  TrendingUp,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,8 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useExams } from '@/services/exams.service';
+import { LabTrendChart } from '@/components/medical/lab-trend-chart';
+import { Button } from '@/components/ui/button';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
 
@@ -75,6 +78,8 @@ export default function ExamsPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedExam, setSelectedExam] = useState<string | null>(null);
+  const [trendingAnalyte, setTrendingAnalyte] = useState<string | null>(null);
+  const [trendingPatientId, setTrendingPatientId] = useState<string | null>(null);
 
   const { data: examsData, isLoading, isError, refetch } = useExams();
   const allExams = examsData?.data ?? [];
@@ -262,12 +267,27 @@ export default function ExamsPage() {
                             {r.value}
                           </td>
                           <td className="px-3 py-2 text-sm text-muted-foreground">{r.reference ?? '—'}</td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2 flex items-center gap-1">
                             {r.flag && (
                               <span className={cn('text-[10px] font-medium', flagConfig[r.flag].color)}>
                                 {flagConfig[r.flag].label}
                               </span>
                             )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-blue-400 hover:text-blue-300"
+                              title="Ver tendencia"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (examDetail) {
+                                  setTrendingPatientId(examDetail.patientId);
+                                  setTrendingAnalyte(r.analyte);
+                                }
+                              }}
+                            >
+                              <TrendingUp className="h-3 w-3" />
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -287,6 +307,21 @@ export default function ExamsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Lab Trend Chart (BLOCO A13) */}
+      {trendingPatientId && trendingAnalyte && (
+        <LabTrendChart
+          open={!!trendingAnalyte}
+          onOpenChange={(open) => {
+            if (!open) {
+              setTrendingAnalyte(null);
+              setTrendingPatientId(null);
+            }
+          }}
+          patientId={trendingPatientId}
+          analyte={trendingAnalyte}
+        />
+      )}
     </div>
   );
 }

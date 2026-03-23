@@ -892,6 +892,7 @@ model Tenant {
   clinicalProtocols       ClinicalProtocol[]
   drugs                   Drug[]
   manchesterFlowcharts    ManchesterFlowchart[]
+  examCatalogs            ExamCatalog[]
 
   @@index([slug])
   @@index([cnpj])
@@ -1977,6 +1978,25 @@ model ExamResult {
   @@index([patientId, examType])
   @@index([patientId, createdAt])
   @@map("exam_results")
+}
+
+model ExamCatalog {
+  id          String   @id @default(uuid()) @map("id")
+  name        String   @map("name")
+  code        String   @unique @map("code")
+  examType    ExamType @map("exam_type")
+  category    String   @map("category")
+  description String?  @map("description")
+  isActive    Boolean  @default(true) @map("is_active")
+  tenantId    String   @map("tenant_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, examType])
+  @@index([name])
+  @@index([code])
+  @@map("exam_catalogs")
 }
 
 model ClinicalDocument {
