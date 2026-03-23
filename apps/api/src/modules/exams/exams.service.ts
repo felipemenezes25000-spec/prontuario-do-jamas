@@ -18,7 +18,7 @@ interface LabResultEntry {
   flag?: string;
 }
 
-interface TrendingPoint {
+export interface TrendingPoint {
   date: string;
   value: number;
   unit: string;

@@ -28,6 +28,7 @@ import {
 import { TimelineQueryDto } from './dto/timeline-query.dto';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
+import { ConditionStatus } from '@prisma/client';
 
 @ApiTags('Patients')
 @ApiBearerAuth('access-token')
@@ -190,7 +191,7 @@ export class PatientsController {
     @CurrentTenant() tenantId: string,
     @Body() data: { cidCode?: string; cidDescription?: string; status?: string; diagnosedAt?: string; notes?: string },
   ) {
-    return this.patientsService.addCondition(id, tenantId, data);
+    return this.patientsService.addCondition(id, tenantId, { ...data, status: data.status as ConditionStatus | undefined });
   }
 
   @Patch(':id/conditions/:conditionId')

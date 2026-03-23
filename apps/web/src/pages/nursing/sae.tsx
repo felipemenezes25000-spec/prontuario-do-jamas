@@ -290,11 +290,11 @@ export default function SAEPage() {
     (diagIdx: number, outcomeIdx: number, field: string, value: string | number) => {
       setSelectedDiagnoses((prev) => {
         const next = [...prev];
-        const diag = { ...next[diagIdx] };
-        const outcomes = [...diag.outcomes];
-        outcomes[outcomeIdx] = { ...outcomes[outcomeIdx], [field]: value };
-        diag.outcomes = outcomes;
-        next[diagIdx] = diag;
+        const source = next[diagIdx];
+        if (!source) return prev;
+        const outcomes = [...source.outcomes];
+        outcomes[outcomeIdx] = { ...outcomes[outcomeIdx], [field]: value } as typeof outcomes[number];
+        next[diagIdx] = { ...source, outcomes };
         return next;
       });
     },
@@ -304,9 +304,9 @@ export default function SAEPage() {
   const addOutcome = useCallback((diagIdx: number) => {
     setSelectedDiagnoses((prev) => {
       const next = [...prev];
-      const diag = { ...next[diagIdx] };
-      diag.outcomes = [...diag.outcomes, { nocTitle: '', baselineScore: 1, targetScore: 5 }];
-      next[diagIdx] = diag;
+      const source = next[diagIdx];
+      if (!source) return prev;
+      next[diagIdx] = { ...source, outcomes: [...source.outcomes, { nocTitle: '', baselineScore: 1, targetScore: 5 }] };
       return next;
     });
   }, []);
@@ -315,11 +315,11 @@ export default function SAEPage() {
     (diagIdx: number, intIdx: number, field: string, value: string) => {
       setSelectedDiagnoses((prev) => {
         const next = [...prev];
-        const diag = { ...next[diagIdx] };
-        const interventions = [...diag.interventions];
-        interventions[intIdx] = { ...interventions[intIdx], [field]: value };
-        diag.interventions = interventions;
-        next[diagIdx] = diag;
+        const source = next[diagIdx];
+        if (!source) return prev;
+        const interventions = [...source.interventions];
+        interventions[intIdx] = { ...interventions[intIdx], [field]: value } as typeof interventions[number];
+        next[diagIdx] = { ...source, interventions };
         return next;
       });
     },
@@ -329,9 +329,9 @@ export default function SAEPage() {
   const addIntervention = useCallback((diagIdx: number) => {
     setSelectedDiagnoses((prev) => {
       const next = [...prev];
-      const diag = { ...next[diagIdx] };
-      diag.interventions = [...diag.interventions, { nicTitle: '', frequency: '', notes: '' }];
-      next[diagIdx] = diag;
+      const source = next[diagIdx];
+      if (!source) return prev;
+      next[diagIdx] = { ...source, interventions: [...source.interventions, { nicTitle: '', frequency: '', notes: '' }] };
       return next;
     });
   }, []);

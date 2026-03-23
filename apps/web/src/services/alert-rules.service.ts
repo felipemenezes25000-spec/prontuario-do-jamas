@@ -35,9 +35,7 @@ export interface CreateAlertRuleDto {
   isActive?: boolean;
 }
 
-export interface UpdateAlertRuleDto extends Partial<CreateAlertRuleDto> {
-  id?: never; // id is passed separately
-}
+export type UpdateAlertRuleDto = Partial<CreateAlertRuleDto>;
 
 // ============================================================================
 // Query Keys
@@ -78,7 +76,7 @@ export function useCreateAlertRule() {
 export function useUpdateAlertRule() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...dto }: UpdateAlertRuleDto & { id: string }) => {
+    mutationFn: async ({ id, ...dto }: { id: string } & UpdateAlertRuleDto) => {
       const { data } = await api.patch<ClinicalAlertRule>(
         `/alerts/rules/${id}`,
         dto,

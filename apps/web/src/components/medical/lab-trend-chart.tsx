@@ -158,16 +158,16 @@ export function LabTrendChart({
                       fontSize: '12px',
                     }}
                     labelStyle={{ color: 'hsl(var(--muted-foreground))' }}
-                    formatter={(value: number, _name: string, props: { payload: ChartDataPoint }) => [
+                    formatter={(value: number, _name: string, props: { payload?: ChartDataPoint }) => [
                       <span
                         key="val"
                         className={cn(
                           'font-medium',
-                          props.payload.isAbnormal ? 'text-red-400' : 'text-emerald-400',
+                          props.payload?.isAbnormal ? 'text-red-400' : 'text-emerald-400',
                         )}
                       >
                         {value} {unit}
-                        {props.payload.isAbnormal ? ' (fora da ref.)' : ''}
+                        {props.payload?.isAbnormal ? ' (fora da ref.)' : ''}
                       </span>,
                       analyte,
                     ]}

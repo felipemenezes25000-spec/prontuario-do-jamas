@@ -34,7 +34,7 @@ interface TimelineEntry {
   details: Record<string, unknown>;
 }
 
-interface TimelineResponse {
+export interface TimelineResponse {
   items: TimelineEntry[];
   nextCursor: string | null;
   hasMore: boolean;

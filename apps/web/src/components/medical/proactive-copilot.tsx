@@ -216,14 +216,7 @@ export function ProactiveCopilotSidebar({
           )}
 
           {/* Suggestions list */}
-          {visibleSuggestions.map((suggestion, visibleIdx) => {
-            // Find original index
-            const originalIdx = suggestions.findIndex(
-              (s) =>
-                s.text === suggestion.text &&
-                s.field === suggestion.field &&
-                !dismissedIndexes.has(suggestions.indexOf(s)),
-            );
+          {visibleSuggestions.map((suggestion) => {
             const realIdx = suggestions.indexOf(suggestion);
             const isApplied = appliedIndexes.has(realIdx);
             const config = typeConfig[suggestion.type];

@@ -331,7 +331,7 @@ export function PatientTimeline({ patientId }: PatientTimelineProps) {
 // ============================================================================
 
 function TimelineDetails({ entry }: { entry: TimelineEntry }) {
-  const details = entry.details;
+  const details = entry.details as Record<string, string | undefined>;
 
   if (entry.type === 'clinical_note') {
     return (

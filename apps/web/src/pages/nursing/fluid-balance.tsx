@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -158,9 +157,6 @@ export default function FluidBalancePage() {
 
   const filteredRecords = useMemo(() => {
     if (shiftFilter === '24h') return fluidRecords;
-    const now = new Date();
-    const hour = now.getHours();
-
     let startHour: number;
     let endHour: number;
 

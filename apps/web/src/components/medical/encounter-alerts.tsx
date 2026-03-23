@@ -62,7 +62,7 @@ export function EncounterAlerts({ patientId }: EncounterAlertsProps) {
   // The query may return paginated or direct array
   const alerts: ClinicalAlert[] = Array.isArray(alertsRaw)
     ? alertsRaw
-    : (alertsRaw as { data?: ClinicalAlert[] })?.data ?? [];
+    : (alertsRaw as unknown as { data?: ClinicalAlert[] })?.data ?? [];
 
   const activeAlerts = alerts.filter((a) => a.isActive && !a.acknowledgedAt);
   const criticalAlerts = activeAlerts.filter(
@@ -228,7 +228,7 @@ export function AlertCountBadge({ patientId }: { patientId: string }) {
 
   const alerts: ClinicalAlert[] = Array.isArray(alertsRaw)
     ? alertsRaw
-    : (alertsRaw as { data?: ClinicalAlert[] })?.data ?? [];
+    : (alertsRaw as unknown as { data?: ClinicalAlert[] })?.data ?? [];
 
   const activeCount = alerts.filter((a) => a.isActive).length;
   const hasCritical = alerts.some(

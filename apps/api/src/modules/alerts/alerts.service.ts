@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAlertDto } from './dto/create-alert.dto';
 
@@ -19,7 +20,7 @@ export class AlertsService {
         severity: dto.severity,
         title: dto.title,
         message: dto.message,
-        details: dto.details ? (dto.details as Record<string, unknown>) : undefined,
+        details: dto.details ? (dto.details as unknown as Prisma.InputJsonValue) : undefined,
         source: dto.source,
         triggeredAt: new Date(),
       },

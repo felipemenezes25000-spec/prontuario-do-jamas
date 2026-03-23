@@ -6,7 +6,6 @@ import {
   Activity,
   BedDouble,
   XCircle,
-  User,
   CalendarClock,
 } from 'lucide-react';
 import { toast } from 'sonner';

@@ -33,7 +33,7 @@ interface ScheduleSlot {
   checkedAt: string | null;
 }
 
-interface ScheduleRow {
+export interface ScheduleRow {
   prescriptionItem: {
     id: string;
     name: string;

@@ -59,12 +59,9 @@ export class WristbandService {
     const latestEncounter = await this.prisma.encounter.findFirst({
       where: { patientId, status: { in: ['IN_PROGRESS', 'IN_TRIAGE', 'WAITING'] } },
       orderBy: { createdAt: 'desc' },
-      include: {
-        triage: { select: { classificationType: true } },
-      },
     });
 
-    const triageLevel = latestEncounter?.triage?.classificationType as string | undefined;
+    const triageLevel = latestEncounter?.triageLevel as string | undefined;
     const bgColor = triageLevel ? TRIAGE_COLORS[triageLevel] ?? '#ffffff' : '#ffffff';
     const textColor = triageLevel && ['YELLOW', 'GREEN'].includes(triageLevel) ? '#000000' : '#ffffff';
     const needsDarkText = bgColor === '#ffffff' || ['YELLOW', 'GREEN'].includes(triageLevel ?? '');

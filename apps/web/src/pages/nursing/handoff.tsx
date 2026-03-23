@@ -248,7 +248,7 @@ export default function HandoffPage() {
         const firstPatient = MOCK_PATIENTS[0];
         setSbarMap((prev) => ({
           ...prev,
-          [firstPatient.id]: {
+          [firstPatient!.id]: {
             s: result.summary.substring(0, 200),
             b: result.criticalItems.map((c) => `${c.patient}: ${c.item}`).join('; '),
             a: 'Gerado por IA - revise os dados',

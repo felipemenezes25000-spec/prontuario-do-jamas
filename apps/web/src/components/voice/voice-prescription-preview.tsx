@@ -21,7 +21,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
-import { toast } from 'sonner';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -59,7 +58,7 @@ export function PrescriptionVoicePreview({
   onOpenChange,
   items: initialItems,
   patientId,
-  encounterId,
+  encounterId: _encounterId,
   onConfirm,
   onDiscard,
 }: PrescriptionVoicePreviewProps) {
