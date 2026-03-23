@@ -1290,3 +1290,83 @@ export interface TissValidationResult {
   errors: string[];
   warnings: string[];
 }
+
+// ============================================================================
+// Pharmacy — Dispensation & Inventory (A11 + C6)
+// ============================================================================
+
+export type InventoryStatus = 'AVAILABLE' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'EXPIRED' | 'QUARANTINE';
+
+export interface Dispensation {
+  id: string;
+  prescriptionItemId: string;
+  prescriptionItem?: PrescriptionItem;
+  pharmacistId: string;
+  pharmacist?: { id: string; name: string };
+  quantity: number;
+  lot?: string;
+  expirationDate?: string;
+  observations?: string;
+  dispensedAt: string;
+  tenantId: string;
+  createdAt: string;
+}
+
+export interface CreateDispensationDto {
+  prescriptionItemId: string;
+  quantity: number;
+  lot?: string;
+  expirationDate?: string;
+  observations?: string;
+}
+
+export interface DrugInventory {
+  id: string;
+  drugName: string;
+  drugId?: string;
+  lot: string;
+  expirationDate: string;
+  quantity: number;
+  minQuantity: number;
+  location: string;
+  status: InventoryStatus;
+  tenantId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateDrugInventoryDto {
+  drugName: string;
+  drugId?: string;
+  lot: string;
+  expirationDate: string;
+  quantity: number;
+  minQuantity?: number;
+  location: string;
+}
+
+export interface UpdateDrugInventoryDto {
+  quantity?: number;
+  minQuantity?: number;
+  location?: string;
+  status?: InventoryStatus;
+}
+
+export interface InventoryAlerts {
+  lowStock: DrugInventory[];
+  expired: DrugInventory[];
+  totalLowStock: number;
+  totalExpired: number;
+}
+
+export interface FluidBalanceSummary {
+  totalInput: number;
+  totalOutput: number;
+  balance: number;
+  shifts: {
+    morning: { input: number; output: number; balance: number };
+    afternoon: { input: number; output: number; balance: number };
+    night: { input: number; output: number; balance: number };
+  };
+  records: FluidBalance[];
+}

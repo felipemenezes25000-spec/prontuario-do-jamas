@@ -41,6 +41,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { TelemedicineModule } from './modules/telemedicine/telemedicine.module';
 import { BookingModule } from './modules/booking/booking.module';
+import { PharmacyModule } from './modules/pharmacy/pharmacy.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { BookingModule } from './modules/booking/booking.module';
     ReportsModule,
     TelemedicineModule,
     BookingModule,
+    PharmacyModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

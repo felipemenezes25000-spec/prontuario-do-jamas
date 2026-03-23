@@ -170,6 +170,26 @@ export class NursingController {
     return this.nursingService.createFluidBalance(user.sub, dto);
   }
 
+  @Get('fluid-balance/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Get fluid balance records for an encounter' })
+  @ApiResponse({ status: 200, description: 'Fluid balance records' })
+  async getFluidBalance(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+  ) {
+    return this.nursingService.getFluidBalance(encounterId);
+  }
+
+  @Get('fluid-balance/:encounterId/summary')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Get fluid balance summary for an encounter' })
+  @ApiResponse({ status: 200, description: 'Fluid balance summary' })
+  async getFluidBalanceSummary(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+  ) {
+    return this.nursingService.getFluidBalanceSummary(encounterId);
+  }
+
   // --- Queries ---
 
   @Get('by-encounter/:encounterId')

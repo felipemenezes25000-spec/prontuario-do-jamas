@@ -6,6 +6,7 @@ import type {
   NursingProcess,
   NursingNote,
   FluidBalance,
+  FluidBalanceSummary,
   CreateNursingProcessDto,
   CreateNursingNoteDto,
   CreateFluidBalanceDto,
@@ -352,7 +353,20 @@ export function useFluidBalance(encounterId: string) {
     queryKey: nursingKeys.fluidBalanceByEncounter(encounterId),
     queryFn: async () => {
       const { data } = await api.get<FluidBalance[]>(
-        `/nursing/by-encounter/${encounterId}`,
+        `/nursing/fluid-balance/${encounterId}`,
+      );
+      return data;
+    },
+    enabled: !!encounterId,
+  });
+}
+
+export function useFluidBalanceSummary(encounterId: string) {
+  return useQuery({
+    queryKey: [...nursingKeys.fluidBalanceByEncounter(encounterId), 'summary'] as const,
+    queryFn: async () => {
+      const { data } = await api.get<FluidBalanceSummary>(
+        `/nursing/fluid-balance/${encounterId}/summary`,
       );
       return data;
     },

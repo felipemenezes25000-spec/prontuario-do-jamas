@@ -563,6 +563,14 @@ enum InterventionStatus {
   SUSPENDED
 }
 
+enum InventoryStatus {
+  AVAILABLE
+  LOW_STOCK
+  OUT_OF_STOCK
+  EXPIRED
+  QUARANTINE
+}
+
 enum NursingNoteType {
   EVOLUTION
   ADMISSION
@@ -893,6 +901,8 @@ model Tenant {
   drugs                   Drug[]
   manchesterFlowcharts    ManchesterFlowchart[]
   examCatalogs            ExamCatalog[]
+  dispensations           Dispensation[]
+  drugInventory           DrugInventory[]
 
   @@index([slug])
   @@index([cnpj])
@@ -974,6 +984,7 @@ model User {
   fluidBalances             FluidBalance[]
   digitalSignatures         DigitalSignature[]  @relation("DigitalSignatureSigner")
   billingAppeals            BillingAppeal[]     @relation("AppealCreator")
+  pharmacistDispensations   Dispensation[]      @relation("PharmacistDispensations")
 
   @@unique([oauthProvider, oauthProviderId])
   @@index([tenantId, email])
@@ -1513,6 +1524,7 @@ model PrescriptionItem {
 
   prescription     Prescription      @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
   medicationChecks MedicationCheck[]
+  dispensations    Dispensation[]
 
   @@index([prescriptionId])
   @@map("prescription_items")
@@ -2590,4 +2602,52 @@ model DrugInteraction {
   @@index([drug1Id])
   @@index([drug2Id])
   @@map("drug_interactions")
+}
+
+// ============================================================================
+// DISPENSATION & INVENTORY (A11 + C6)
+// ============================================================================
+
+model Dispensation {
+  id                 String    @id @default(uuid()) @map("id")
+  prescriptionItemId String    @map("prescription_item_id")
+  pharmacistId       String    @map("pharmacist_id")
+  quantity           Int       @map("quantity")
+  lot                String?   @map("lot")
+  expirationDate     DateTime? @map("expiration_date")
+  observations       String?   @map("observations")
+  dispensedAt        DateTime  @default(now()) @map("dispensed_at")
+  tenantId           String    @map("tenant_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  prescriptionItem PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Cascade)
+  pharmacist       User             @relation("PharmacistDispensations", fields: [pharmacistId], references: [id], onDelete: Restrict)
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([prescriptionItemId])
+  @@index([pharmacistId])
+  @@index([tenantId])
+  @@map("dispensations")
+}
+
+model DrugInventory {
+  id             String          @id @default(uuid()) @map("id")
+  drugName       String          @map("drug_name")
+  drugId         String?         @map("drug_id")
+  lot            String          @map("lot")
+  expirationDate DateTime        @map("expiration_date")
+  quantity       Int             @map("quantity")
+  minQuantity    Int             @default(10) @map("min_quantity")
+  location       String          @map("location")
+  status         InventoryStatus @default(AVAILABLE) @map("status")
+  tenantId       String          @map("tenant_id")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([drugName])
+  @@index([status])
+  @@map("drug_inventory")
 }

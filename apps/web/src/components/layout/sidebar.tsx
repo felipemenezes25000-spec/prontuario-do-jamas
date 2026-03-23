@@ -18,6 +18,8 @@ import {
   ChevronRight,
   Syringe,
   CalendarClock,
+  ClipboardList,
+  Droplets,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth.store';
@@ -34,6 +36,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   href: string;
   adminOnly?: boolean;
+  isSubItem?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -46,7 +49,9 @@ const navItems: NavItem[] = [
   { label: 'Farmácia', icon: Pill, href: '/farmacia' },
   { label: 'Exames', icon: TestTube, href: '/exames' },
   { label: 'Enfermagem', icon: HeartPulse, href: '/enfermagem' },
-  { label: 'Aprazamento', icon: CalendarClock, href: '/enfermagem/aprazamento' },
+  { label: 'Aprazamento', icon: CalendarClock, href: '/enfermagem/aprazamento', isSubItem: true },
+  { label: 'SAE', icon: ClipboardList, href: '/enfermagem/sae', isSubItem: true },
+  { label: 'Balanço Hídrico', icon: Droplets, href: '/enfermagem/balanco-hidrico', isSubItem: true },
   { label: 'Quimioterapia', icon: Syringe, href: '/quimioterapia' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
   { label: 'Faturamento', icon: Receipt, href: '/faturamento' },
@@ -112,6 +117,7 @@ export function Sidebar() {
                 <TooltipTrigger asChild>
                   <NavLink
                     to={item.href}
+                    end={!item.isSubItem}
                     onClick={() => setSidebarMobileOpen(false)}
                     className={({ isActive }) =>
                       cn(
@@ -120,6 +126,8 @@ export function Sidebar() {
                           ? 'bg-sidebar-accent text-primary'
                           : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
                         sidebarCollapsed && 'justify-center px-2',
+                        item.isSubItem && !sidebarCollapsed && 'pl-9 py-1.5 text-xs',
+                        item.isSubItem && sidebarCollapsed && 'hidden',
                       )
                     }
                   >
@@ -127,7 +135,8 @@ export function Sidebar() {
                       <>
                         <item.icon
                           className={cn(
-                            'h-5 w-5 shrink-0',
+                            'shrink-0',
+                            item.isSubItem ? 'h-3.5 w-3.5' : 'h-5 w-5',
                             isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-sidebar-foreground',
                           )}
                         />
