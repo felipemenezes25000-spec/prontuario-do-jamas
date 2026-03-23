@@ -12,13 +12,50 @@ import {
   Zap,
   X,
   Loader2,
+  Warehouse,
+  PackageCheck,
+  Plus,
+  Calendar,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { usePrescriptions } from '@/services/prescriptions.service';
+import {
+  usePendingDispensation,
+  useDispense,
+  useInventory,
+  useCreateInventoryEntry,
+  useInventoryAlerts,
+} from '@/services/pharmacy.service';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
 import { SafetyValidationForm, DoubleCheckActions } from '@/components/medical/prescription-safety-panel';
@@ -28,8 +65,594 @@ import {
   type Drug,
   type InteractionResult,
 } from '@/services/drugs.service';
+import type { PrescriptionItem, DrugInventory } from '@/types';
 
-export default function PharmacyPage() {
+// ============================================================================
+// Dispensation Tab
+// ============================================================================
+
+function DispensationTab() {
+  const { data: pending = [], isLoading, isError, refetch } = usePendingDispensation();
+  const dispenseMutation = useDispense();
+  const [dispensingItem, setDispensingItem] = useState<PrescriptionItem | null>(null);
+  const [dispenseForm, setDispenseForm] = useState({
+    quantity: 1,
+    lot: '',
+    expirationDate: '',
+    observations: '',
+  });
+
+  const handleDispense = useCallback(() => {
+    if (!dispensingItem) return;
+    dispenseMutation.mutate(
+      {
+        prescriptionItemId: dispensingItem.id,
+        quantity: dispenseForm.quantity,
+        lot: dispenseForm.lot || undefined,
+        expirationDate: dispenseForm.expirationDate || undefined,
+        observations: dispenseForm.observations || undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Medicamento dispensado com sucesso');
+          setDispensingItem(null);
+          setDispenseForm({ quantity: 1, lot: '', expirationDate: '', observations: '' });
+        },
+        onError: () => {
+          toast.error('Erro ao dispensar medicamento');
+        },
+      },
+    );
+  }, [dispensingItem, dispenseForm, dispenseMutation]);
+
+  if (isLoading) return <PageLoading cards={2} showTable />;
+  if (isError) return <PageError onRetry={() => refetch()} />;
+
+  return (
+    <div className="space-y-4">
+      {pending.length === 0 ? (
+        <Card className="border-border bg-card">
+          <CardContent className="flex flex-col items-center py-12">
+            <PackageCheck className="h-10 w-10 text-muted-foreground" />
+            <p className="mt-3 text-sm text-muted-foreground">
+              Nenhuma dispensacao pendente
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        pending.map((presc) => (
+          <Card key={presc.id} className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-medium">
+                    {presc.patient?.fullName ?? `Paciente ${presc.patientId.slice(-6)}`}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    MRN: {presc.patient?.mrn ?? '---'} | Dr(a). {presc.doctor?.name ?? '---'}
+                  </p>
+                </div>
+                <Badge className="bg-teal-600 text-white text-[10px]">Ativa</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Medicamento</TableHead>
+                    <TableHead>Dose</TableHead>
+                    <TableHead>Via</TableHead>
+                    <TableHead>Frequencia</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Acao</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {presc.items.map((item) => {
+                    const isDispensed = item.dispensations && item.dispensations.length > 0;
+                    const isHighAlert = item.isHighAlert || item.isControlled;
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Pill className={cn('h-3 w-3', isHighAlert ? 'text-red-400' : 'text-muted-foreground')} />
+                            <span className={isHighAlert ? 'text-red-300 font-medium' : ''}>
+                              {item.medicationName ?? item.examName ?? '---'}
+                            </span>
+                            {isHighAlert && (
+                              <Badge variant="secondary" className="bg-red-500/20 text-red-300 text-[9px]">
+                                Alto Alerta
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs">{item.dose ?? '---'}</TableCell>
+                        <TableCell className="text-xs">{item.route ?? '---'}</TableCell>
+                        <TableCell className="text-xs">{item.frequency ?? '---'}</TableCell>
+                        <TableCell>
+                          {isDispensed ? (
+                            <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px]">
+                              Dispensado
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-amber-500/20 text-amber-300 text-[10px]">
+                              Pendente
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {!isDispensed && (
+                            <Button
+                              size="sm"
+                              className="bg-teal-600 hover:bg-teal-500 text-xs h-7"
+                              onClick={() => setDispensingItem(item)}
+                            >
+                              <PackageCheck className="mr-1 h-3 w-3" />
+                              Dispensar
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        ))
+      )}
+
+      {/* Dispensation Dialog */}
+      <Dialog open={!!dispensingItem} onOpenChange={(open) => !open && setDispensingItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Dispensar Medicamento</DialogTitle>
+            <DialogDescription>
+              {dispensingItem?.medicationName} - {dispensingItem?.dose} {dispensingItem?.route}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Quantidade</Label>
+              <Input
+                type="number"
+                min={1}
+                value={dispenseForm.quantity}
+                onChange={(e) =>
+                  setDispenseForm((prev) => ({
+                    ...prev,
+                    quantity: parseInt(e.target.value, 10) || 1,
+                  }))
+                }
+                className="bg-card border-border"
+              />
+            </div>
+            <div>
+              <Label>Lote</Label>
+              <Input
+                value={dispenseForm.lot}
+                onChange={(e) =>
+                  setDispenseForm((prev) => ({ ...prev, lot: e.target.value }))
+                }
+                placeholder="Numero do lote"
+                className="bg-card border-border"
+              />
+            </div>
+            <div>
+              <Label>Validade</Label>
+              <Input
+                type="date"
+                value={dispenseForm.expirationDate}
+                onChange={(e) =>
+                  setDispenseForm((prev) => ({
+                    ...prev,
+                    expirationDate: e.target.value,
+                  }))
+                }
+                className="bg-card border-border"
+              />
+            </div>
+            <div>
+              <Label>Observacoes</Label>
+              <Input
+                value={dispenseForm.observations}
+                onChange={(e) =>
+                  setDispenseForm((prev) => ({
+                    ...prev,
+                    observations: e.target.value,
+                  }))
+                }
+                placeholder="Observacoes opcionais"
+                className="bg-card border-border"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setDispensingItem(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-teal-600 hover:bg-teal-500"
+              onClick={handleDispense}
+              disabled={dispenseMutation.isPending}
+            >
+              {dispenseMutation.isPending && (
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+              )}
+              Confirmar Dispensacao
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============================================================================
+// Inventory Tab
+// ============================================================================
+
+function InventoryTab() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [locationFilter, setLocationFilter] = useState<string>('all');
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [newEntry, setNewEntry] = useState({
+    drugName: '',
+    lot: '',
+    expirationDate: '',
+    quantity: 0,
+    minQuantity: 10,
+    location: 'Farmacia Central',
+  });
+
+  const filters = useMemo(() => ({
+    ...(statusFilter !== 'all' ? { status: statusFilter as DrugInventory['status'] } : {}),
+    ...(locationFilter !== 'all' ? { location: locationFilter } : {}),
+    ...(searchQuery ? { search: searchQuery } : {}),
+  }), [statusFilter, locationFilter, searchQuery]);
+
+  const { data: inventory = [], isLoading, isError, refetch } = useInventory(filters);
+  const { data: alerts } = useInventoryAlerts();
+  const createEntry = useCreateInventoryEntry();
+
+  const locations = useMemo(() => {
+    const locs = new Set(inventory.map((i) => i.location));
+    return Array.from(locs);
+  }, [inventory]);
+
+  const stats = useMemo(() => ({
+    total: inventory.length,
+    lowStock: alerts?.totalLowStock ?? 0,
+    expired: alerts?.totalExpired ?? 0,
+    available: inventory.filter((i) => i.status === 'AVAILABLE').length,
+  }), [inventory, alerts]);
+
+  const handleAddEntry = useCallback(() => {
+    if (!newEntry.drugName || !newEntry.lot || !newEntry.expirationDate) {
+      toast.error('Preencha todos os campos obrigatorios');
+      return;
+    }
+    createEntry.mutate(
+      {
+        drugName: newEntry.drugName,
+        lot: newEntry.lot,
+        expirationDate: newEntry.expirationDate,
+        quantity: newEntry.quantity,
+        minQuantity: newEntry.minQuantity,
+        location: newEntry.location,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Entrada registrada com sucesso');
+          setAddDialogOpen(false);
+          setNewEntry({
+            drugName: '',
+            lot: '',
+            expirationDate: '',
+            quantity: 0,
+            minQuantity: 10,
+            location: 'Farmacia Central',
+          });
+        },
+        onError: () => {
+          toast.error('Erro ao registrar entrada');
+        },
+      },
+    );
+  }, [newEntry, createEntry]);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'AVAILABLE':
+        return <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px]">Disponivel</Badge>;
+      case 'LOW_STOCK':
+        return <Badge className="bg-amber-500/20 text-amber-300 text-[10px]">Estoque Baixo</Badge>;
+      case 'OUT_OF_STOCK':
+        return <Badge className="bg-red-500/20 text-red-300 text-[10px]">Sem Estoque</Badge>;
+      case 'EXPIRED':
+        return <Badge className="bg-red-600/30 text-red-400 text-[10px]">Vencido</Badge>;
+      case 'QUARANTINE':
+        return <Badge className="bg-purple-500/20 text-purple-300 text-[10px]">Quarentena</Badge>;
+      default:
+        return <Badge variant="secondary" className="text-[10px]">{status}</Badge>;
+    }
+  };
+
+  if (isLoading) return <PageLoading cards={3} showTable />;
+  if (isError) return <PageError onRetry={() => refetch()} />;
+
+  return (
+    <div className="space-y-4">
+      {/* Alerts */}
+      {(stats.lowStock > 0 || stats.expired > 0) && (
+        <div className="flex flex-wrap gap-2">
+          {stats.lowStock > 0 && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-amber-400" />
+              <span className="text-sm text-amber-300">
+                {stats.lowStock} item(s) com estoque baixo
+              </span>
+            </div>
+          )}
+          {stats.expired > 0 && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-red-400" />
+              <span className="text-sm text-red-300">
+                {stats.expired} item(s) vencido(s)
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* KPIs */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: 'Total de Itens', value: String(stats.total), icon: Package, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Disponiveis', value: String(stats.available), icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+          { label: 'Estoque Baixo', value: String(stats.lowStock), icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+          { label: 'Vencidos', value: String(stats.expired), icon: Calendar, color: 'text-red-400', bg: 'bg-red-500/10' },
+        ].map((kpi) => (
+          <Card key={kpi.label} className="border-border bg-card">
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">{kpi.label}</p>
+                  <p className="mt-1 text-2xl font-bold">{kpi.value}</p>
+                </div>
+                <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', kpi.bg)}>
+                  <kpi.icon className={cn('h-5 w-5', kpi.color)} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Filters & Actions */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 gap-2">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar medicamento..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 bg-card border-border"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40 bg-card border-border">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="AVAILABLE">Disponivel</SelectItem>
+              <SelectItem value="LOW_STOCK">Estoque Baixo</SelectItem>
+              <SelectItem value="OUT_OF_STOCK">Sem Estoque</SelectItem>
+              <SelectItem value="EXPIRED">Vencido</SelectItem>
+              <SelectItem value="QUARANTINE">Quarentena</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={locationFilter} onValueChange={setLocationFilter}>
+            <SelectTrigger className="w-44 bg-card border-border">
+              <SelectValue placeholder="Local" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Locais</SelectItem>
+              {locations.map((loc) => (
+                <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          className="bg-teal-600 hover:bg-teal-500"
+          onClick={() => setAddDialogOpen(true)}
+        >
+          <Plus className="mr-1.5 h-4 w-4" />
+          Registrar Entrada
+        </Button>
+      </div>
+
+      {/* Inventory Table */}
+      <Card className="border-border bg-card">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Medicamento</TableHead>
+                <TableHead>Lote</TableHead>
+                <TableHead>Validade</TableHead>
+                <TableHead className="text-right">Qtd</TableHead>
+                <TableHead className="text-right">Min</TableHead>
+                <TableHead>Local</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {inventory.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    Nenhum item encontrado
+                  </TableCell>
+                </TableRow>
+              ) : (
+                inventory.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium text-sm">{item.drugName}</TableCell>
+                    <TableCell className="text-xs">{item.lot}</TableCell>
+                    <TableCell className="text-xs">
+                      {new Date(item.expirationDate).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-medium">
+                      <span className={item.quantity <= item.minQuantity ? 'text-amber-400' : ''}>
+                        {item.quantity}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">
+                      {item.minQuantity}
+                    </TableCell>
+                    <TableCell className="text-xs">{item.location}</TableCell>
+                    <TableCell>{getStatusBadge(item.status)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Add Entry Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar Entrada de Estoque</DialogTitle>
+            <DialogDescription>
+              Adicione um novo item ao estoque da farmacia
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Nome do Medicamento *</Label>
+              <Input
+                value={newEntry.drugName}
+                onChange={(e) =>
+                  setNewEntry((prev) => ({ ...prev, drugName: e.target.value }))
+                }
+                placeholder="Ex: Dipirona 500mg"
+                className="bg-card border-border"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Lote *</Label>
+                <Input
+                  value={newEntry.lot}
+                  onChange={(e) =>
+                    setNewEntry((prev) => ({ ...prev, lot: e.target.value }))
+                  }
+                  placeholder="Ex: LOT2024A"
+                  className="bg-card border-border"
+                />
+              </div>
+              <div>
+                <Label>Validade *</Label>
+                <Input
+                  type="date"
+                  value={newEntry.expirationDate}
+                  onChange={(e) =>
+                    setNewEntry((prev) => ({
+                      ...prev,
+                      expirationDate: e.target.value,
+                    }))
+                  }
+                  className="bg-card border-border"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Quantidade</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={newEntry.quantity}
+                  onChange={(e) =>
+                    setNewEntry((prev) => ({
+                      ...prev,
+                      quantity: parseInt(e.target.value, 10) || 0,
+                    }))
+                  }
+                  className="bg-card border-border"
+                />
+              </div>
+              <div>
+                <Label>Quantidade Minima</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={newEntry.minQuantity}
+                  onChange={(e) =>
+                    setNewEntry((prev) => ({
+                      ...prev,
+                      minQuantity: parseInt(e.target.value, 10) || 0,
+                    }))
+                  }
+                  className="bg-card border-border"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Local</Label>
+              <Select
+                value={newEntry.location}
+                onValueChange={(val) =>
+                  setNewEntry((prev) => ({ ...prev, location: val }))
+                }
+              >
+                <SelectTrigger className="bg-card border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Farmacia Central">Farmacia Central</SelectItem>
+                  <SelectItem value="Satelite UTI">Satelite UTI</SelectItem>
+                  <SelectItem value="Satelite Emergencia">Satelite Emergencia</SelectItem>
+                  <SelectItem value="Satelite Centro Cirurgico">Satelite Centro Cirurgico</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAddDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-teal-600 hover:bg-teal-500"
+              onClick={handleAddEntry}
+              disabled={createEntry.isPending}
+            >
+              {createEntry.isPending && (
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+              )}
+              Registrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============================================================================
+// Original Pharmacy Content (Prescriptions + Safety + Interactions)
+// ============================================================================
+
+function PrescriptionsTab() {
   const [search, setSearch] = useState('');
   const [safetyPanelOpen, setSafetyPanelOpen] = useState(false);
   const [interactionPanelOpen, setInteractionPanelOpen] = useState(false);
@@ -76,13 +699,11 @@ export default function PharmacyPage() {
   if (isError) return <PageError onRetry={() => refetch()} />;
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      <h1 className="text-2xl font-bold tracking-tight">Farmácia</h1>
-
+    <div className="space-y-4">
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Prescrições Pendentes', value: String(kpiValues.pending), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+          { label: 'Prescricoes Pendentes', value: String(kpiValues.pending), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
           { label: 'Dispensadas', value: String(kpiValues.dispensed), icon: CheckCircle2, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-500/10' },
           { label: 'Itens Alto Alerta', value: String(kpiValues.highAlertItems), icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
           { label: 'Total de Itens', value: String(kpiValues.totalItems), icon: Package, color: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -107,7 +728,7 @@ export default function PharmacyPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Buscar medicamento ou prescrição..."
+          placeholder="Buscar medicamento ou prescricao..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10 bg-card border-border"
@@ -124,7 +745,7 @@ export default function PharmacyPage() {
           >
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldCheck className="h-4 w-4 text-emerald-400" />
-              Validação de Segurança
+              Validacao de Seguranca
             </CardTitle>
             {safetyPanelOpen ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -150,7 +771,7 @@ export default function PharmacyPage() {
           >
             <CardTitle className="flex items-center gap-2 text-base">
               <Zap className="h-4 w-4 text-amber-400" />
-              Verificador de Interações Medicamentosas
+              Verificador de Interacoes Medicamentosas
             </CardTitle>
             {interactionPanelOpen ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -162,7 +783,7 @@ export default function PharmacyPage() {
         {interactionPanelOpen && (
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              Adicione dois ou mais medicamentos para verificar interações entre eles.
+              Adicione dois ou mais medicamentos para verificar interacoes entre eles.
             </p>
 
             <DrugSearch
@@ -171,7 +792,6 @@ export default function PharmacyPage() {
               excludeIds={selectedDrugs.map((d) => d.id)}
             />
 
-            {/* Selected drugs */}
             {selectedDrugs.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">
@@ -210,19 +830,18 @@ export default function PharmacyPage() {
                   ) : (
                     <Zap className="mr-1.5 h-3 w-3" />
                   )}
-                  Verificar Interações
+                  Verificar Interacoes
                 </Button>
               </div>
             )}
 
-            {/* Interaction results */}
             {interactionResults && (
               <div className="space-y-3 pt-2 border-t border-border">
                 {(interactionResults.interactions ?? []).length === 0 ? (
                   <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 p-3">
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
                     <p className="text-sm text-emerald-300">
-                      Nenhuma interação encontrada entre os medicamentos selecionados.
+                      Nenhuma interacao encontrada entre os medicamentos selecionados.
                     </p>
                   </div>
                 ) : (
@@ -231,7 +850,7 @@ export default function PharmacyPage() {
                       <div className="flex items-center gap-2 rounded-lg bg-red-500/10 p-3">
                         <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
                         <p className="text-sm font-medium text-red-300">
-                          Interações GRAVES detectadas!
+                          Interacoes GRAVES detectadas!
                         </p>
                       </div>
                     )}
@@ -289,13 +908,13 @@ export default function PharmacyPage() {
       {/* Dispensing Queue */}
       <Card className="border-border bg-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Fila de Dispensação</CardTitle>
+          <CardTitle className="text-base">Fila de Dispensacao</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {prescriptions.length === 0 ? (
             <div className="flex flex-col items-center py-12">
               <Pill className="h-10 w-10 text-muted-foreground" />
-              <p className="mt-3 text-sm text-muted-foreground">Nenhuma prescrição na fila</p>
+              <p className="mt-3 text-sm text-muted-foreground">Nenhuma prescricao na fila</p>
             </div>
           ) : prescriptions.map((presc) => (
             <div key={presc.id} className="rounded-lg border border-border p-3">
@@ -345,6 +964,47 @@ export default function PharmacyPage() {
           ))}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ============================================================================
+// Main Pharmacy Page
+// ============================================================================
+
+export default function PharmacyPage() {
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <h1 className="text-2xl font-bold tracking-tight">Farmacia</h1>
+
+      <Tabs defaultValue="dispensacao" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="dispensacao" className="flex items-center gap-1.5">
+            <PackageCheck className="h-4 w-4" />
+            Dispensacao
+          </TabsTrigger>
+          <TabsTrigger value="estoque" className="flex items-center gap-1.5">
+            <Warehouse className="h-4 w-4" />
+            Estoque
+          </TabsTrigger>
+          <TabsTrigger value="prescricoes" className="flex items-center gap-1.5">
+            <Pill className="h-4 w-4" />
+            Prescricoes
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="dispensacao">
+          <DispensationTab />
+        </TabsContent>
+
+        <TabsContent value="estoque">
+          <InventoryTab />
+        </TabsContent>
+
+        <TabsContent value="prescricoes">
+          <PrescriptionsTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -167,6 +167,58 @@ export class NursingService {
     });
   }
 
+  async getFluidBalance(encounterId: string) {
+    return this.prisma.fluidBalance.findMany({
+      where: { encounterId },
+      include: { nurse: { select: { id: true, name: true } } },
+      orderBy: { recordedAt: 'desc' },
+    });
+  }
+
+  async getFluidBalanceSummary(encounterId: string) {
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const records = await this.prisma.fluidBalance.findMany({
+      where: {
+        encounterId,
+        recordedAt: { gte: twentyFourHoursAgo },
+      },
+      orderBy: { recordedAt: 'asc' },
+    });
+
+    const totalInput = records.reduce((sum: number, r: { intakeTotal: number }) => sum + r.intakeTotal, 0);
+    const totalOutput = records.reduce((sum: number, r: { outputTotal: number }) => sum + r.outputTotal, 0);
+    const balance = totalInput - totalOutput;
+
+    // Group by shift
+    const shifts = {
+      morning: { input: 0, output: 0, balance: 0 },
+      afternoon: { input: 0, output: 0, balance: 0 },
+      night: { input: 0, output: 0, balance: 0 },
+    };
+
+    for (const record of records) {
+      const hour = record.recordedAt.getHours();
+      let shift: 'morning' | 'afternoon' | 'night';
+      if (hour >= 7 && hour < 13) shift = 'morning';
+      else if (hour >= 13 && hour < 19) shift = 'afternoon';
+      else shift = 'night';
+
+      shifts[shift].input += record.intakeTotal;
+      shifts[shift].output += record.outputTotal;
+      shifts[shift].balance += record.balance;
+    }
+
+    return {
+      totalInput,
+      totalOutput,
+      balance,
+      shifts,
+      records,
+    };
+  }
+
   // --- Queries ---
 
   async findByEncounter(encounterId: string) {
