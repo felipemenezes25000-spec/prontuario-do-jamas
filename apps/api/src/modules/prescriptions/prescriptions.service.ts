@@ -288,6 +288,77 @@ export class PrescriptionsService {
     };
   }
 
+  async duplicate(id: string, tenantId: string, doctorId: string) {
+    const original = await this.prisma.prescription.findUnique({
+      where: { id },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    });
+
+    if (!original) {
+      throw new NotFoundException(`Prescription with ID "${id}" not found`);
+    }
+
+    return this.prisma.prescription.create({
+      data: {
+        tenantId,
+        doctorId,
+        encounterId: original.encounterId,
+        patientId: original.patientId,
+        type: original.type,
+        wasGeneratedByAI: false,
+        validFrom: original.validFrom,
+        validUntil: original.validUntil,
+        isOneTime: original.isOneTime,
+        isContinuous: original.isContinuous,
+        isPRN: original.isPRN,
+        requiresDoubleCheck: original.requiresDoubleCheck,
+        status: 'DRAFT',
+        items: {
+          create: original.items.map((item, index) => ({
+            medicationName: item.medicationName,
+            activeIngredient: item.activeIngredient,
+            concentration: item.concentration,
+            pharmaceuticalForm: item.pharmaceuticalForm,
+            dose: item.dose,
+            doseUnit: item.doseUnit,
+            route: item.route,
+            frequency: item.frequency,
+            frequencyHours: item.frequencyHours,
+            duration: item.duration,
+            durationUnit: item.durationUnit,
+            infusionRate: item.infusionRate,
+            infusionRateUnit: item.infusionRateUnit,
+            dilution: item.dilution,
+            dilutionVolume: item.dilutionVolume,
+            dilutionSolution: item.dilutionSolution,
+            maxDailyDose: item.maxDailyDose,
+            prnCondition: item.prnCondition,
+            specialInstructions: item.specialInstructions,
+            examName: item.examName,
+            examCode: item.examCode,
+            examType: item.examType,
+            examUrgency: item.examUrgency,
+            examInstructions: item.examInstructions,
+            examJustification: item.examJustification,
+            procedureName: item.procedureName,
+            procedureCode: item.procedureCode,
+            dietType: item.dietType,
+            caloricTarget: item.caloricTarget,
+            restrictions: item.restrictions,
+            supplements: item.supplements,
+            isControlled: item.isControlled,
+            controlledSchedule: item.controlledSchedule,
+            isAntibiotic: item.isAntibiotic,
+            antibioticJustification: item.antibioticJustification,
+            isHighAlert: item.isHighAlert,
+            sortOrder: index,
+          })),
+        },
+      },
+      include: { items: true },
+    });
+  }
+
   async checkMedication(
     itemId: string,
     nurseId: string,

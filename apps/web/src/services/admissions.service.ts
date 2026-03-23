@@ -121,31 +121,28 @@ export function useReverseDischarge() {
   });
 }
 
+export interface DischargePayload {
+  admissionId: string;
+  dischargeType: DischargeType;
+  dischargeCondition?: string;
+  dischargeNotes?: string;
+  dischargePrescription?: string;
+  dischargeInstructions?: string;
+  restrictions?: string;
+  alertSigns?: string;
+  followUpDate?: string;
+  followUpSpecialty?: string;
+  generateDocuments?: string[];
+}
+
 export function useDischargePatient() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      admissionId,
-      dischargeType,
-      dischargeNotes,
-      dischargePrescription,
-      dischargeInstructions,
-      followUpDate,
-    }: {
-      admissionId: string;
-      dischargeType: DischargeType;
-      dischargeNotes?: string;
-      dischargePrescription?: string;
-      dischargeInstructions?: string;
-      followUpDate?: string;
-    }) => {
-      const { data } = await api.post<Admission>(`/admissions/${admissionId}/discharge`, {
-        dischargeType,
-        dischargeNotes,
-        dischargePrescription,
-        dischargeInstructions,
-        followUpDate,
-      });
+    mutationFn: async ({ admissionId, ...payload }: DischargePayload) => {
+      const { data } = await api.post<Admission>(
+        `/admissions/${admissionId}/discharge`,
+        payload,
+      );
       return data;
     },
     onSuccess: () => {

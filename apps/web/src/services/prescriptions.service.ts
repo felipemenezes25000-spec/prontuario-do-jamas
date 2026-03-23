@@ -230,6 +230,19 @@ export function useDownloadPrescriptionPdf() {
   });
 }
 
+export function useDuplicatePrescription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post<Prescription>(`/prescriptions/${id}/duplicate`);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: prescriptionKeys.lists() });
+    },
+  });
+}
+
 export function useCheckInteractions() {
   return useMutation({
     mutationFn: async (payload: { patientId: string; medications: string[] }) => {

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { toast } from 'sonner';
 import {
   BedDouble,
   ArrowLeftRight,
@@ -8,6 +9,15 @@ import {
   Sparkles,
   Undo2,
   AlertTriangle,
+  LogOut,
+  ChevronRight,
+  ChevronLeft,
+  CheckCircle2,
+  Loader2,
+  FileText,
+  Pill,
+  ClipboardList,
+  FileCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,6 +26,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -28,12 +40,402 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { cn, calculateAge } from '@/lib/utils';
-import { useBeds, useReverseDischarge } from '@/services/admissions.service';
+import { useBeds, useReverseDischarge, useDischargePatient } from '@/services/admissions.service';
+import type { DischargePayload } from '@/services/admissions.service';
 import { PageLoading } from '@/components/common/page-loading';
 import { PageError } from '@/components/common/page-error';
-import type { BedStatus } from '@/types';
+import type { Bed, BedStatus, DischargeType } from '@/types';
+
+// ============================================================================
+// Discharge Types
+// ============================================================================
+
+const DISCHARGE_TYPE_LABELS: Record<DischargeType, string> = {
+  MEDICAL_DISCHARGE: 'Alta Médica',
+  TRANSFER: 'Transferência',
+  EVASION: 'Evasão',
+  DEATH: 'Óbito',
+  ADMINISTRATIVE: 'Administrativa',
+  AGAINST_MEDICAL_ADVICE: 'A Pedido / Contra Orientação Médica',
+};
+
+const DISCHARGE_CONDITIONS = [
+  { value: 'STABLE', label: 'Estável' },
+  { value: 'UNSTABLE', label: 'Instável' },
+  { value: 'SEVERE', label: 'Grave' },
+  { value: 'CRITICAL', label: 'Crítico' },
+] as const;
+
+const DISCHARGE_DOCUMENT_OPTIONS = [
+  { value: 'SUMMARY', label: 'Sumário de Alta (PDF)', icon: FileText },
+  { value: 'PRESCRIPTION', label: 'Receita de Alta', icon: Pill },
+  { value: 'CERTIFICATE', label: 'Atestado', icon: FileCheck },
+  { value: 'INSTRUCTIONS', label: 'Orientações ao Paciente', icon: ClipboardList },
+] as const;
+
+// ============================================================================
+// Discharge Wizard
+// ============================================================================
+
+interface DischargeWizardProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  bed: Bed;
+  admissionId: string;
+  onSuccess: () => void;
+}
+
+function DischargeWizard({ open, onOpenChange, bed, admissionId, onSuccess }: DischargeWizardProps) {
+  const [step, setStep] = useState(1);
+  const totalSteps = 4;
+
+  // Form state
+  const [dischargeType, setDischargeType] = useState<DischargeType | ''>('');
+  const [dischargeCondition, setDischargeCondition] = useState('');
+  const [dischargeSummary, setDischargeSummary] = useState('');
+  const [medications, setMedications] = useState('');
+  const [restrictions, setRestrictions] = useState('');
+  const [alertSigns, setAlertSigns] = useState('');
+  const [returnDate, setReturnDate] = useState('');
+  const [followUpSpecialty, setFollowUpSpecialty] = useState('');
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
+
+  const dischargePatient = useDischargePatient();
+
+  const canAdvance = useMemo(() => {
+    switch (step) {
+      case 1: return !!dischargeType;
+      case 2: return !!dischargeCondition;
+      case 3: return true; // orientations are optional
+      case 4: return true;
+      default: return false;
+    }
+  }, [step, dischargeType, dischargeCondition]);
+
+  const handleToggleDocument = useCallback((value: string) => {
+    setSelectedDocuments((prev) =>
+      prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value],
+    );
+  }, []);
+
+  const handleConfirmDischarge = useCallback(async () => {
+    if (!dischargeType) return;
+
+    const payload: DischargePayload = {
+      admissionId,
+      dischargeType: dischargeType as DischargeType,
+      dischargeCondition,
+      dischargeNotes: dischargeSummary || undefined,
+      dischargePrescription: medications || undefined,
+      restrictions: restrictions || undefined,
+      alertSigns: alertSigns || undefined,
+      followUpDate: returnDate || undefined,
+      followUpSpecialty: followUpSpecialty || undefined,
+      generateDocuments: selectedDocuments.length > 0 ? selectedDocuments : undefined,
+    };
+
+    try {
+      await dischargePatient.mutateAsync(payload);
+      toast.success('Alta hospitalar realizada com sucesso.');
+      // Reset state
+      setStep(1);
+      setDischargeType('');
+      setDischargeCondition('');
+      setDischargeSummary('');
+      setMedications('');
+      setRestrictions('');
+      setAlertSigns('');
+      setReturnDate('');
+      setFollowUpSpecialty('');
+      setSelectedDocuments([]);
+      onOpenChange(false);
+      onSuccess();
+    } catch {
+      toast.error('Erro ao realizar alta hospitalar.');
+    }
+  }, [
+    admissionId, dischargeType, dischargeCondition, dischargeSummary,
+    medications, restrictions, alertSigns, returnDate, followUpSpecialty,
+    selectedDocuments, dischargePatient, onOpenChange, onSuccess,
+  ]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-card border-border max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <LogOut className="h-5 w-5 text-emerald-500" />
+            Alta Hospitalar — Leito {bed.bedNumber}
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Step Indicator */}
+        <div className="flex items-center gap-1 mb-4">
+          {Array.from({ length: totalSteps }, (_, i) => i + 1).map((s) => (
+            <div key={s} className="flex items-center gap-1 flex-1">
+              <div
+                className={cn(
+                  'flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors',
+                  s < step
+                    ? 'bg-emerald-600 text-white'
+                    : s === step
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500'
+                      : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {s < step ? <CheckCircle2 className="h-4 w-4" /> : s}
+              </div>
+              {s < totalSteps && (
+                <div className={cn('h-0.5 flex-1', s < step ? 'bg-emerald-600' : 'bg-muted')} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Patient info banner */}
+        {bed.currentPatient && (
+          <div className="rounded-lg border border-border bg-muted/30 p-2.5 mb-2">
+            <p className="text-sm font-medium">{bed.currentPatient.fullName ?? bed.currentPatient.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {calculateAge(bed.currentPatient.birthDate)} anos
+            </p>
+          </div>
+        )}
+
+        {/* Step 1: Discharge Type */}
+        {step === 1 && (
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Tipo de Alta</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.entries(DISCHARGE_TYPE_LABELS) as [DischargeType, string][]).map(([key, label]) => (
+                <Button
+                  key={key}
+                  type="button"
+                  variant={dischargeType === key ? 'default' : 'outline'}
+                  className={cn(
+                    'h-auto py-3 px-3 text-xs justify-start',
+                    dischargeType === key && 'bg-emerald-600 hover:bg-emerald-500 text-white',
+                  )}
+                  onClick={() => setDischargeType(key)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Condition */}
+        {step === 2 && (
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Condição do Paciente na Alta</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {DISCHARGE_CONDITIONS.map((cond) => (
+                <Button
+                  key={cond.value}
+                  type="button"
+                  variant={dischargeCondition === cond.value ? 'default' : 'outline'}
+                  className={cn(
+                    'h-auto py-3 px-3 text-xs',
+                    dischargeCondition === cond.value && 'bg-emerald-600 hover:bg-emerald-500 text-white',
+                  )}
+                  onClick={() => setDischargeCondition(cond.value)}
+                >
+                  {cond.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Discharge Instructions / Orientations */}
+        {step === 3 && (
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Orientações de Alta</Label>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Resumo / Sumário de Alta</Label>
+              <Textarea
+                rows={3}
+                placeholder="Resumo da internação, diagnóstico, tratamento realizado..."
+                value={dischargeSummary}
+                onChange={(e) => setDischargeSummary(e.target.value)}
+                className="bg-background border-border text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Medicações para Casa</Label>
+              <Textarea
+                rows={2}
+                placeholder="Ex: Amoxicilina 500mg 8/8h por 7 dias..."
+                value={medications}
+                onChange={(e) => setMedications(e.target.value)}
+                className="bg-background border-border text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Restrições de Atividade</Label>
+              <Textarea
+                rows={2}
+                placeholder="Ex: Evitar esforço físico por 15 dias..."
+                value={restrictions}
+                onChange={(e) => setRestrictions(e.target.value)}
+                className="bg-background border-border text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Sinais de Alerta para Retornar ao PS</Label>
+              <Textarea
+                rows={2}
+                placeholder="Ex: Febre > 38.5°C, dor torácica, falta de ar..."
+                value={alertSigns}
+                onChange={(e) => setAlertSigns(e.target.value)}
+                className="bg-background border-border text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Data de Retorno</Label>
+                <Input
+                  type="date"
+                  value={returnDate}
+                  onChange={(e) => setReturnDate(e.target.value)}
+                  className="bg-background border-border text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Especialidade de Acompanhamento</Label>
+                <Input
+                  placeholder="Ex: Cardiologia"
+                  value={followUpSpecialty}
+                  onChange={(e) => setFollowUpSpecialty(e.target.value)}
+                  className="bg-background border-border text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Generate Documents */}
+        {step === 4 && (
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Gerar Documentos</Label>
+            <p className="text-xs text-muted-foreground">
+              Selecione os documentos que deseja gerar com a alta.
+            </p>
+            <div className="space-y-2">
+              {DISCHARGE_DOCUMENT_OPTIONS.map((doc) => (
+                <div
+                  key={doc.value}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
+                    selectedDocuments.includes(doc.value)
+                      ? 'border-emerald-500/50 bg-emerald-500/5'
+                      : 'border-border bg-card hover:bg-accent/30',
+                  )}
+                  onClick={() => handleToggleDocument(doc.value)}
+                >
+                  <Checkbox
+                    checked={selectedDocuments.includes(doc.value)}
+                    onCheckedChange={() => handleToggleDocument(doc.value)}
+                  />
+                  <doc.icon className={cn(
+                    'h-4 w-4',
+                    selectedDocuments.includes(doc.value) ? 'text-emerald-400' : 'text-muted-foreground',
+                  )} />
+                  <span className="text-sm">{doc.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Summary of choices */}
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5 mt-3">
+              <p className="text-xs font-medium text-muted-foreground">Resumo da Alta</p>
+              <div className="flex flex-wrap gap-2">
+                {dischargeType && (
+                  <Badge variant="outline" className="text-xs">
+                    {DISCHARGE_TYPE_LABELS[dischargeType as DischargeType]}
+                  </Badge>
+                )}
+                {dischargeCondition && (
+                  <Badge variant="outline" className="text-xs">
+                    {DISCHARGE_CONDITIONS.find((c) => c.value === dischargeCondition)?.label}
+                  </Badge>
+                )}
+                {returnDate && (
+                  <Badge variant="outline" className="text-xs">
+                    Retorno: {new Date(returnDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                  </Badge>
+                )}
+                {followUpSpecialty && (
+                  <Badge variant="outline" className="text-xs">
+                    {followUpSpecialty}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <DialogFooter className="flex items-center justify-between gap-2 pt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={step <= 1}
+            onClick={() => setStep((s) => Math.max(1, s - 1))}
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            Anterior
+          </Button>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancelar
+            </Button>
+
+            {step < totalSteps ? (
+              <Button
+                size="sm"
+                disabled={!canAdvance}
+                onClick={() => setStep((s) => s + 1)}
+                className="bg-emerald-600 hover:bg-emerald-500"
+              >
+                Próximo
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                disabled={dischargePatient.isPending || !dischargeType}
+                onClick={handleConfirmDischarge}
+                className="bg-emerald-600 hover:bg-emerald-500"
+              >
+                {dischargePatient.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                )}
+                Confirmar Alta
+              </Button>
+            )}
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const wards = [
   { id: 'ward-uti', name: 'UTI' },
@@ -56,6 +458,8 @@ export default function AdmissionsPage() {
   const [showReverseDialog, setShowReverseDialog] = useState(false);
   const [reverseAdmissionId, setReverseAdmissionId] = useState('');
   const [reverseReason, setReverseReason] = useState('');
+  const [dischargeWizardBed, setDischargeWizardBed] = useState<Bed | null>(null);
+  const [dischargeAdmissionId, setDischargeAdmissionId] = useState('');
 
   const { data: allBeds = [], isLoading, isError, refetch } = useBeds();
   const reverseDischarge = useReverseDischarge();
@@ -254,10 +658,84 @@ export default function AdmissionsPage() {
                   </p>
                 </div>
               )}
+              {/* Discharge button - only visible for occupied beds */}
+              {bedDetail.status === 'OCCUPIED' && bedDetail.currentPatient && (
+                <div className="pt-2">
+                  <Button
+                    className="w-full gap-2 bg-emerald-600 hover:bg-emerald-500"
+                    onClick={() => {
+                      // We need an admissionId; prompt user for it or derive from context
+                      setDischargeWizardBed(bedDetail);
+                      setSelectedBed(null);
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Dar Alta
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Discharge Admission ID Dialog (bridge to wizard) */}
+      {dischargeWizardBed && !dischargeAdmissionId && (
+        <Dialog open onOpenChange={() => setDischargeWizardBed(null)}>
+          <DialogContent className="bg-card border-border max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-sm">
+                <LogOut className="h-4 w-4 text-emerald-500" />
+                Alta — Leito {dischargeWizardBed.bedNumber}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Informe o ID da internação para iniciar o processo de alta.
+              </p>
+              <Input
+                placeholder="UUID da internação"
+                value={dischargeAdmissionId}
+                onChange={(e) => setDischargeAdmissionId(e.target.value)}
+                className="bg-background border-border font-mono text-xs"
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setDischargeWizardBed(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!dischargeAdmissionId}
+                  className="bg-emerald-600 hover:bg-emerald-500"
+                  onClick={() => {/* admissionId now set, wizard opens */}}
+                >
+                  Iniciar Alta
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Discharge Wizard */}
+      {dischargeWizardBed && dischargeAdmissionId && (
+        <DischargeWizard
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setDischargeWizardBed(null);
+              setDischargeAdmissionId('');
+            }
+          }}
+          bed={dischargeWizardBed}
+          admissionId={dischargeAdmissionId}
+          onSuccess={() => {
+            setDischargeWizardBed(null);
+            setDischargeAdmissionId('');
+            refetch();
+          }}
+        />
+      )}
 
       {/* Reverse Discharge Section */}
       <Card className="border-border bg-card">
