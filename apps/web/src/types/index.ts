@@ -988,6 +988,88 @@ export interface MedicationCheck {
   createdAt: string;
 }
 
+// ============================================================================
+// Surgical Sub-types
+// ============================================================================
+
+export interface AnesthesiaDrug {
+  name: string;
+  dose: string;
+  route: string;
+  time: string;
+}
+
+export interface IntubationData {
+  tubeType: string;
+  tubeNumber: string;
+  fixation: string;
+}
+
+export interface VenousAccessData {
+  type: string;
+  gauge: string;
+  site: string;
+}
+
+export interface AnesthesiaData {
+  drugs: AnesthesiaDrug[];
+  intubation?: IntubationData;
+  venousAccess?: VenousAccessData;
+  patientPosition?: string;
+}
+
+export interface IntraopVitalRecord {
+  time: string;
+  systolicBp?: number;
+  diastolicBp?: number;
+  heartRate?: number;
+  spo2?: number;
+  etco2?: number;
+  temperature?: number;
+}
+
+export interface FluidBalanceEntry {
+  type: string;
+  volume: number;
+  description?: string;
+}
+
+export interface FluidBalanceData {
+  inputs: FluidBalanceEntry[];
+  outputs: FluidBalanceEntry[];
+}
+
+export interface OpmeItem {
+  name: string;
+  anvisaCode?: string;
+  lot?: string;
+  expiry?: string;
+  supplier?: string;
+  quantity: number;
+}
+
+// ============================================================================
+// Billing Dashboard
+// ============================================================================
+
+export interface BillingDashboardData {
+  totalRevenueMonth: number;
+  totalBilled: number;
+  totalGlosed: number;
+  glosaRate: number;
+  avgReceiveDays: number;
+  revenueByInsurance: Array<{ insurance: string; value: number }>;
+  monthlyBillingVsGlosa: Array<{ month: string; billed: number; glosa: number }>;
+  topProcedures: Array<{ procedure: string; value: number }>;
+  productionByDoctor: Array<{
+    doctorId: string;
+    doctorName: string;
+    encounters: number;
+    procedures: number;
+    totalValue: number;
+  }>;
+}
+
 export interface SurgicalProcedure {
   id: string;
   encounterId: string;
@@ -1005,8 +1087,10 @@ export interface SurgicalProcedure {
   anesthesiaType?: AnesthesiaType;
   scheduledAt?: string;
   patientInAt?: string;
+  anesthesiaStartAt?: string;
   incisionAt?: string;
   sutureAt?: string;
+  anesthesiaEndAt?: string;
   patientOutAt?: string;
   safetyChecklistBefore?: unknown;
   safetyChecklistDuring?: unknown;
@@ -1016,6 +1100,10 @@ export interface SurgicalProcedure {
   bloodLoss?: number;
   implants?: unknown;
   pathologySamples?: unknown;
+  anesthesiaData?: AnesthesiaData;
+  intraopVitals?: IntraopVitalRecord[];
+  fluidBalance?: FluidBalanceData;
+  opmeData?: OpmeItem[];
   status: SurgicalStatus;
   aiSurgicalRisk?: string;
   aiAnticipatedComplications?: string;

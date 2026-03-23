@@ -5,6 +5,10 @@ import type {
   PaginatedResponse,
   CreateSurgicalProcedureDto,
   SurgicalStatus,
+  AnesthesiaData,
+  IntraopVitalRecord,
+  FluidBalanceData,
+  OpmeItem,
 } from '@/types';
 
 // ============================================================================
@@ -224,6 +228,96 @@ export function useSaveSurgicalDescription() {
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: surgicalKeys.detail(vars.id) });
+    },
+  });
+}
+
+// ============================================================================
+// Anesthesia Record
+// ============================================================================
+
+export function useSaveAnesthesiaData() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: AnesthesiaData }) => {
+      const { data: result } = await api.patch<SurgicalProcedure>(
+        `/surgical/${id}`,
+        { anesthesiaData: data },
+      );
+      return result;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: surgicalKeys.detail(vars.id) });
+      qc.invalidateQueries({ queryKey: surgicalKeys.lists() });
+    },
+  });
+}
+
+export function useSaveIntraopVitals() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, vitals }: { id: string; vitals: IntraopVitalRecord[] }) => {
+      const { data: result } = await api.patch<SurgicalProcedure>(
+        `/surgical/${id}`,
+        { intraopVitals: vitals },
+      );
+      return result;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: surgicalKeys.detail(vars.id) });
+    },
+  });
+}
+
+export function useSaveFluidBalance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, balance }: { id: string; balance: FluidBalanceData }) => {
+      const { data: result } = await api.patch<SurgicalProcedure>(
+        `/surgical/${id}`,
+        { fluidBalance: balance },
+      );
+      return result;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: surgicalKeys.detail(vars.id) });
+    },
+  });
+}
+
+export function useSaveOpmeData() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, items }: { id: string; items: OpmeItem[] }) => {
+      const { data: result } = await api.patch<SurgicalProcedure>(
+        `/surgical/${id}`,
+        { opmeData: items },
+      );
+      return result;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: surgicalKeys.detail(vars.id) });
+    },
+  });
+}
+
+export function useRecordSurgicalTime() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, field, timestamp }: {
+      id: string;
+      field: 'patientInAt' | 'anesthesiaStartAt' | 'incisionAt' | 'sutureAt' | 'anesthesiaEndAt' | 'patientOutAt';
+      timestamp: string;
+    }) => {
+      const { data: result } = await api.patch<SurgicalProcedure>(
+        `/surgical/${id}`,
+        { [field]: timestamp },
+      );
+      return result;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: surgicalKeys.detail(vars.id) });
+      qc.invalidateQueries({ queryKey: surgicalKeys.lists() });
     },
   });
 }
