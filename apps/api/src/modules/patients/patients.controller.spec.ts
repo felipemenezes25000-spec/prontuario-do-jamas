@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PatientsController } from './patients.controller';
 import { PatientsService } from './patients.service';
+import { WristbandService } from './wristband.service';
 
 describe('PatientsController', () => {
   let controller: PatientsController;
@@ -41,6 +42,9 @@ describe('PatientsController', () => {
       controllers: [PatientsController],
       providers: [
         { provide: PatientsService, useValue: mockPatientsService },
+        { provide: WristbandService, useValue: {
+          generateWristbandPdf: jest.fn().mockResolvedValue(Buffer.from('fake-pdf')),
+        }},
       ],
     }).compile();
 

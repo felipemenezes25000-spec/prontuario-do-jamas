@@ -63,7 +63,7 @@ export class WristbandService {
 
     const triageLevel = latestEncounter?.triageLevel as string | undefined;
     const bgColor = triageLevel ? TRIAGE_COLORS[triageLevel] ?? '#ffffff' : '#ffffff';
-    const textColor = triageLevel && ['YELLOW', 'GREEN'].includes(triageLevel) ? '#000000' : '#ffffff';
+    const _textColor = triageLevel && ['YELLOW', 'GREEN'].includes(triageLevel) ? '#000000' : '#ffffff';
     const needsDarkText = bgColor === '#ffffff' || ['YELLOW', 'GREEN'].includes(triageLevel ?? '');
 
     // Generate QR code as base64 data URL

@@ -37,6 +37,11 @@ describe('PrescriptionsService', () => {
   const mockTx = {
     prescription: {
       create: jest.fn(),
+      update: jest.fn(),
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
+    medicationCheck: {
+      create: jest.fn(),
     },
   };
 
@@ -118,23 +123,29 @@ describe('PrescriptionsService', () => {
       mockPrismaService.prescription.findUnique.mockResolvedValue({
         ...mockPrescription,
         signedAt: null,
+        requiresDoubleCheck: false,
+        items: [],
       });
-      mockPrismaService.prescription.update.mockResolvedValue({
+      const signedResult = {
         ...mockPrescription,
         signedAt: new Date(),
         status: 'ACTIVE',
-      });
+        items: [],
+      };
+      mockTx.prescription.update.mockResolvedValue(signedResult);
 
       const result = await service.sign('rx-1', 'doc-1');
 
       expect(result.signedAt).toBeInstanceOf(Date);
-      expect(mockPrismaService.prescription.update).toHaveBeenCalledWith({
-        where: { id: 'rx-1' },
-        data: {
-          signedAt: expect.any(Date),
-          status: 'ACTIVE',
-        },
-      });
+      expect(mockTx.prescription.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'rx-1' },
+          data: expect.objectContaining({
+            signedAt: expect.any(Date),
+            status: 'ACTIVE',
+          }),
+        }),
+      );
     });
 
     it('should throw BadRequestException if already signed', async () => {

@@ -5,9 +5,23 @@ import { TissService } from './tiss.service';
 import { AppealsService } from './appeals.service';
 import { AppealsController } from './appeals.controller';
 import { DocumentsModule } from '../documents/documents.module';
+import { CodingAutomationModule } from './coding-automation/coding-automation.module';
+import { PriorAuthorizationModule } from './prior-authorization/prior-authorization.module';
+import { DrgModule } from './drg/drg.module';
+import { ChargeCaptureModule } from './charge-capture/charge-capture.module';
+import { FinancialDashboardModule } from './financial-dashboard/financial-dashboard.module';
+import { PrivatePayModule } from './private-pay/private-pay.module';
 
 @Module({
-  imports: [DocumentsModule],
+  imports: [
+    DocumentsModule,
+    CodingAutomationModule,
+    PriorAuthorizationModule,
+    DrgModule,
+    ChargeCaptureModule,
+    FinancialDashboardModule,
+    PrivatePayModule,
+  ],
   controllers: [BillingController, AppealsController],
   providers: [BillingService, TissService, AppealsService],
   exports: [BillingService, TissService, AppealsService],

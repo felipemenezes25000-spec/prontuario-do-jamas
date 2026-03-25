@@ -284,4 +284,103 @@ export class PrescriptionsController {
   ) {
     return this.prescriptionSafetyService.doubleCheck(id, user.sub, user.role);
   }
+
+  // ─── Enhanced Prescription Safety Endpoints ─────────────────────────────────
+
+  @Post('check-pregnancy-risk')
+  @ApiOperation({ summary: 'Check pregnancy medication risk (FDA A/B/C/D/X)' })
+  @ApiResponse({ status: 200, description: 'Pregnancy risk assessment' })
+  async checkPregnancyRisk(
+    @Body() dto: {
+      medicationName: string;
+      activeIngredient?: string;
+      patientGender?: string;
+      patientAge?: number;
+      isPregnant?: boolean;
+    },
+  ) {
+    return this.prescriptionSafetyService.checkPregnancyRisk(dto);
+  }
+
+  @Post('check-lactation-risk')
+  @ApiOperation({ summary: 'Check lactation medication risk' })
+  @ApiResponse({ status: 200, description: 'Lactation risk assessment' })
+  async checkLactationRisk(
+    @Body() dto: { medicationName: string; activeIngredient?: string },
+  ) {
+    return this.prescriptionSafetyService.checkLactationRisk(dto);
+  }
+
+  @Post('check-renal-adjustment')
+  @ApiOperation({ summary: 'Check renal dose adjustment (Cockcroft-Gault)' })
+  @ApiResponse({ status: 200, description: 'Renal dose adjustment' })
+  async checkRenalDoseAdjustment(
+    @Body() dto: {
+      medicationName: string;
+      dose?: string;
+      patientAge?: number;
+      patientWeight?: number;
+      patientGender?: string;
+      serumCreatinine?: number;
+    },
+  ) {
+    return this.prescriptionSafetyService.checkRenalDoseAdjustment(dto);
+  }
+
+  @Post('check-hepatic-adjustment')
+  @ApiOperation({ summary: 'Check hepatic dose adjustment (Child-Pugh)' })
+  @ApiResponse({ status: 200, description: 'Hepatic dose adjustment' })
+  async checkHepaticDoseAdjustment(
+    @Body() dto: { medicationName: string; childPughClass?: 'A' | 'B' | 'C' },
+  ) {
+    return this.prescriptionSafetyService.checkHepaticDoseAdjustment(dto);
+  }
+
+  @Post('check-food-interactions')
+  @ApiOperation({ summary: 'Check food-drug interactions' })
+  @ApiResponse({ status: 200, description: 'Food-drug interactions' })
+  async checkFoodDrugInteractions(
+    @Body() dto: { medicationName: string },
+  ) {
+    return this.prescriptionSafetyService.checkFoodDrugInteractions(dto);
+  }
+
+  @Post('generic-equivalence')
+  @ApiOperation({ summary: 'Get generic/brand equivalence with prices' })
+  @ApiResponse({ status: 200, description: 'Generic equivalence data' })
+  async getGenericEquivalence(
+    @Body() dto: { medicationName: string },
+  ) {
+    return this.prescriptionSafetyService.getGenericEquivalence(dto.medicationName);
+  }
+
+  @Post('validate-pca')
+  @ApiOperation({ summary: 'Validate PCA (Patient Controlled Analgesia) prescription' })
+  @ApiResponse({ status: 200, description: 'PCA validation result' })
+  async validatePCA(
+    @Body() dto: {
+      medication: string;
+      demandDose: number;
+      demandDoseUnit: string;
+      lockoutMinutes: number;
+      maxHourlyDose: number;
+      basalRate?: number;
+      concentration: string;
+    },
+  ) {
+    return this.prescriptionSafetyService.validatePCA(dto);
+  }
+
+  @Post('pharmacogenomics')
+  @ApiOperation({ summary: 'AI: Pharmacogenomics-based dose recommendation' })
+  @ApiResponse({ status: 200, description: 'Pharmacogenomics recommendation' })
+  async getPharmacogenomicRecommendation(
+    @Body() dto: {
+      medicationName: string;
+      cyp2d6Status?: 'POOR' | 'INTERMEDIATE' | 'NORMAL' | 'ULTRARAPID';
+      cyp2c19Status?: 'POOR' | 'INTERMEDIATE' | 'NORMAL' | 'ULTRARAPID';
+    },
+  ) {
+    return this.prescriptionSafetyService.getPharmacogenomicRecommendation(dto);
+  }
 }

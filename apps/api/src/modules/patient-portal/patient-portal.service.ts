@@ -10,10 +10,31 @@ export class PatientPortalService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Resolve the patient record linked to a user account.
-   * The link is based on matching email between User and Patient.
+   * Resolve the patient record.
+   * Staff (DOCTOR, NURSE, ADMIN, etc.) can pass an explicit patientId.
+   * Patient users fall back to email matching.
    */
-  private async resolvePatientId(tenantId: string, userEmail: string): Promise<string> {
+  private async resolvePatientId(
+    tenantId: string,
+    userEmail: string,
+    userRole: string,
+    explicitPatientId?: string,
+  ): Promise<string> {
+    // Staff roles can access any patient via explicit patientId
+    const staffRoles = ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'];
+    if (explicitPatientId && staffRoles.includes(userRole)) {
+      // Verify patient exists in tenant
+      const patient = await this.prisma.patient.findFirst({
+        where: { id: explicitPatientId, tenantId, isActive: true },
+        select: { id: true },
+      });
+      if (!patient) {
+        throw new ForbiddenException('Paciente nao encontrado neste tenant.');
+      }
+      return patient.id;
+    }
+
+    // Self-service: match by email
     const patient = await this.prisma.patient.findFirst({
       where: { tenantId, email: userEmail, isActive: true },
       select: { id: true },
@@ -21,15 +42,15 @@ export class PatientPortalService {
 
     if (!patient) {
       throw new ForbiddenException(
-        'Nenhum registro de paciente vinculado a esta conta.',
+        'Nenhum registro de paciente vinculado a esta conta. Selecione um paciente.',
       );
     }
 
     return patient.id;
   }
 
-  async getMyEncounters(tenantId: string, userEmail: string, query: QueryPortalDto) {
-    const patientId = await this.resolvePatientId(tenantId, userEmail);
+  async getMyEncounters(tenantId: string, userEmail: string, userRole: string, query: QueryPortalDto, explicitPatientId?: string) {
+    const patientId = await this.resolvePatientId(tenantId, userEmail, userRole, explicitPatientId);
 
     const where: Record<string, unknown> = { tenantId, patientId };
 
@@ -73,8 +94,8 @@ export class PatientPortalService {
     return { data, total, page: query.page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async getMyResults(tenantId: string, userEmail: string, query: QueryPortalDto) {
-    const patientId = await this.resolvePatientId(tenantId, userEmail);
+  async getMyResults(tenantId: string, userEmail: string, userRole: string, query: QueryPortalDto, explicitPatientId?: string) {
+    const patientId = await this.resolvePatientId(tenantId, userEmail, userRole, explicitPatientId);
 
     const where: Record<string, unknown> = { patientId };
 
@@ -115,8 +136,8 @@ export class PatientPortalService {
     return { data, total, page: query.page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async getMyPrescriptions(tenantId: string, userEmail: string, query: QueryPortalDto) {
-    const patientId = await this.resolvePatientId(tenantId, userEmail);
+  async getMyPrescriptions(tenantId: string, userEmail: string, userRole: string, query: QueryPortalDto, explicitPatientId?: string) {
+    const patientId = await this.resolvePatientId(tenantId, userEmail, userRole, explicitPatientId);
 
     const where: Record<string, unknown> = { tenantId, patientId };
 
@@ -149,8 +170,8 @@ export class PatientPortalService {
     return { data, total, page: query.page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async getMyAppointments(tenantId: string, userEmail: string, query: QueryPortalDto) {
-    const patientId = await this.resolvePatientId(tenantId, userEmail);
+  async getMyAppointments(tenantId: string, userEmail: string, userRole: string, query: QueryPortalDto, explicitPatientId?: string) {
+    const patientId = await this.resolvePatientId(tenantId, userEmail, userRole, explicitPatientId);
 
     const where: Record<string, unknown> = { tenantId, patientId };
 
@@ -190,8 +211,8 @@ export class PatientPortalService {
     return { data, total, page: query.page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async requestAppointment(tenantId: string, userEmail: string, dto: RequestAppointmentDto) {
-    const patientId = await this.resolvePatientId(tenantId, userEmail);
+  async requestAppointment(tenantId: string, userEmail: string, userRole: string, dto: RequestAppointmentDto, explicitPatientId?: string) {
+    const patientId = await this.resolvePatientId(tenantId, userEmail, userRole, explicitPatientId);
 
     // Find any available doctor for the requested specialty, or fallback to any doctor
     const doctorWhere: Record<string, unknown> = { tenantId, role: 'DOCTOR', isActive: true };
@@ -224,8 +245,8 @@ export class PatientPortalService {
     });
   }
 
-  async getMyVitals(tenantId: string, userEmail: string, query: QueryPortalDto) {
-    const patientId = await this.resolvePatientId(tenantId, userEmail);
+  async getMyVitals(tenantId: string, userEmail: string, userRole: string, query: QueryPortalDto, explicitPatientId?: string) {
+    const patientId = await this.resolvePatientId(tenantId, userEmail, userRole, explicitPatientId);
 
     const where: Record<string, unknown> = { patientId };
 
@@ -270,8 +291,8 @@ export class PatientPortalService {
     return { data, total, page: query.page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async getMyDocuments(tenantId: string, userEmail: string, query: QueryPortalDto) {
-    const patientId = await this.resolvePatientId(tenantId, userEmail);
+  async getMyDocuments(tenantId: string, userEmail: string, userRole: string, query: QueryPortalDto, explicitPatientId?: string) {
+    const patientId = await this.resolvePatientId(tenantId, userEmail, userRole, explicitPatientId);
 
     const where: Record<string, unknown> = { tenantId, patientId };
 

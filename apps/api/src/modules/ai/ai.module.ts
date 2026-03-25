@@ -25,9 +25,32 @@ import { ReferralAiService } from './referral-ai.service';
 import { VitalsAiService } from './vitals-ai.service';
 import { DischargeVoiceService } from './discharge-voice.service';
 
+// New AI sub-module controllers and services
+import { AmbientListeningController } from './ambient-listening/ambient-listening.controller';
+import { AmbientListeningService } from './ambient-listening/ambient-listening.service';
+import { AgenticAiController } from './agentic-ai/agentic-ai.controller';
+import { AgenticAiService } from './agentic-ai/agentic-ai.service';
+import { AiCodingController } from './ai-coding/ai-coding.controller';
+import { AiCodingService } from './ai-coding/ai-coding.service';
+import { NlpController } from './nlp/nlp.controller';
+import { NlpService } from './nlp/nlp.service';
+import { AiImagingController } from './ai-imaging/ai-imaging.controller';
+import { AiImagingService } from './ai-imaging/ai-imaging.service';
+import { AiRevolutionaryController } from './ai-revolutionary/ai-revolutionary.controller';
+import { AiRevolutionaryService } from './ai-revolutionary/ai-revolutionary.service';
+
 @Module({
   imports: [ConfigModule],
-  controllers: [AiController, VoiceTranscriptionController],
+  controllers: [
+    AiController,
+    VoiceTranscriptionController,
+    AmbientListeningController,
+    AgenticAiController,
+    AiCodingController,
+    NlpController,
+    AiImagingController,
+    AiRevolutionaryController,
+  ],
   providers: [
     OpenAiProvider,
     GeminiProvider,
@@ -51,6 +74,13 @@ import { DischargeVoiceService } from './discharge-voice.service';
     ReferralAiService,
     VitalsAiService,
     DischargeVoiceService,
+    // New AI sub-module services
+    AmbientListeningService,
+    AgenticAiService,
+    AiCodingService,
+    NlpService,
+    AiImagingService,
+    AiRevolutionaryService,
   ],
   exports: [
     GeminiProvider,
@@ -74,6 +104,12 @@ import { DischargeVoiceService } from './discharge-voice.service';
     ReferralAiService,
     VitalsAiService,
     DischargeVoiceService,
+    AmbientListeningService,
+    AgenticAiService,
+    AiCodingService,
+    NlpService,
+    AiImagingService,
+    AiRevolutionaryService,
   ],
 })
 export class AiModule {}

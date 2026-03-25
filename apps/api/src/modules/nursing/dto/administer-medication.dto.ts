@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsDateString, IsEnum, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AdministerMedicationDto {

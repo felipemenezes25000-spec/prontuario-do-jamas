@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AlertsController } from './alerts.controller';
 import { AlertsService } from './alerts.service';
+import { AlertRulesService } from './alert-rules.service';
 import { JwtPayload } from '../../common/decorators/current-user.decorator';
 
 describe('AlertsController', () => {
@@ -40,6 +41,12 @@ describe('AlertsController', () => {
       controllers: [AlertsController],
       providers: [
         { provide: AlertsService, useValue: mockAlertsService },
+        { provide: AlertRulesService, useValue: {
+          findAll: jest.fn().mockResolvedValue([]),
+          create: jest.fn().mockResolvedValue({}),
+          update: jest.fn().mockResolvedValue({}),
+          remove: jest.fn().mockResolvedValue({}),
+        }},
       ],
     }).compile();
 

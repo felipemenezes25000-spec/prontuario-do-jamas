@@ -5,7 +5,6 @@ import {
   Patch,
   Body,
   Param,
-  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -13,7 +12,6 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
-  ApiQuery,
 } from '@nestjs/swagger';
 import { TriageService } from './triage.service';
 import { CreateTriageDto, UpdateTriageDto } from './dto/create-triage.dto';

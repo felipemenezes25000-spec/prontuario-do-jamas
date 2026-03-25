@@ -60,6 +60,7 @@ export interface PortalFilters {
   dateTo?: string;
   page?: number;
   limit?: number;
+  patientId?: string;
 }
 
 // ============================================================================
@@ -158,13 +159,14 @@ export function usePortalDocuments(filters?: PortalFilters) {
   });
 }
 
-export function useRequestAppointment() {
+export function useRequestAppointment(patientId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: RequestAppointmentPayload) => {
       const { data } = await api.post<PortalAppointment>(
         '/patient-portal/request-appointment',
         payload,
+        { params: patientId ? { patientId } : undefined },
       );
       return data;
     },

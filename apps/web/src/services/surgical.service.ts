@@ -337,3 +337,277 @@ export function useCancelSurgery() {
     },
   });
 }
+
+// ============================================================================
+// Sponge Count (Contagem de Compressas)
+// ============================================================================
+
+export interface SpongeCountItem {
+  name: string;
+  expectedCount: number;
+  actualCount: number;
+}
+
+export interface SpongeCountDto {
+  procedureId: string;
+  phase: 'BEFORE' | 'AFTER';
+  items: SpongeCountItem[];
+  observations?: string;
+}
+
+export function useCreateSpongeCount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: SpongeCountDto) => {
+      const { data } = await api.post('/surgical/sponge-count', dto);
+      return data;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: surgicalKeys.detail(vars.procedureId) });
+    },
+  });
+}
+
+export function useVerifySpongeCount(procedureId: string) {
+  return useQuery({
+    queryKey: [...surgicalKeys.detail(procedureId), 'sponge-count'],
+    queryFn: async () => {
+      const { data } = await api.get(`/surgical/sponge-count/${procedureId}/verify`);
+      return data as { allMatch: boolean; discrepancies: Array<{ name: string; before: number; after: number }> };
+    },
+    enabled: !!procedureId,
+  });
+}
+
+// ============================================================================
+// Pre-Anesthetic Evaluation (APA)
+// ============================================================================
+
+export interface ApaAirway {
+  mallampati: 1 | 2 | 3 | 4;
+  mouthOpening: string;
+  neckMobility: string;
+  thyromental: string;
+  dentition: string;
+  beardOrObesity: boolean;
+}
+
+export interface ApaDto {
+  procedureId: string;
+  patientId: string;
+  comorbidities: string[];
+  currentMedications: string[];
+  allergies: string[];
+  previousAnesthesia: { date?: string; type?: string; complications?: string };
+  airway: ApaAirway;
+  fastingHours: number;
+  fastingSolidsHours: number;
+  asaClass: 'I' | 'II' | 'III' | 'IV' | 'V' | 'VI';
+  asaEmergency: boolean;
+  cardiacRisk: string;
+  pulmonaryRisk: string;
+  labResults: Record<string, unknown>;
+  anesthesiaPlan: string;
+  consentObtained: boolean;
+  observations?: string;
+}
+
+export function useCreateApa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: ApaDto) => {
+      const { data } = await api.post('/surgical/pre-anesthetic-evaluation', dto);
+      return data;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: surgicalKeys.detail(vars.procedureId) });
+    },
+  });
+}
+
+// ============================================================================
+// Room Utilization Metrics (Métricas de CC)
+// ============================================================================
+
+export interface UtilizationMetrics {
+  totalProcedures: number;
+  averageTurnoverMinutes: number;
+  cancellationRate: number;
+  utilizationByRoom: Array<{ room: string; utilizationPercent: number; procedures: number }>;
+  cancellations: Array<{ reason: string; count: number }>;
+  averageDurationByType: Array<{ procedureType: string; avgMinutes: number }>;
+}
+
+export function useUtilizationMetrics(startDate: string, endDate: string) {
+  return useQuery({
+    queryKey: [...surgicalKeys.all, 'utilization', startDate, endDate],
+    queryFn: async () => {
+      const { data } = await api.get<UtilizationMetrics>('/surgical/utilization-metrics', {
+        params: { startDate, endDate },
+      });
+      return data;
+    },
+    enabled: !!(startDate && endDate),
+  });
+}
+
+// ============================================================================
+// Preference Cards
+// ============================================================================
+
+export interface PreferenceCard {
+  id: string;
+  surgeonId: string;
+  procedureType: string;
+  instruments: string[];
+  sutures: string[];
+  materials: string[];
+  patientPosition: string;
+  equipment: string[];
+  specialRequirements?: string;
+  notes?: string;
+}
+
+export interface PreferenceCardDto {
+  surgeonId: string;
+  procedureType: string;
+  instruments: string[];
+  sutures: string[];
+  materials: string[];
+  patientPosition: string;
+  equipment: string[];
+  specialRequirements?: string;
+  notes?: string;
+}
+
+export function useCreatePreferenceCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: PreferenceCardDto) => {
+      const { data } = await api.post('/surgical/preference-card', dto);
+      return data as PreferenceCard;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: [...surgicalKeys.all, 'preference-card', vars.surgeonId] });
+    },
+  });
+}
+
+export function usePreferenceCards(surgeonId: string, procedureType?: string) {
+  return useQuery({
+    queryKey: [...surgicalKeys.all, 'preference-card', surgeonId, procedureType],
+    queryFn: async () => {
+      const { data } = await api.get<PreferenceCard[]>(`/surgical/preference-card/${surgeonId}`, {
+        params: procedureType ? { procedureType } : {},
+      });
+      return data;
+    },
+    enabled: !!surgeonId,
+  });
+}
+
+// ============================================================================
+// ERAS Checklist
+// ============================================================================
+
+export interface ErasDto {
+  procedureId: string;
+  patientId: string;
+  preOp: Record<string, boolean>;
+  intraOp: Record<string, boolean>;
+  postOp: Record<string, boolean>;
+  observations?: string;
+}
+
+export function useCreateErasChecklist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: ErasDto) => {
+      const { data } = await api.post('/surgical/eras-checklist', dto);
+      return data;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: surgicalKeys.detail(vars.procedureId) });
+    },
+  });
+}
+
+// ============================================================================
+// AI Duration Estimation
+// ============================================================================
+
+export interface DurationEstimation {
+  procedureName: string;
+  estimatedMinutes: number;
+  confidenceInterval: { min: number; max: number };
+  basedOnCases: number;
+  factors: Array<{ factor: string; impact: string }>;
+}
+
+export function useEstimateDuration() {
+  return useMutation({
+    mutationFn: async (dto: { procedureName: string; surgeonId: string; patientComorbidities?: number }) => {
+      const { data } = await api.post<DurationEstimation>('/surgical/estimate-duration', dto);
+      return data;
+    },
+  });
+}
+
+// ============================================================================
+// Video Recording
+// ============================================================================
+
+export interface VideoRecording {
+  id: string;
+  recordingId: string;
+  surgeryId: string;
+  status: 'RECORDING' | 'COMPLETED';
+  startedAt: string;
+  stoppedAt: string | null;
+  durationSeconds: number | null;
+  url: string | null;
+  storageKey: string;
+  createdAt: string;
+}
+
+export const videoKeys = {
+  all: ['surgical-videos'] as const,
+  list: (surgeryId: string) => [...videoKeys.all, surgeryId] as const,
+};
+
+export function useSurgeryVideos(surgeryId: string) {
+  return useQuery({
+    queryKey: videoKeys.list(surgeryId),
+    queryFn: async () => {
+      const { data } = await api.get<VideoRecording[]>(`/surgical/${surgeryId}/videos`);
+      return data;
+    },
+    enabled: !!surgeryId,
+  });
+}
+
+export function useStartVideoRecording() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (surgeryId: string) => {
+      const { data } = await api.post(`/surgical/${surgeryId}/video/start`);
+      return data as { recordingId: string; surgeryId: string; status: string; startedAt: string; message: string };
+    },
+    onSuccess: (_, surgeryId) => {
+      qc.invalidateQueries({ queryKey: videoKeys.list(surgeryId) });
+    },
+  });
+}
+
+export function useStopVideoRecording() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (surgeryId: string) => {
+      const { data } = await api.post(`/surgical/${surgeryId}/video/stop`);
+      return data as { recordingId: string; surgeryId: string; status: string; stoppedAt: string; durationSeconds: number; url: string };
+    },
+    onSuccess: (_, surgeryId) => {
+      qc.invalidateQueries({ queryKey: videoKeys.list(surgeryId) });
+    },
+  });
+}

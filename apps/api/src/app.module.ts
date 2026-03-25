@@ -46,6 +46,80 @@ import { PharmacyModule } from './modules/pharmacy/pharmacy.module';
 import { PopulationHealthModule } from './modules/population-health/population-health.module';
 import { InfectionControlModule } from './modules/infection-control/infection-control.module';
 import { PatientPortalModule } from './modules/patient-portal/patient-portal.module';
+import { EmergencyModule } from './modules/emergency/emergency.module';
+import { NutritionModule } from './modules/nutrition/nutrition.module';
+import { PhysiotherapyModule } from './modules/physiotherapy/physiotherapy.module';
+import { PsychologyModule } from './modules/psychology/psychology.module';
+import { SocialWorkModule } from './modules/social-work/social-work.module';
+import { OccupationalTherapyModule } from './modules/occupational-therapy/occupational-therapy.module';
+import { SpeechTherapyModule } from './modules/speech-therapy/speech-therapy.module';
+import { PalliativeCareModule } from './modules/palliative-care/palliative-care.module';
+import { HomeCareModule } from './modules/home-care/home-care.module';
+import { PediatricsModule } from './modules/pediatrics/pediatrics.module';
+import { ObstetricsModule } from './modules/obstetrics/obstetrics.module';
+import { NeonatologyModule } from './modules/neonatology/neonatology.module';
+// Patient Safety Modules
+import { FallRiskModule } from './modules/fall-risk/fall-risk.module';
+import { PressureInjuryModule } from './modules/pressure-injury/pressure-injury.module';
+import { WoundCareModule } from './modules/wound-care/wound-care.module';
+import { SepsisModule } from './modules/sepsis/sepsis.module';
+import { StrokeProtocolModule } from './modules/stroke-protocol/stroke-protocol.module';
+import { ChestPainModule } from './modules/chest-pain/chest-pain.module';
+import { IncidentReportingModule } from './modules/incident-reporting/incident-reporting.module';
+import { BcmaModule } from './modules/bcma/bcma.module';
+import { CdsEngineModule } from './modules/cds-engine/cds-engine.module';
+// Pharmacy Modules
+import { MedicationReconciliationModule } from './modules/medication-reconciliation/medication-reconciliation.module';
+import { ClinicalPharmacyModule } from './modules/clinical-pharmacy/clinical-pharmacy.module';
+import { PyxisIntegrationModule } from './modules/pyxis-integration/pyxis-integration.module';
+import { ParenteralNutritionModule } from './modules/parenteral-nutrition/parenteral-nutrition.module';
+import { AntimicrobialStewardshipModule } from './modules/antimicrobial-stewardship/antimicrobial-stewardship.module';
+// Analytics Modules
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+// Diagnostics Modules
+import { LisModule } from './modules/lis/lis.module';
+import { RisPacsModule } from './modules/ris-pacs/ris-pacs.module';
+import { GenomicsModule } from './modules/genomics/genomics.module';
+import { PathologyModule } from './modules/pathology/pathology.module';
+import { BloodBankModule } from './modules/blood-bank/blood-bank.module';
+import { CardiologyModule } from './modules/cardiology/cardiology.module';
+// Interoperability Modules
+import { RndsModule } from './modules/rnds/rnds.module';
+import { SmartOnFhirModule } from './modules/smart-on-fhir/smart-on-fhir.module';
+import { CdsHooksModule } from './modules/cds-hooks/cds-hooks.module';
+import { BulkFhirModule } from './modules/bulk-fhir/bulk-fhir.module';
+import { IheProfilesModule } from './modules/ihe-profiles/ihe-profiles.module';
+// Hospital Operations Modules
+import { CmeModule } from './modules/cme/cme.module';
+import { EquipmentMaintenanceModule } from './modules/equipment-maintenance/equipment-maintenance.module';
+import { HospitalityModule } from './modules/hospitality/hospitality.module';
+import { QueueManagementModule } from './modules/queue-management/queue-management.module';
+import { TransferCenterModule } from './modules/transfer-center/transfer-center.module';
+// Compliance & Governance Modules
+import { SbisComplianceModule } from './modules/sbis-compliance/sbis-compliance.module';
+import { CredentialingModule } from './modules/credentialing/credentialing.module';
+import { BreakTheGlassModule } from './modules/break-the-glass/break-the-glass.module';
+// Advanced Analytics Modules
+import { DataWarehouseModule } from './modules/data-warehouse/data-warehouse.module';
+import { SelfServiceAnalyticsModule } from './modules/self-service-analytics/self-service-analytics.module';
+import { ClinicalResearchModule } from './modules/clinical-research/clinical-research.module';
+// Clinical Documentation & Anamnesis Modules
+import { ClinicalDocumentationModule } from './modules/clinical-documentation/clinical-documentation.module';
+import { AnamnesisModule } from './modules/anamnesis/anamnesis.module';
+// ICU & Discharge Modules
+import { IcuModule } from './modules/icu/icu.module';
+import { DischargePlanningModule } from './modules/discharge-planning/discharge-planning.module';
+// Enhanced Modules
+import { TelemedicineEnhancedModule } from './modules/telemedicine-enhanced/telemedicine-enhanced.module';
+import { SchedulingEnhancedModule } from './modules/scheduling-enhanced/scheduling-enhanced.module';
+import { InteropBrazilModule } from './modules/interop-brazil/interop-brazil.module';
+// Clinical Pathways & Protocols
+import { ClinicalPathwaysModule } from './modules/clinical-pathways/clinical-pathways.module';
+// New Modules (Supply Chain, Hospital Services, Governance, Specialties)
+import { SupplyChainModule } from './modules/supply-chain/supply-chain.module';
+import { HospitalServicesModule } from './modules/hospital-services/hospital-services.module';
+import { GovernanceModule } from './modules/governance/governance.module';
+import { SpecialtiesEnhancedModule } from './modules/specialties-enhanced/specialties-enhanced.module';
 
 @Module({
   imports: [
@@ -91,6 +165,81 @@ import { PatientPortalModule } from './modules/patient-portal/patient-portal.mod
     PopulationHealthModule,
     InfectionControlModule,
     PatientPortalModule,
+    // Clinical Specialty Modules
+    EmergencyModule,
+    NutritionModule,
+    PhysiotherapyModule,
+    PsychologyModule,
+    SocialWorkModule,
+    OccupationalTherapyModule,
+    SpeechTherapyModule,
+    PalliativeCareModule,
+    HomeCareModule,
+    PediatricsModule,
+    ObstetricsModule,
+    NeonatologyModule,
+    // Patient Safety Modules
+    FallRiskModule,
+    PressureInjuryModule,
+    WoundCareModule,
+    SepsisModule,
+    StrokeProtocolModule,
+    ChestPainModule,
+    IncidentReportingModule,
+    BcmaModule,
+    CdsEngineModule,
+    // Pharmacy Modules
+    MedicationReconciliationModule,
+    ClinicalPharmacyModule,
+    PyxisIntegrationModule,
+    ParenteralNutritionModule,
+    AntimicrobialStewardshipModule,
+    // Analytics Modules
+    AnalyticsModule,
+    // Diagnostics Modules
+    LisModule,
+    RisPacsModule,
+    GenomicsModule,
+    PathologyModule,
+    BloodBankModule,
+    CardiologyModule,
+    // Interoperability Modules
+    RndsModule,
+    SmartOnFhirModule,
+    CdsHooksModule,
+    BulkFhirModule,
+    IheProfilesModule,
+    // Hospital Operations
+    CmeModule,
+    EquipmentMaintenanceModule,
+    HospitalityModule,
+    QueueManagementModule,
+    TransferCenterModule,
+    // Compliance & Governance
+    SbisComplianceModule,
+    CredentialingModule,
+    BreakTheGlassModule,
+    // Advanced Analytics
+    DataWarehouseModule,
+    SelfServiceAnalyticsModule,
+    ClinicalResearchModule,
+    // Clinical Documentation & Anamnesis
+    ClinicalDocumentationModule,
+    AnamnesisModule,
+    // ICU & Discharge Planning
+    IcuModule,
+    DischargePlanningModule,
+    // Enhanced Modules
+    TelemedicineEnhancedModule,
+    SchedulingEnhancedModule,
+    InteropBrazilModule,
+    // Clinical Pathways & Protocols
+    ClinicalPathwaysModule,
+    // New Modules
+    SupplyChainModule,
+    HospitalServicesModule,
+    GovernanceModule,
+    SpecialtiesEnhancedModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

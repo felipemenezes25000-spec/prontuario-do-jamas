@@ -19,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { seedDrugs } from './seed-drugs';
 import { seedManchester } from './seed-manchester';
 import { seedExams } from './seed-exams';
+import { seedPortalData } from './seed-portal-data';
 
 const prisma = new PrismaClient();
 
@@ -3349,6 +3350,9 @@ async function main(): Promise<void> {
   console.log('   - 8 LGPD Data Retention Policies');
   console.log('   - 6 LGPD Consent Records');
   console.log('   - 10 Clinical Alert Rules (CDS)');
+
+  // ─── Portal Data (Documents, Appointments, Vitals, Exams, Prescriptions) ──
+  await seedPortalData(prisma, IDS);
 
   // ─── Drug Database ─────────────────────────────────────────────────────
   await seedDrugs(prisma);
