@@ -84,6 +84,9 @@ const CompliancePage = lazy(() => import('@/pages/compliance'));
 const CredentialingPage = lazy(() => import('@/pages/credentialing'));
 const BreakTheGlassPage = lazy(() => import('@/pages/break-the-glass'));
 const AiHubPage = lazy(() => import('@/pages/ai'));
+const AiClinicalDecisionPage = lazy(() => import('@/pages/ai/clinical-decision'));
+const VoiceNlpPage = lazy(() => import('@/pages/ai/voice-nlp'));
+const AiPredictivePage = lazy(() => import('@/pages/ai/predictive'));
 const AnalyticsPage = lazy(() => import('@/pages/analytics'));
 const LisPage = lazy(() => import('@/pages/lis'));
 const ClinicalDocumentationPage = lazy(() => import('@/pages/clinical-documentation'));
@@ -107,6 +110,9 @@ const SafetyPage = lazy(() => import('@/pages/safety/index'));
 const BillingDrgPage = lazy(() => import('@/pages/billing/drg'));
 const BillingPrivatePayPage = lazy(() => import('@/pages/billing/private-pay'));
 const RegulatoryPage = lazy(() => import('@/pages/regulatory'));
+const AiImagingAnalysisPage = lazy(() => import('@/pages/ai/imaging-analysis'));
+const AiAdvancedPage = lazy(() => import('@/pages/ai/advanced'));
+const NursingEnhancedPage = lazy(() => import('@/pages/nursing-enhanced'));
 
 function PageLoader() {
   return (
@@ -252,6 +258,10 @@ export function AppRoutes() {
         <Route path="credenciamento" element={<SuspenseWrap><CredentialingPage /></SuspenseWrap>} />
         <Route path="break-the-glass" element={<SuspenseWrap><BreakTheGlassPage /></SuspenseWrap>} />
         <Route path="ia" element={<SuspenseWrap><AiHubPage /></SuspenseWrap>} />
+        <Route path="ia/voz-nlp" element={<SuspenseWrap><VoiceNlpPage /></SuspenseWrap>} />
+        <Route path="ia/decisao-clinica" element={<SuspenseWrap><AiClinicalDecisionPage /></SuspenseWrap>} />
+        <Route path="ia/avancada" element={<SuspenseWrap><AiAdvancedPage /></SuspenseWrap>} />
+        <Route path="ia/preditiva" element={<SuspenseWrap><AiPredictivePage /></SuspenseWrap>} />
         <Route path="analytics" element={<SuspenseWrap><AnalyticsPage /></SuspenseWrap>} />
         <Route path="laboratorio" element={<SuspenseWrap><LisPage /></SuspenseWrap>} />
         <Route path="documentacao-clinica" element={<SuspenseWrap><ClinicalDocumentationPage /></SuspenseWrap>} />
@@ -274,7 +284,9 @@ export function AppRoutes() {
         <Route path="faturamento/drg" element={<SuspenseWrap><BillingDrgPage /></SuspenseWrap>} />
         <Route path="faturamento/particular" element={<SuspenseWrap><BillingPrivatePayPage /></SuspenseWrap>} />
         <Route path="regulatorio" element={<SuspenseWrap><RegulatoryPage /></SuspenseWrap>} />
+        <Route path="ia/imagem" element={<SuspenseWrap><AiImagingAnalysisPage /></SuspenseWrap>} />
         <Route path="seguranca-paciente" element={<SuspenseWrap><SafetyPage /></SuspenseWrap>} />
+        <Route path="enfermagem-avancado" element={<SuspenseWrap><NursingEnhancedPage /></SuspenseWrap>} />
         <Route
           path="admin"
           element={

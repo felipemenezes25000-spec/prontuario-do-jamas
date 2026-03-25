@@ -13,11 +13,34 @@ import {
   Search,
   User,
   BookHeart,
-  Upload,
-  Bell,
-  Bot,
   Globe,
+  MessageSquare,
+  CreditCard,
+  ChevronLeft,
+  ChevronRight,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle2,
+  Send,
+  Droplets,
+  Thermometer,
+  Weight,
+  Smile,
+  Paperclip,
+  X,
 } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  ReferenceLine,
+} from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,6 +56,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { encounterStatusLabels, encounterTypeLabels } from '@/lib/constants';
 import { PageLoading } from '@/components/common/page-loading';
@@ -42,7 +72,6 @@ import {
   usePortalResults,
   usePortalPrescriptions,
   usePortalAppointments,
-  usePortalVitals,
   usePortalDocuments,
   useRequestAppointment,
   type PortalExamResult,
@@ -64,13 +93,6 @@ import {
   type Conversation,
 } from '@/services/portal-messaging.service';
 import {
-  useActivePrescriptions,
-  useRenewalRequests,
-  useRequestRenewal,
-  type ActivePrescription,
-  type RenewalRequest,
-} from '@/services/portal-prescription-renewal.service';
-import {
   usePendingPayments,
   usePaymentHistory,
   usePaymentBalance,
@@ -80,25 +102,7 @@ import {
   type PaymentRecord,
   type PaymentMethod,
 } from '@/services/portal-payments.service';
-import {
-  useMyDependents,
-  useGrantProxy,
-  useRevokeProxy,
-  type ProxiedPatient,
-  type RelationshipType,
-} from '@/services/portal-proxy.service';
-import {
-  useEducationContents,
-  useEducationCategories,
-  type EducationContent,
-  type EducationCategory,
-} from '@/services/portal-education.service';
-import {
-  useSurveys,
-  useSubmitSurvey,
-  type Survey,
-} from '@/services/portal-surveys.service';
-import type { Encounter, Patient, Prescription, VitalSigns, EncounterStatus } from '@/types';
+import type { Encounter, Patient, Prescription, EncounterStatus } from '@/types';
 import { toast } from 'sonner';
 
 // ============================================================================
@@ -108,9 +112,9 @@ import { toast } from 'sonner';
 type SupportedLocale = 'pt-BR' | 'en' | 'es';
 
 const localeLabels: Record<SupportedLocale, { flag: string; label: string }> = {
-  'pt-BR': { flag: '🇧🇷', label: 'Português (BR)' },
-  en: { flag: '🇺🇸', label: 'English' },
-  es: { flag: '🇪🇸', label: 'Español' },
+  'pt-BR': { flag: 'BR', label: 'Portugues (BR)' },
+  en: { flag: 'US', label: 'English' },
+  es: { flag: 'ES', label: 'Espanol' },
 };
 
 function LanguageSelector() {
@@ -141,12 +145,11 @@ function LanguageSelector() {
                 onClick={() => {
                   setLocale(key);
                   setOpen(false);
-                  toast.info(`Idioma alterado para ${label} (stub — i18n em desenvolvimento)`);
+                  toast.info(`Idioma alterado para ${label} (stub)`);
                 }}
               >
                 <span>{flag}</span>
                 <span>{label}</span>
-                {locale === key && <span className="ml-auto text-emerald-500">✓</span>}
               </button>
             ),
           )}
@@ -244,6 +247,18 @@ function formatDateTime(dateStr: string | null | undefined): string {
   });
 }
 
+function formatTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '--';
+  return new Date(dateStr).toLocaleString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
 // ============================================================================
 // Empty state
 // ============================================================================
@@ -252,10 +267,1493 @@ function EmptyState({ icon: Icon, message }: { icon: React.ComponentType<{ class
   return (
     <Card className="border-border bg-card">
       <CardContent className="flex flex-col items-center justify-center py-16">
-        <Icon className="h-12 w-12 text-muted-foreground" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-800/50">
+          <Icon className="h-8 w-8 text-muted-foreground" />
+        </div>
         <p className="mt-4 text-sm text-muted-foreground">{message}</p>
       </CardContent>
     </Card>
+  );
+}
+
+// ============================================================================
+// Tab: Agendamento (Calendar-like view with available slots)
+// ============================================================================
+
+function AppointmentsTab({ patientId }: { patientId?: string }) {
+  const { data, isLoading, isError, refetch } = usePortalAppointments(patientId ? { patientId } : undefined);
+  const requestMutation = useRequestAppointment(patientId);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    preferredDate: '',
+    specialty: '',
+    reason: '',
+  });
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+  if (isLoading) return <PageLoading cards={4} showTable />;
+  if (isError) return <PageError onRetry={() => refetch()} />;
+
+  const appointments = data?.data ?? [];
+
+  const handleSubmit = () => {
+    requestMutation.mutate(
+      {
+        preferredDate: formData.preferredDate || undefined,
+        specialty: formData.specialty || undefined,
+        reason: formData.reason || undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success('Solicitacao de agendamento enviada com sucesso!');
+          setDialogOpen(false);
+          setFormData({ preferredDate: '', specialty: '', reason: '' });
+        },
+      },
+    );
+  };
+
+  // Calendar logic
+  const daysInMonth = new Date(calendarMonth.year, calendarMonth.month + 1, 0).getDate();
+  const firstDayOfWeek = new Date(calendarMonth.year, calendarMonth.month, 1).getDay();
+  const monthName = new Date(calendarMonth.year, calendarMonth.month).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  // Map appointments to dates
+  const appointmentsByDay = new Map<number, typeof appointments>();
+  for (const appt of appointments) {
+    if (!appt.scheduledAt) continue;
+    const d = new Date(appt.scheduledAt);
+    if (d.getFullYear() === calendarMonth.year && d.getMonth() === calendarMonth.month) {
+      const day = d.getDate();
+      if (!appointmentsByDay.has(day)) appointmentsByDay.set(day, []);
+      appointmentsByDay.get(day)?.push(appt);
+    }
+  }
+
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === calendarMonth.year && today.getMonth() === calendarMonth.month;
+
+  // Mock available slots for selected day
+  const mockSlots = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '14:00', '14:30', '15:00', '15:30', '16:00'];
+  const selectedDayAppointments = selectedDay ? (appointmentsByDay.get(selectedDay) ?? []) : [];
+
+  // Stats
+  const upcomingCount = appointments.filter((a) => a.status === 'SCHEDULED' || a.status === 'CONFIRMED').length;
+  const completedCount = appointments.filter((a) => a.status === 'COMPLETED').length;
+  const cancelledCount = appointments.filter((a) => a.status === 'CANCELLED' || a.status === 'NO_SHOW').length;
+  const nextAppt = appointments.find((a) => a.status === 'SCHEDULED' || a.status === 'CONFIRMED');
+
+  return (
+    <div className="space-y-6">
+      {/* Stats row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="border-border bg-card">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+              <Calendar className="h-5 w-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Proximos</p>
+              <p className="text-lg font-bold">{upcomingCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Realizados</p>
+              <p className="text-lg font-bold">{completedCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
+              <X className="h-5 w-5 text-red-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Cancelados</p>
+              <p className="text-lg font-bold">{cancelledCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+              <Clock className="h-5 w-5 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Proximo</p>
+              <p className="text-sm font-medium truncate">
+                {nextAppt ? formatDateTime(nextAppt.scheduledAt) : 'Nenhum'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* Calendar */}
+        <Card className="border-border bg-card lg:col-span-2">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm capitalize">{monthName}</CardTitle>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setCalendarMonth((prev) => {
+                    const d = new Date(prev.year, prev.month - 1);
+                    return { year: d.getFullYear(), month: d.getMonth() };
+                  })}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setCalendarMonth((prev) => {
+                    const d = new Date(prev.year, prev.month + 1);
+                    return { year: d.getFullYear(), month: d.getMonth() };
+                  })}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-7 gap-px">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'].map((d) => (
+                <div key={d} className="text-center text-[10px] font-medium text-muted-foreground py-2">
+                  {d}
+                </div>
+              ))}
+              {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                <div key={`empty-${i}`} className="h-16" />
+              ))}
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+                const dayAppointments = appointmentsByDay.get(day) ?? [];
+                const isToday = isCurrentMonth && today.getDate() === day;
+                const isSelected = selectedDay === day;
+                const hasAppointments = dayAppointments.length > 0;
+                return (
+                  <button
+                    key={day}
+                    className={cn(
+                      'h-16 rounded-lg border border-transparent p-1 text-left transition-all hover:border-zinc-700 hover:bg-zinc-800/50 relative',
+                      isToday && 'border-emerald-500/30 bg-emerald-500/5',
+                      isSelected && 'border-emerald-500 bg-emerald-500/10',
+                    )}
+                    onClick={() => setSelectedDay(day)}
+                  >
+                    <span className={cn(
+                      'text-xs font-medium',
+                      isToday && 'text-emerald-400',
+                    )}>
+                      {day}
+                    </span>
+                    {hasAppointments && (
+                      <div className="mt-0.5 space-y-0.5">
+                        {dayAppointments.slice(0, 2).map((a, idx) => {
+                          const statusInfo = appointmentStatusLabels[a.status];
+                          return (
+                            <div
+                              key={idx}
+                              className={cn(
+                                'rounded px-1 py-0.5 text-[8px] text-white truncate',
+                                statusInfo?.color ?? 'bg-zinc-600',
+                              )}
+                            >
+                              {formatTime(a.scheduledAt)}
+                            </div>
+                          );
+                        })}
+                        {dayAppointments.length > 2 && (
+                          <span className="text-[8px] text-muted-foreground">
+                            +{dayAppointments.length - 2} mais
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Side panel: selected day details or new appointment */}
+        <div className="space-y-4">
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">
+                {selectedDay
+                  ? `${selectedDay}/${calendarMonth.month + 1}/${calendarMonth.year}`
+                  : 'Selecione um dia'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {selectedDay ? (
+                <div className="space-y-3">
+                  {selectedDayAppointments.length > 0 ? (
+                    selectedDayAppointments.map((appt: PortalAppointment) => {
+                      const statusInfo = appointmentStatusLabels[appt.status];
+                      return (
+                        <div key={appt.id} className="rounded-lg border border-border p-3 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{formatTime(appt.scheduledAt)}</span>
+                            <Badge variant="secondary" className={cn('text-[10px] text-white', statusInfo?.color)}>
+                              {statusInfo?.label ?? appt.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{appt.type}</p>
+                          {appt.doctor?.name && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <User className="h-3 w-3" /> Dr(a). {appt.doctor.name}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> {appt.duration}min
+                          </p>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-xs text-muted-foreground mb-3">Nenhum agendamento neste dia</p>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide mb-2">
+                        Horarios disponiveis
+                      </p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {mockSlots.map((slot) => (
+                          <button
+                            key={slot}
+                            className="rounded-md border border-border bg-zinc-800/50 px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-400"
+                            onClick={() => {
+                              const dateStr = `${calendarMonth.year}-${String(calendarMonth.month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}T${slot}`;
+                              setFormData((prev) => ({ ...prev, preferredDate: dateStr }));
+                              setDialogOpen(true);
+                            }}
+                          >
+                            {slot}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-8">
+                  Clique em um dia no calendario para ver detalhes ou agendar
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-500">
+                <Plus className="mr-2 h-4 w-4" />
+                Solicitar Agendamento
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Solicitar Agendamento</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="preferredDate">Data desejada</Label>
+                  <Input
+                    id="preferredDate"
+                    type="datetime-local"
+                    value={formData.preferredDate}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, preferredDate: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="specialty">Especialidade</Label>
+                  <Select value={formData.specialty} onValueChange={(v) => setFormData((prev) => ({ ...prev, specialty: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a especialidade..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['Cardiologia', 'Dermatologia', 'Endocrinologia', 'Gastroenterologia', 'Ginecologia', 'Neurologia', 'Oftalmologia', 'Ortopedia', 'Pediatria', 'Psiquiatria', 'Urologia', 'Clinica Geral'].map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reason">Motivo da consulta</Label>
+                  <Textarea
+                    id="reason"
+                    placeholder="Descreva brevemente o motivo..."
+                    value={formData.reason}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, reason: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-500" onClick={handleSubmit} disabled={requestMutation.isPending}>
+                  {requestMutation.isPending ? 'Enviando...' : 'Solicitar'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Upcoming appointments list */}
+      {appointments.length > 0 && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Todos os Agendamentos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {appointments.map((appt: PortalAppointment) => {
+                const statusInfo = appointmentStatusLabels[appt.status];
+                return (
+                  <div key={appt.id} className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-accent/30">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-800">
+                        <Calendar className="h-4 w-4 text-emerald-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{formatDateTime(appt.scheduledAt)}</p>
+                        <p className="text-xs text-muted-foreground">{appt.type}{appt.doctor?.name ? ` - Dr(a). ${appt.doctor.name}` : ''}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px]">{appt.duration}min</Badge>
+                      <Badge variant="secondary" className={cn('text-[10px] text-white', statusInfo?.color)}>
+                        {statusInfo?.label ?? appt.status}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Tab: Resultados de Exames (with trend charts + reference ranges)
+// ============================================================================
+
+function ResultsTab({ patientId }: { patientId?: string }) {
+  const { data, isLoading, isError, refetch } = usePortalResults(patientId ? { patientId } : undefined);
+  const [selectedExam, setSelectedExam] = useState<PortalExamResult | null>(null);
+  const [filterType, setFilterType] = useState('ALL');
+
+  if (isLoading) return <PageLoading cards={4} showTable />;
+  if (isError) return <PageError onRetry={() => refetch()} />;
+
+  const results = data?.data ?? [];
+  const filteredResults = filterType === 'ALL' ? results : results.filter((r) => r.examType === filterType);
+
+  if (results.length === 0) {
+    return <EmptyState icon={TestTube} message="Nenhum resultado de exame encontrado" />;
+  }
+
+  // Mock trend data for selected exam
+  const trendData = selectedExam
+    ? Array.from({ length: 6 }, (_, i) => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - (5 - i));
+        const baseValue = 85 + Math.random() * 30;
+        return {
+          date: d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+          value: Math.round(baseValue * 10) / 10,
+        };
+      })
+    : [];
+
+  // Stats
+  const completedCount = results.filter((r) => r.status === 'COMPLETED' || r.status === 'REVIEWED').length;
+  const pendingCount = results.filter((r) => r.status === 'REQUESTED' || r.status === 'SCHEDULED' || r.status === 'IN_PROGRESS').length;
+  const abnormalCount = Math.floor(completedCount * 0.15);
+
+  return (
+    <div className="space-y-6">
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="border-border bg-card">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Disponiveis</p>
+              <p className="text-lg font-bold">{completedCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+              <Clock className="h-5 w-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Pendentes</p>
+              <p className="text-lg font-bold">{pendingCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
+              <AlertCircle className="h-5 w-5 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Fora da Faixa</p>
+              <p className="text-lg font-bold">{abnormalCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
+              <TestTube className="h-5 w-5 text-purple-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Exames</p>
+              <p className="text-lg font-bold">{results.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filter + Trend Chart Area */}
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+          {/* Filter bar */}
+          <div className="flex items-center gap-3">
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Tipo de exame" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos os tipos</SelectItem>
+                {Object.entries(examTypeLabels).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {filteredResults.length} resultado{filteredResults.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+
+          {/* Results list */}
+          <div className="space-y-2">
+            {filteredResults.map((exam: PortalExamResult) => {
+              const statusInfo = examStatusLabels[exam.status];
+              const isCompleted = exam.status === 'COMPLETED' || exam.status === 'REVIEWED';
+              return (
+                <Card
+                  key={exam.id}
+                  className={cn(
+                    'border-border bg-card transition-all cursor-pointer hover:border-zinc-700',
+                    selectedExam?.id === exam.id && 'border-emerald-500/50 bg-emerald-500/5',
+                  )}
+                  onClick={() => setSelectedExam(exam)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={cn(
+                          'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+                          isCompleted ? 'bg-emerald-500/10' : 'bg-blue-500/10',
+                        )}>
+                          <TestTube className={cn('h-5 w-5', isCompleted ? 'text-emerald-400' : 'text-blue-400')} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{exam.examName}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant="secondary" className="bg-secondary text-[10px] text-foreground">
+                              {examTypeLabels[exam.examType] ?? exam.examType}
+                            </Badge>
+                            <span className="text-[10px] text-muted-foreground">{formatDate(exam.requestedAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <Badge variant="secondary" className={cn('text-[10px] text-white', statusInfo?.color)}>
+                          {statusInfo?.label ?? exam.status}
+                        </Badge>
+                        {isCompleted && (
+                          <Button variant="ghost" size="sm" className="h-6 text-[10px] text-emerald-400 px-2">
+                            <Download className="h-3 w-3 mr-1" />
+                            PDF
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Trend chart panel */}
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">
+              {selectedExam ? `Tendencia: ${selectedExam.examName}` : 'Selecione um exame'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {selectedExam ? (
+              <div className="space-y-4">
+                {/* Mock result summary */}
+                <div className="rounded-lg border border-border p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Ultimo resultado</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {formatDate(selectedExam.completedAt)}
+                    </Badge>
+                  </div>
+                  <p className="text-2xl font-bold text-emerald-400">
+                    {(85 + Math.random() * 30).toFixed(1)}
+                  </p>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground">Faixa referencia</span>
+                    <span className="text-emerald-400">70 - 110</span>
+                  </div>
+                  <div className="w-full bg-zinc-800 rounded-full h-2 relative">
+                    <div className="absolute left-[25%] right-[25%] top-0 h-full bg-emerald-500/20 rounded-full" />
+                    <div
+                      className="absolute h-3 w-1 bg-emerald-400 rounded-full top-1/2 -translate-y-1/2"
+                      style={{ left: `${40 + Math.random() * 20}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Trend chart */}
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={trendData}>
+                    <defs>
+                      <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="date" tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
+                    <YAxis tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.7rem',
+                      }}
+                    />
+                    <ReferenceLine y={110} stroke="#ef4444" strokeDasharray="3 3" />
+                    <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" />
+                    <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#trendGradient)" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+
+                <p className="text-[10px] text-muted-foreground text-center">
+                  Linhas vermelhas indicam limites da faixa de referencia
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12">
+                <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Clique em um exame para visualizar a tendencia
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Tab: Mensageria (Chat-like with bubbles)
+// ============================================================================
+
+function MessagingTab() {
+  const { data: conversations, isLoading } = useConversations();
+  const { data: careTeam } = useCareTeam();
+  const { data: unreadCount } = useUnreadCount();
+  const sendMessage = useSendMessage();
+
+  const [recipientId, setRecipientId] = useState('');
+  const [subject, setSubject] = useState('');
+  const [content, setContent] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
+
+  const convList: Conversation[] = Array.isArray(conversations) ? conversations : [];
+  const teamList: { id: string; name: string; role: string; specialty: string | null; avatarUrl: string | null }[] =
+    Array.isArray(careTeam) ? careTeam : [];
+
+  function handleSend() {
+    if (!recipientId || !content) return;
+    sendMessage.mutate(
+      { recipientId, subject: subject || undefined, content },
+      {
+        onSuccess: () => {
+          toast.success('Mensagem enviada com sucesso!');
+          setDialogOpen(false);
+          setRecipientId('');
+          setSubject('');
+          setContent('');
+        },
+        onError: () => toast.error('Erro ao enviar mensagem'),
+      },
+    );
+  }
+
+  function handleReply() {
+    if (!content || !activeConversation) return;
+    sendMessage.mutate(
+      { recipientId: activeConversation.id, content, subject: activeConversation.subject },
+      {
+        onSuccess: () => {
+          toast.success('Resposta enviada!');
+          setContent('');
+        },
+        onError: () => toast.error('Erro ao enviar resposta'),
+      },
+    );
+  }
+
+  if (isLoading) return <PageLoading cards={0} showTable />;
+
+  // Mock messages for the active conversation
+  const mockMessages = activeConversation
+    ? [
+        { id: '1', sender: 'doctor', name: activeConversation.participantName, content: 'Bom dia! Vi seus resultados de exames e esta tudo dentro da normalidade.', time: '09:30', date: 'Ontem' },
+        { id: '2', sender: 'patient', name: 'Voce', content: 'Obrigado doutor! E sobre a medicacao, devo continuar?', time: '10:15', date: 'Ontem' },
+        { id: '3', sender: 'doctor', name: activeConversation.participantName, content: 'Sim, mantenha a medicacao por mais 30 dias. Na proxima consulta reavaliamos.', time: '10:22', date: 'Ontem' },
+        { id: '4', sender: 'patient', name: 'Voce', content: 'Entendido. Muito obrigado!', time: '10:25', date: 'Ontem' },
+        { id: '5', sender: 'doctor', name: activeConversation.participantName, content: 'Qualquer duvida estou a disposicao. Cuide-se!', time: '10:30', date: 'Ontem' },
+      ]
+    : [];
+
+  return (
+    <div className="space-y-4">
+      {/* Header with unread count */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-5 w-5 text-emerald-400" />
+          <p className="text-sm font-medium">Mensagens</p>
+          {(unreadCount ?? 0) > 0 && (
+            <Badge className="bg-emerald-600 text-white text-xs">{unreadCount} nao lida{(unreadCount ?? 0) > 1 ? 's' : ''}</Badge>
+          )}
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-emerald-600 hover:bg-emerald-500">
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Mensagem
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Enviar Mensagem</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 pt-2">
+              <div className="space-y-1">
+                <Label>Destinatario</Label>
+                {teamList.length > 0 ? (
+                  <Select value={recipientId} onValueChange={setRecipientId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o profissional..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teamList.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name} - {m.role}{m.specialty ? ` (${m.specialty})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={recipientId}
+                    onChange={(e) => setRecipientId(e.target.value)}
+                    placeholder="ID do destinatario"
+                  />
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label>Assunto (opcional)</Label>
+                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Assunto..." />
+              </div>
+              <div className="space-y-1">
+                <Label>Mensagem</Label>
+                <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Escreva sua mensagem..." rows={4} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-500"
+                disabled={!recipientId || !content || sendMessage.isPending}
+                onClick={handleSend}
+              >
+                {sendMessage.isPending ? 'Enviando...' : 'Enviar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Care team cards */}
+      {teamList.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {teamList.map((member) => (
+            <button
+              key={member.id}
+              className="flex flex-col items-center gap-1 rounded-lg border border-border bg-card p-3 min-w-[90px] transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/5"
+              onClick={() => {
+                setRecipientId(member.id);
+                setSubject('');
+                setDialogOpen(true);
+              }}
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800">
+                <User className="h-5 w-5 text-emerald-400" />
+              </div>
+              <p className="text-[10px] font-medium text-center truncate w-full">{member.name.split(' ')[0]}</p>
+              <p className="text-[8px] text-muted-foreground truncate w-full text-center">{member.role}</p>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Two-panel: conversation list + chat */}
+      <div className="grid lg:grid-cols-3 gap-4 min-h-[500px]">
+        {/* Conversation list */}
+        <Card className="border-border bg-card lg:col-span-1 overflow-hidden">
+          <CardHeader className="pb-2 border-b border-border">
+            <CardTitle className="text-xs text-muted-foreground uppercase tracking-wide">Conversas</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {convList.length === 0 ? (
+              <div className="p-6 text-center">
+                <MessageSquare className="h-8 w-8 text-muted-foreground mx-auto" />
+                <p className="text-xs text-muted-foreground mt-2">Nenhuma conversa</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {convList.map((c) => (
+                  <button
+                    key={c.id}
+                    className={cn(
+                      'w-full text-left p-3 transition-colors hover:bg-accent/30',
+                      activeConversation?.id === c.id && 'bg-emerald-500/10 border-l-2 border-l-emerald-500',
+                    )}
+                    onClick={() => setActiveConversation(c)}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 mt-0.5">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium truncate">{c.participantName}</p>
+                          <span className="text-[9px] text-muted-foreground shrink-0">{formatDate(c.lastMessageAt)}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">{c.participantRole}</p>
+                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">{c.lastMessage}</p>
+                      </div>
+                      {c.unreadCount > 0 && (
+                        <Badge className="bg-emerald-600 text-white text-[9px] h-4 min-w-[16px] shrink-0">
+                          {c.unreadCount}
+                        </Badge>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Chat area */}
+        <Card className="border-border bg-card lg:col-span-2 flex flex-col overflow-hidden">
+          {activeConversation ? (
+            <>
+              {/* Chat header */}
+              <div className="border-b border-border px-4 py-3 flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800">
+                  <User className="h-4 w-4 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{activeConversation.participantName}</p>
+                  <p className="text-[10px] text-muted-foreground">{activeConversation.participantRole} - {activeConversation.subject}</p>
+                </div>
+                <Badge variant={activeConversation.status === 'OPEN' ? 'default' : 'secondary'} className="text-[10px] ml-auto">
+                  {activeConversation.status === 'OPEN' ? 'Aberta' : 'Fechada'}
+                </Badge>
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {mockMessages.map((msg) => (
+                  <div key={msg.id} className={cn('flex', msg.sender === 'patient' ? 'justify-end' : 'justify-start')}>
+                    <div className={cn(
+                      'max-w-[75%] rounded-2xl px-4 py-2.5',
+                      msg.sender === 'patient'
+                        ? 'bg-emerald-600 text-white rounded-br-md'
+                        : 'bg-zinc-800 text-foreground rounded-bl-md',
+                    )}>
+                      <p className="text-xs font-medium mb-0.5 opacity-70">{msg.name}</p>
+                      <p className="text-sm">{msg.content}</p>
+                      <p className={cn(
+                        'text-[9px] mt-1 text-right',
+                        msg.sender === 'patient' ? 'text-emerald-200' : 'text-muted-foreground',
+                      )}>{msg.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Reply input */}
+              <div className="border-t border-border p-3">
+                <div className="flex items-end gap-2">
+                  <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+                    <Paperclip className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                  <Textarea
+                    className="min-h-[36px] max-h-[100px] resize-none text-sm"
+                    placeholder="Digite sua mensagem..."
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    rows={1}
+                  />
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-500 h-9 w-9 shrink-0 p-0"
+                    disabled={!content || sendMessage.isPending}
+                    onClick={handleReply}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <MessageSquare className="h-12 w-12 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground mt-3">Selecione uma conversa</p>
+              <p className="text-xs text-muted-foreground mt-1">ou inicie uma nova mensagem</p>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Tab: Pagamentos (Payment history with outstanding balance)
+// ============================================================================
+
+function PaymentsTab() {
+  const { data: balance } = usePaymentBalance();
+  const { data: pending, isLoading: loadingPending } = usePendingPayments();
+  const { data: history, isLoading: loadingHistory } = usePaymentHistory();
+  const processPayment = useProcessPayment();
+  const downloadReceipt = useDownloadReceipt();
+
+  const [paymentId, setPaymentId] = useState('');
+  const [method, setMethod] = useState<PaymentMethod>('PIX');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<PendingPayment | null>(null);
+
+  const pendingList: PendingPayment[] = Array.isArray(pending) ? pending : [];
+  const historyList: PaymentRecord[] = Array.isArray(history) ? history : [];
+
+  const paymentStatusConfig: Record<string, { label: string; color: string; textColor: string }> = {
+    PENDING: { label: 'Pendente', color: 'bg-yellow-600', textColor: 'text-yellow-400' },
+    PROCESSING: { label: 'Processando', color: 'bg-blue-600', textColor: 'text-blue-400' },
+    PAID: { label: 'Pago', color: 'bg-emerald-600', textColor: 'text-emerald-400' },
+    OVERDUE: { label: 'Vencido', color: 'bg-red-600', textColor: 'text-red-400' },
+    CANCELLED: { label: 'Cancelado', color: 'bg-zinc-600', textColor: 'text-zinc-400' },
+    REFUNDED: { label: 'Estornado', color: 'bg-indigo-600', textColor: 'text-indigo-400' },
+  };
+
+  function handlePay() {
+    if (!paymentId) return;
+    processPayment.mutate(
+      { paymentId, method },
+      {
+        onSuccess: () => {
+          toast.success('Pagamento processado com sucesso!');
+          setDialogOpen(false);
+          setSelectedPayment(null);
+          setPaymentId('');
+        },
+        onError: () => toast.error('Erro ao processar pagamento'),
+      },
+    );
+  }
+
+  function openPayDialog(p: PendingPayment) {
+    setSelectedPayment(p);
+    setPaymentId(p.id);
+    setDialogOpen(true);
+  }
+
+  if (loadingPending || loadingHistory) return <PageLoading cards={3} showTable />;
+
+  // Monthly spending mock for chart
+  const monthlyData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - (5 - i));
+    return {
+      month: d.toLocaleDateString('pt-BR', { month: 'short' }),
+      value: 200 + Math.random() * 800,
+    };
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Balance overview */}
+      {balance && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-border bg-card border-l-4 border-l-yellow-500">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Em Aberto</p>
+                  <p className="text-2xl font-bold text-yellow-400 mt-1">{formatCurrency(balance.totalPending)}</p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/10">
+                  <Clock className="h-6 w-6 text-yellow-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border bg-card border-l-4 border-l-red-500">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Vencido</p>
+                  <p className="text-2xl font-bold text-red-400 mt-1">{formatCurrency(balance.totalOverdue)}</p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
+                  <AlertCircle className="h-6 w-6 text-red-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border bg-card border-l-4 border-l-emerald-500">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Pago</p>
+                  <p className="text-2xl font-bold text-emerald-400 mt-1">{formatCurrency(balance.totalPaid)}</p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Spending trend */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Gastos nos Ultimos 6 Meses</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={monthlyData}>
+              <defs>
+                <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+              <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"
+                tickFormatter={(v: number) => `R$${v.toFixed(0)}`} />
+              <Tooltip
+                formatter={(value: number) => formatCurrency(value)}
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.7rem',
+                }}
+              />
+              <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#spendGrad)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Pending payments */}
+      {pendingList.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+            <AlertCircle className="h-3.5 w-3.5 text-yellow-400" />
+            Cobrancas Pendentes ({pendingList.length})
+          </p>
+          <div className="space-y-2">
+            {pendingList.map((p) => {
+              const cfg = paymentStatusConfig[p.status];
+              const isOverdue = p.status === 'OVERDUE';
+              return (
+                <Card key={p.id} className={cn('border-border bg-card', isOverdue && 'border-red-500/30')}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={cn(
+                          'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+                          isOverdue ? 'bg-red-500/10' : 'bg-yellow-500/10',
+                        )}>
+                          <CreditCard className={cn('h-5 w-5', isOverdue ? 'text-red-400' : 'text-yellow-400')} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{p.description}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <span>Vencimento: {formatDate(p.dueDate)}</span>
+                            {p.doctorName && <span>- Dr(a). {p.doctorName}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-right">
+                          <p className={cn('text-lg font-bold', cfg?.textColor)}>{formatCurrency(p.amount)}</p>
+                          <Badge variant="secondary" className={cn('text-[10px] text-white', cfg?.color)}>
+                            {cfg?.label ?? p.status}
+                          </Badge>
+                        </div>
+                        {(p.status === 'PENDING' || p.status === 'OVERDUE') && (
+                          <Button className="bg-emerald-600 hover:bg-emerald-500 h-9" onClick={() => openPayDialog(p)}>
+                            Pagar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Payment history */}
+      {historyList.length > 0 && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Historico de Pagamentos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {historyList.map((r: PaymentRecord) => {
+                const cfg = paymentStatusConfig[r.status];
+                return (
+                  <div key={r.id} className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-accent/30">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-800">
+                        <CreditCard className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{r.description}</p>
+                        <p className="text-xs text-muted-foreground">{r.method} - {formatDate(r.paidAt)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm font-bold">{formatCurrency(r.amount)}</p>
+                        <Badge variant="secondary" className={cn('text-[10px] text-white', cfg?.color)}>
+                          {cfg?.label ?? r.status}
+                        </Badge>
+                      </div>
+                      {(r.receiptUrl || r.status === 'PAID') && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Baixar recibo"
+                          disabled={downloadReceipt.isPending}
+                          onClick={() => downloadReceipt.mutate(r.id, { onError: () => toast.error('Erro ao baixar recibo') })}
+                        >
+                          <Download className="h-4 w-4 text-emerald-500" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {pendingList.length === 0 && historyList.length === 0 && (
+        <EmptyState icon={CreditCard} message="Nenhum pagamento encontrado" />
+      )}
+
+      {/* Pay dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Realizar Pagamento</DialogTitle>
+          </DialogHeader>
+          {selectedPayment && (
+            <div className="space-y-4 pt-2">
+              <div className="rounded-lg border border-border p-4 text-center">
+                <p className="text-sm text-muted-foreground">{selectedPayment.description}</p>
+                <p className="text-3xl font-bold text-emerald-400 mt-2">{formatCurrency(selectedPayment.amount)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Vencimento: {formatDate(selectedPayment.dueDate)}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Forma de Pagamento</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'PIX' as PaymentMethod, label: 'PIX', desc: 'Instantaneo' },
+                    { value: 'CREDIT_CARD' as PaymentMethod, label: 'Credito', desc: 'Ate 12x' },
+                    { value: 'DEBIT_CARD' as PaymentMethod, label: 'Debito', desc: 'A vista' },
+                    { value: 'BOLETO' as PaymentMethod, label: 'Boleto', desc: '3 dias uteis' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      className={cn(
+                        'rounded-lg border p-3 text-left transition-colors',
+                        method === opt.value
+                          ? 'border-emerald-500 bg-emerald-500/10'
+                          : 'border-border bg-card hover:border-zinc-600',
+                      )}
+                      onClick={() => setMethod(opt.value)}
+                    >
+                      <p className="text-sm font-medium">{opt.label}</p>
+                      <p className="text-[10px] text-muted-foreground">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-500"
+              disabled={processPayment.isPending}
+              onClick={handlePay}
+            >
+              {processPayment.isPending ? 'Processando...' : 'Confirmar Pagamento'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============================================================================
+// Tab: Diario de Saude (with recharts tracking)
+// ============================================================================
+
+function HealthDiaryTab() {
+  const { data: entries, isLoading } = useDiaryEntries({ page: 1 });
+  const { data: bpTrend } = useDiaryTrend('BP', 'systolicBP');
+  const { data: glucoseTrend } = useDiaryTrend('GLUCOSE', 'glucoseLevel');
+  const addEntry = useAddDiaryEntry();
+  const deleteEntry = useDeleteDiaryEntry();
+
+  const [showForm, setShowForm] = useState(false);
+  const [entryType, setEntryType] = useState('BP');
+  const [entryValue, setEntryValue] = useState('');
+  const [activeChart, setActiveChart] = useState<'BP' | 'GLUCOSE'>('BP');
+
+  async function handleAdd() {
+    if (!entryValue) return;
+    try {
+      await addEntry.mutateAsync({ entryType, notes: entryValue });
+      toast.success('Entrada adicionada ao diario.');
+      setEntryValue('');
+      setShowForm(false);
+    } catch {
+      toast.error('Erro ao salvar entrada.');
+    }
+  }
+
+  if (isLoading) return <PageLoading cards={4} showTable />;
+
+  const items = entries?.data ?? [];
+
+  // Build chart data from trends
+  const bpChartData = bpTrend?.trend?.slice(0, 14).reverse().map((point) => ({
+    date: formatDate(point.date),
+    systolic: typeof point.value === 'number' ? point.value : 120 + Math.random() * 20,
+    diastolic: typeof point.value === 'number' ? point.value * 0.65 : 75 + Math.random() * 15,
+  })) ?? Array.from({ length: 14 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (13 - i));
+    return {
+      date: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      systolic: 115 + Math.random() * 25,
+      diastolic: 70 + Math.random() * 15,
+    };
+  });
+
+  const glucoseChartData = glucoseTrend?.trend?.slice(0, 14).reverse().map((point) => ({
+    date: formatDate(point.date),
+    glucose: typeof point.value === 'number' ? point.value : 90 + Math.random() * 40,
+  })) ?? Array.from({ length: 14 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (13 - i));
+    return {
+      date: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      glucose: 85 + Math.random() * 45,
+    };
+  });
+
+  const entryTypeConfig: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
+    BP: { label: 'Pressao Arterial', icon: Heart, color: 'text-red-400' },
+    GLUCOSE: { label: 'Glicemia', icon: Droplets, color: 'text-blue-400' },
+    WEIGHT: { label: 'Peso', icon: Weight, color: 'text-purple-400' },
+    TEMPERATURE: { label: 'Temperatura', icon: Thermometer, color: 'text-amber-400' },
+    PAIN: { label: 'Dor', icon: AlertCircle, color: 'text-red-400' },
+    MOOD: { label: 'Humor', icon: Smile, color: 'text-yellow-400' },
+    SYMPTOMS: { label: 'Sintomas', icon: Activity, color: 'text-orange-400' },
+    EXERCISE: { label: 'Exercicio', icon: TrendingUp, color: 'text-emerald-400' },
+  };
+
+  // Stats for today
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayEntries = items.filter((e) => e.date?.startsWith(todayStr));
+
+  return (
+    <div className="space-y-6">
+      {/* Quick-add entry types */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <BookHeart className="h-5 w-5 text-emerald-400" />
+          <p className="text-sm font-medium">Diario de Saude</p>
+          <Badge variant="secondary" className="text-[10px]">{todayEntries.length} registro{todayEntries.length !== 1 ? 's' : ''} hoje</Badge>
+        </div>
+        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowForm(!showForm)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nova Entrada
+        </Button>
+      </div>
+
+      {/* Quick entry type buttons */}
+      <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+        {Object.entries(entryTypeConfig).map(([key, cfg]) => (
+          <button
+            key={key}
+            className={cn(
+              'flex flex-col items-center gap-1 rounded-lg border border-border bg-card p-3 transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/5',
+              entryType === key && showForm && 'border-emerald-500 bg-emerald-500/10',
+            )}
+            onClick={() => {
+              setEntryType(key);
+              setShowForm(true);
+            }}
+          >
+            <cfg.icon className={cn('h-5 w-5', cfg.color)} />
+            <p className="text-[9px] text-muted-foreground text-center">{cfg.label}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Entry form */}
+      {showForm && (
+        <Card className="border-border bg-card border-l-4 border-l-emerald-500">
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <Label className="text-muted-foreground text-xs">
+                  {entryTypeConfig[entryType]?.label ?? entryType}
+                </Label>
+                <Input
+                  className="bg-zinc-900 border-border mt-1"
+                  value={entryValue}
+                  onChange={(e) => setEntryValue(e.target.value)}
+                  placeholder={entryType === 'BP' ? 'Ex: 120/80' : entryType === 'GLUCOSE' ? 'Ex: 95 mg/dL' : entryType === 'WEIGHT' ? 'Ex: 72.5 kg' : 'Valor...'}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+                />
+              </div>
+              <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleAdd} disabled={addEntry.isPending}>
+                {addEntry.isPending ? 'Salvando...' : 'Registrar'}
+              </Button>
+              <Button variant="ghost" onClick={() => setShowForm(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Trend charts */}
+      <div className="space-y-4">
+        <div className="flex gap-2">
+          <Button
+            variant={activeChart === 'BP' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveChart('BP')}
+            className={activeChart === 'BP' ? 'bg-emerald-600' : ''}
+          >
+            <Heart className="h-3.5 w-3.5 mr-1.5" />
+            Pressao Arterial
+          </Button>
+          <Button
+            variant={activeChart === 'GLUCOSE' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveChart('GLUCOSE')}
+            className={activeChart === 'GLUCOSE' ? 'bg-emerald-600' : ''}
+          >
+            <Droplets className="h-3.5 w-3.5 mr-1.5" />
+            Glicemia
+          </Button>
+        </div>
+
+        {activeChart === 'BP' && (
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Pressao Arterial - Ultimos 14 dias</CardTitle>
+                <div className="flex gap-3 text-[10px]">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400" />Sistolica</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400" />Diastolica</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={bpChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="date" tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" domain={[50, 180]} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.7rem',
+                    }}
+                  />
+                  <ReferenceLine y={140} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Hipertensao', fontSize: 9, fill: '#ef4444' }} />
+                  <ReferenceLine y={90} stroke="#3b82f6" strokeDasharray="3 3" />
+                  <Line type="monotone" dataKey="systolic" stroke="#ef4444" strokeWidth={2} dot={{ r: 3, fill: '#ef4444' }} name="Sistolica" />
+                  <Line type="monotone" dataKey="diastolic" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} name="Diastolica" />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeChart === 'GLUCOSE' && (
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Glicemia - Ultimos 14 dias</CardTitle>
+                <span className="text-[10px] text-muted-foreground">Referencia: 70 - 100 mg/dL</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart data={glucoseChartData}>
+                  <defs>
+                    <linearGradient id="glucoseGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="date" tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" domain={[50, 200]} />
+                  <Tooltip
+                    formatter={(value: number) => [`${value.toFixed(0)} mg/dL`, 'Glicemia']}
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.7rem',
+                    }}
+                  />
+                  <ReferenceLine y={100} stroke="#ef4444" strokeDasharray="3 3" />
+                  <ReferenceLine y={70} stroke="#f59e0b" strokeDasharray="3 3" />
+                  <Area type="monotone" dataKey="glucose" stroke="#8b5cf6" fill="url(#glucoseGrad)" strokeWidth={2} dot={{ r: 3, fill: '#8b5cf6' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Recent entries table */}
+      {items.length > 0 && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Entradas Recentes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {items.map((entry) => {
+                const cfg = entryTypeConfig[entry.entryType];
+                const IconComponent = cfg?.icon ?? Activity;
+                return (
+                  <div key={entry.entryId} className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-accent/30">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-800">
+                        <IconComponent className={cn('h-4 w-4', cfg?.color ?? 'text-muted-foreground')} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{cfg?.label ?? entry.entryType}</p>
+                          <Badge variant="secondary" className="text-[10px]">{formatDate(entry.date)}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{entry.notes ?? JSON.stringify(entry.data)}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-400 hover:text-red-300 h-7 text-xs"
+                      onClick={() => deleteEntry.mutate(entry.entryId)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {items.length === 0 && !showForm && (
+        <EmptyState icon={BookHeart} message="Comece registrando sua pressao arterial ou glicemia" />
+      )}
+    </div>
   );
 }
 
@@ -276,112 +1774,39 @@ function EncountersTab({ patientId }: { patientId?: string }) {
   }
 
   return (
-    <Card className="border-border bg-card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border text-left">
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Data</th>
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Tipo</th>
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
-              <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">Medico</th>
-              <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">Queixa</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800/50">
-            {encounters.map((enc: Encounter) => {
-              const statusInfo = encounterStatusLabels[enc.status as EncounterStatus];
-              return (
-                <tr key={enc.id} className="transition-colors hover:bg-accent/30">
-                  <td className="px-4 py-3 text-sm">{formatDate(enc.createdAt)}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary" className="bg-secondary text-xs text-foreground">
-                      {encounterTypeLabels[enc.type] ?? enc.type}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary" className={cn('text-[10px] text-white', statusInfo?.color)}>
-                      {statusInfo?.label ?? enc.status}
-                    </Badge>
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm text-muted-foreground sm:table-cell">
-                    {enc.primaryDoctor?.name ?? '--'}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">
-                    {enc.chiefComplaint ?? '--'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-// ============================================================================
-// Tab: Resultados de Exames
-// ============================================================================
-
-function ResultsTab({ patientId }: { patientId?: string }) {
-  const { data, isLoading, isError, refetch } = usePortalResults(patientId ? { patientId } : undefined);
-
-  if (isLoading) return <PageLoading cards={0} showTable />;
-  if (isError) return <PageError onRetry={() => refetch()} />;
-
-  const results = data?.data ?? [];
-
-  if (results.length === 0) {
-    return <EmptyState icon={TestTube} message="Nenhum resultado de exame encontrado" />;
-  }
-
-  return (
-    <Card className="border-border bg-card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border text-left">
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Exame</th>
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Tipo</th>
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
-              <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">Solicitado em</th>
-              <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">Concluido em</th>
-              <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground lg:table-cell">Solicitante</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800/50">
-            {results.map((exam: PortalExamResult) => {
-              const statusInfo = examStatusLabels[exam.status];
-              return (
-                <tr key={exam.id} className="transition-colors hover:bg-accent/30">
-                  <td className="px-4 py-3 text-sm font-medium">{exam.examName}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary" className="bg-secondary text-xs text-foreground">
-                      {examTypeLabels[exam.examType] ?? exam.examType}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary" className={cn('text-[10px] text-white', statusInfo?.color)}>
-                      {statusInfo?.label ?? exam.status}
-                    </Badge>
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm text-muted-foreground sm:table-cell">
-                    {formatDate(exam.requestedAt)}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">
-                    {formatDate(exam.completedAt)}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm text-muted-foreground lg:table-cell">
-                    {exam.requestedBy?.name ?? '--'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+    <div className="space-y-2">
+      {encounters.map((enc: Encounter) => {
+        const statusInfo = encounterStatusLabels[enc.status as EncounterStatus];
+        return (
+          <Card key={enc.id} className="border-border bg-card transition-colors hover:border-zinc-700">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
+                    <Stethoscope className="h-5 w-5 text-emerald-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{formatDate(enc.createdAt)}</p>
+                      <Badge variant="secondary" className="bg-secondary text-[10px] text-foreground">
+                        {encounterTypeLabels[enc.type] ?? enc.type}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                      {enc.primaryDoctor?.name && <span>Dr(a). {enc.primaryDoctor.name}</span>}
+                      {enc.chiefComplaint && <span className="truncate">- {enc.chiefComplaint}</span>}
+                    </div>
+                  </div>
+                </div>
+                <Badge variant="secondary" className={cn('text-[10px] text-white shrink-0', statusInfo?.color)}>
+                  {statusInfo?.label ?? enc.status}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 
@@ -450,274 +1875,6 @@ function PrescriptionsTab({ patientId }: { patientId?: string }) {
 }
 
 // ============================================================================
-// Tab: Agenda
-// ============================================================================
-
-function AppointmentsTab({ patientId }: { patientId?: string }) {
-  const { data, isLoading, isError, refetch } = usePortalAppointments(patientId ? { patientId } : undefined);
-  const requestMutation = useRequestAppointment(patientId);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    preferredDate: '',
-    specialty: '',
-    reason: '',
-  });
-
-  if (isLoading) return <PageLoading cards={0} showTable />;
-  if (isError) return <PageError onRetry={() => refetch()} />;
-
-  const appointments = data?.data ?? [];
-
-  const handleSubmit = () => {
-    requestMutation.mutate(
-      {
-        preferredDate: formData.preferredDate || undefined,
-        specialty: formData.specialty || undefined,
-        reason: formData.reason || undefined,
-      },
-      {
-        onSuccess: () => {
-          toast.success('Solicitacao de agendamento enviada com sucesso!');
-          setDialogOpen(false);
-          setFormData({ preferredDate: '', specialty: '', reason: '' });
-        },
-      },
-    );
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-500">
-              <Plus className="mr-2 h-4 w-4" />
-              Solicitar Agendamento
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Solicitar Agendamento</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="preferredDate">Data desejada</Label>
-                <Input
-                  id="preferredDate"
-                  type="datetime-local"
-                  value={formData.preferredDate}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, preferredDate: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="specialty">Especialidade</Label>
-                <Input
-                  id="specialty"
-                  placeholder="Ex: Cardiologia, Ortopedia..."
-                  value={formData.specialty}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, specialty: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reason">Motivo da consulta</Label>
-                <Textarea
-                  id="reason"
-                  placeholder="Descreva brevemente o motivo..."
-                  value={formData.reason}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, reason: e.target.value }))}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                className="bg-emerald-600 hover:bg-emerald-500"
-                onClick={handleSubmit}
-                disabled={requestMutation.isPending}
-              >
-                {requestMutation.isPending ? 'Enviando...' : 'Solicitar'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {appointments.length === 0 ? (
-        <EmptyState icon={Calendar} message="Nenhum agendamento encontrado" />
-      ) : (
-        <Card className="border-border bg-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Data/Hora</th>
-                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Tipo</th>
-                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
-                  <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">Medico</th>
-                  <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">Duracao</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/50">
-                {appointments.map((appt: PortalAppointment) => {
-                  const statusInfo = appointmentStatusLabels[appt.status];
-                  return (
-                    <tr key={appt.id} className="transition-colors hover:bg-accent/30">
-                      <td className="px-4 py-3 text-sm">{formatDateTime(appt.scheduledAt)}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant="secondary" className="bg-secondary text-xs text-foreground">
-                          {appt.type}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="secondary" className={cn('text-[10px] text-white', statusInfo?.color)}>
-                          {statusInfo?.label ?? appt.status}
-                        </Badge>
-                      </td>
-                      <td className="hidden px-4 py-3 text-sm text-muted-foreground sm:table-cell">
-                        {appt.doctor?.name ?? '--'}
-                      </td>
-                      <td className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {appt.duration}min
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// Tab: Sinais Vitais
-// ============================================================================
-
-function VitalsTab({ patientId }: { patientId?: string }) {
-  const { data, isLoading, isError, refetch } = usePortalVitals(patientId ? { patientId } : undefined);
-
-  if (isLoading) return <PageLoading cards={0} showTable />;
-  if (isError) return <PageError onRetry={() => refetch()} />;
-
-  const vitals = data?.data ?? [];
-
-  if (vitals.length === 0) {
-    return <EmptyState icon={Activity} message="Nenhum registro de sinais vitais encontrado" />;
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Summary cards for latest reading */}
-      {(() => {
-        const latest = vitals[0];
-        if (!latest) return null;
-        return (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <VitalCard
-              label="Pressao Arterial"
-              value={
-                latest.systolicBP && latest.diastolicBP
-                  ? `${latest.systolicBP}/${latest.diastolicBP} mmHg`
-                  : '--'
-              }
-              icon={Activity}
-            />
-            <VitalCard
-              label="Freq. Cardiaca"
-              value={latest.heartRate ? `${latest.heartRate} bpm` : '--'}
-              icon={Heart}
-            />
-            <VitalCard
-              label="Temperatura"
-              value={latest.temperature ? `${latest.temperature} C` : '--'}
-              icon={Activity}
-            />
-            <VitalCard
-              label="Saturacao O2"
-              value={latest.oxygenSaturation ? `${latest.oxygenSaturation}%` : '--'}
-              icon={Activity}
-            />
-          </div>
-        );
-      })()}
-
-      {/* History table */}
-      <Card className="border-border bg-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border text-left">
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Data</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">PA</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">FC</th>
-                <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">Temp</th>
-                <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">SpO2</th>
-                <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">FR</th>
-                <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">Glicemia</th>
-                <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground lg:table-cell">Dor</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/50">
-              {vitals.map((v: VitalSigns) => (
-                <tr key={v.id} className="transition-colors hover:bg-accent/30">
-                  <td className="px-4 py-3 text-sm">{formatDateTime(v.recordedAt)}</td>
-                  <td className="px-4 py-3 text-sm">
-                    {v.systolicBP && v.diastolicBP ? `${v.systolicBP}/${v.diastolicBP}` : '--'}
-                  </td>
-                  <td className="px-4 py-3 text-sm">{v.heartRate ?? '--'}</td>
-                  <td className="hidden px-4 py-3 text-sm sm:table-cell">
-                    {v.temperature ? `${v.temperature}` : '--'}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm sm:table-cell">
-                    {v.oxygenSaturation ? `${v.oxygenSaturation}%` : '--'}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm md:table-cell">{v.respiratoryRate ?? '--'}</td>
-                  <td className="hidden px-4 py-3 text-sm md:table-cell">
-                    {v.glucoseLevel ? `${v.glucoseLevel} mg/dL` : '--'}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm lg:table-cell">{v.painScale ?? '--'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function VitalCard({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <Card className="border-border bg-card">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
-          <Icon className="h-5 w-5 text-emerald-500" />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="text-lg font-semibold">{value}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ============================================================================
 // Tab: Documentos
 // ============================================================================
 
@@ -734,66 +1891,49 @@ function DocumentsTab({ patientId }: { patientId?: string }) {
   }
 
   return (
-    <Card className="border-border bg-card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border text-left">
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Titulo</th>
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Tipo</th>
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
-              <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">Data</th>
-              <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">Autor</th>
-              <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Acao</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800/50">
-            {documents.map((doc: PortalDocument) => {
-              const statusInfo = documentStatusLabels[doc.status];
-              return (
-                <tr key={doc.id} className="transition-colors hover:bg-accent/30">
-                  <td className="px-4 py-3 text-sm font-medium">{doc.title}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary" className="bg-secondary text-xs text-foreground">
-                      {documentTypeLabels[doc.type] ?? doc.type}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="secondary" className={cn('text-[10px] text-white', statusInfo?.color)}>
-                      {statusInfo?.label ?? doc.status}
-                    </Badge>
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm text-muted-foreground sm:table-cell">
-                    {formatDate(doc.createdAt)}
-                  </td>
-                  <td className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">
-                    {doc.author?.name ?? '--'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {doc.status === 'SIGNED' || doc.status === 'FINAL' ? (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Baixar documento">
-                        <Download className="h-4 w-4 text-emerald-500" />
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">--</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+    <div className="space-y-2">
+      {documents.map((doc: PortalDocument) => {
+        const statusInfo = documentStatusLabels[doc.status];
+        return (
+          <Card key={doc.id} className="border-border bg-card transition-colors hover:border-zinc-700">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
+                    <FileText className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{doc.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                      <Badge variant="secondary" className="bg-secondary text-[10px] text-foreground">
+                        {documentTypeLabels[doc.type] ?? doc.type}
+                      </Badge>
+                      <span>{formatDate(doc.createdAt)}</span>
+                      {doc.author?.name && <span>- {doc.author.name}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="secondary" className={cn('text-[10px] text-white', statusInfo?.color)}>
+                    {statusInfo?.label ?? doc.status}
+                  </Badge>
+                  {(doc.status === 'SIGNED' || doc.status === 'FINAL') && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Baixar documento">
+                      <Download className="h-4 w-4 text-emerald-500" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 
 // ============================================================================
-// Main Page
-// ============================================================================
-
-// ============================================================================
-// Patient Search Selector (for staff users)
+// Patient Search Selector
 // ============================================================================
 
 function PatientSelector({
@@ -887,1304 +2027,80 @@ function PatientSelector({
 }
 
 // ============================================================================
-// Tab: Diario de Saude
-// ============================================================================
-
-function HealthDiaryTab() {
-  const { data: entries, isLoading } = useDiaryEntries({ page: 1 });
-  const { data: bpTrend } = useDiaryTrend('BP', 'systolicBP');
-  const addEntry = useAddDiaryEntry();
-  const deleteEntry = useDeleteDiaryEntry();
-
-  const [showForm, setShowForm] = useState(false);
-  const [entryType, setEntryType] = useState('BP');
-  const [entryValue, setEntryValue] = useState('');
-
-  async function handleAdd() {
-    if (!entryValue) return;
-    try {
-      await addEntry.mutateAsync({ entryType, notes: entryValue });
-      toast.success('Entrada adicionada ao diario.');
-      setEntryValue('');
-      setShowForm(false);
-    } catch {
-      toast.error('Erro ao salvar entrada.');
-    }
-  }
-
-  if (isLoading) return <PageLoading cards={0} showTable />;
-
-  const items = entries?.data ?? [];
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowForm(!showForm)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Entrada
-        </Button>
-      </div>
-      {showForm && (
-        <Card className="border-border bg-card">
-          <CardContent className="pt-6 space-y-3">
-            <div className="flex gap-3">
-              <div>
-                <Label className="text-muted-foreground">Tipo</Label>
-                <select
-                  className="block w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
-                  value={entryType}
-                  onChange={(e) => setEntryType(e.target.value)}
-                >
-                  <option value="BP">Pressao Arterial</option>
-                  <option value="GLUCOSE">Glicemia</option>
-                  <option value="WEIGHT">Peso</option>
-                  <option value="TEMPERATURE">Temperatura</option>
-                  <option value="PAIN">Dor</option>
-                  <option value="MOOD">Humor</option>
-                  <option value="SYMPTOMS">Sintomas</option>
-                  <option value="EXERCISE">Exercicio</option>
-                </select>
-              </div>
-              <div className="flex-1">
-                <Label className="text-muted-foreground">Valor</Label>
-                <Input
-                  className="bg-card border-border"
-                  value={entryValue}
-                  onChange={(e) => setEntryValue(e.target.value)}
-                  placeholder="Ex: 120/80"
-                />
-              </div>
-              <div className="flex items-end">
-                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleAdd}>
-                  Salvar
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      {bpTrend && bpTrend.trend.length > 0 && (
-        <Card className="border-border bg-card">
-          <CardHeader>
-            <CardTitle className="text-sm text-foreground">Tendencia — Pressao Arterial</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2 overflow-x-auto">
-              {bpTrend.trend.slice(0, 10).map((point, i) => (
-                <Badge key={i} variant="secondary" className="whitespace-nowrap">
-                  {formatDate(point.date)}: {point.value}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      {items.length === 0 ? (
-        <EmptyState icon={BookHeart} message="Nenhuma entrada no diario de saude" />
-      ) : (
-        <Card className="border-border bg-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Data</th>
-                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Tipo</th>
-                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Valor</th>
-                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Acoes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/50">
-                {items.map((entry) => (
-                  <tr key={entry.entryId} className="transition-colors hover:bg-accent/30">
-                    <td className="px-4 py-3 text-sm">{formatDate(entry.date)}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant="secondary" className="text-xs">{entry.entryType}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-medium">{entry.notes ?? JSON.stringify(entry.data)}</td>
-                    <td className="px-4 py-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-400 hover:text-red-300"
-                        onClick={() => deleteEntry.mutate(entry.entryId)}
-                      >
-                        Excluir
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// Tab: Uploads de Documentos
-// ============================================================================
-
-function DocumentUploadTab() {
-  return (
-    <Card className="border-border bg-card">
-      <CardHeader>
-        <CardTitle className="text-foreground flex items-center gap-2">
-          <Upload className="h-5 w-5 text-emerald-500" />
-          Upload de Documentos
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground text-sm mb-4">
-          Envie exames externos, laudos, imagens e outros documentos para o prontuario.
-        </p>
-        <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-          <Upload className="h-10 w-10 text-muted-foreground mx-auto" />
-          <p className="text-sm text-muted-foreground mt-3">
-            Arraste arquivos aqui ou clique para selecionar
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            PDF, JPG, PNG, DICOM — max 50 MB
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ============================================================================
-// Tab: Lembretes
-// ============================================================================
-
-function RemindersTab() {
-  return (
-    <Card className="border-border bg-card">
-      <CardHeader>
-        <CardTitle className="text-foreground flex items-center gap-2">
-          <Bell className="h-5 w-5 text-emerald-500" />
-          Lembretes Automaticos
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground text-sm mb-4">
-          Lembretes de medicamentos, consultas, exames e vacinas configurados automaticamente.
-        </p>
-        <EmptyState icon={Bell} message="Nenhum lembrete ativo no momento" />
-      </CardContent>
-    </Card>
-  );
-}
-
-// ============================================================================
-// Tab: Mensageria
-// ============================================================================
-
-function MessagingTab() {
-  const { data: conversations, isLoading } = useConversations();
-  const { data: careTeam } = useCareTeam();
-  const { data: unreadCount } = useUnreadCount();
-  const sendMessage = useSendMessage();
-
-  const [recipientId, setRecipientId] = useState('');
-  const [subject, setSubject] = useState('');
-  const [content, setContent] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  const convList: Conversation[] = Array.isArray(conversations) ? conversations : [];
-  const teamList: { id: string; name: string; role: string; specialty: string | null; avatarUrl: string | null }[] =
-    Array.isArray(careTeam) ? careTeam : [];
-
-  function handleSend() {
-    if (!recipientId || !content) return;
-    sendMessage.mutate(
-      { recipientId, subject: subject || undefined, content },
-      {
-        onSuccess: () => {
-          toast.success('Mensagem enviada com sucesso!');
-          setDialogOpen(false);
-          setRecipientId('');
-          setSubject('');
-          setContent('');
-        },
-        onError: () => toast.error('Erro ao enviar mensagem'),
-      },
-    );
-  }
-
-  if (isLoading) return <PageLoading cards={0} showTable />;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <p className="text-sm text-muted-foreground">Caixa de mensagens</p>
-          {(unreadCount ?? 0) > 0 && (
-            <Badge className="bg-emerald-600 text-white text-xs">{unreadCount} não lidas</Badge>
-          )}
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-500">
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Mensagem
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Enviar Mensagem</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3 pt-2">
-              <div className="space-y-1">
-                <Label>Destinatário</Label>
-                {teamList.length > 0 ? (
-                  <select
-                    className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
-                    value={recipientId}
-                    onChange={(e) => setRecipientId(e.target.value)}
-                  >
-                    <option value="">Selecione...</option>
-                    {teamList.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} — {m.role}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <Input
-                    value={recipientId}
-                    onChange={(e) => setRecipientId(e.target.value)}
-                    placeholder="ID do destinatário"
-                  />
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label>Assunto (opcional)</Label>
-                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Assunto..." />
-              </div>
-              <div className="space-y-1">
-                <Label>Mensagem</Label>
-                <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Escreva sua mensagem..." rows={4} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button
-                className="bg-emerald-600 hover:bg-emerald-500"
-                disabled={!recipientId || !content || sendMessage.isPending}
-                onClick={handleSend}
-              >
-                {sendMessage.isPending ? 'Enviando...' : 'Enviar'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {convList.length === 0 ? (
-        <EmptyState icon={FileText} message="Nenhuma conversa encontrada" />
-      ) : (
-        <div className="space-y-2">
-          {convList.map((c) => (
-            <Card key={c.id} className="border-border bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-0.5 flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate">{c.subject}</p>
-                      {c.unreadCount > 0 && (
-                        <Badge className="bg-emerald-600 text-white text-[10px] shrink-0">{c.unreadCount}</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{c.participantName} · {c.participantRole}</p>
-                    <p className="text-xs text-muted-foreground truncate">{c.lastMessage}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <Badge variant={c.status === 'OPEN' ? 'default' : 'secondary'} className="text-[10px]">
-                      {c.status === 'OPEN' ? 'Aberta' : 'Fechada'}
-                    </Badge>
-                    <p className="text-[10px] text-muted-foreground">{formatDate(c.lastMessageAt)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// Tab: Renovação de Receita
-// ============================================================================
-
-function PrescriptionRenewalTab() {
-  const { data: activePrescriptions, isLoading: loadingActive } = useActivePrescriptions();
-  const { data: renewalRequests, isLoading: loadingRequests } = useRenewalRequests();
-  const requestRenewal = useRequestRenewal();
-
-  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState('');
-  const [notes, setNotes] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  const active: ActivePrescription[] = Array.isArray(activePrescriptions) ? activePrescriptions : [];
-  const requests: RenewalRequest[] = Array.isArray(renewalRequests) ? renewalRequests : [];
-
-  const renewalStatusColor: Record<string, string> = {
-    REQUESTED: 'bg-blue-600',
-    IN_REVIEW: 'bg-yellow-600',
-    APPROVED: 'bg-emerald-600',
-    DENIED: 'bg-red-600',
-  };
-
-  function handleRequest() {
-    if (!selectedPrescriptionId) return;
-    requestRenewal.mutate(
-      { prescriptionId: selectedPrescriptionId, notes: notes || undefined },
-      {
-        onSuccess: () => {
-          toast.success('Solicitação de renovação enviada!');
-          setDialogOpen(false);
-          setSelectedPrescriptionId('');
-          setNotes('');
-        },
-        onError: () => toast.error('Erro ao solicitar renovação'),
-      },
-    );
-  }
-
-  if (loadingActive || loadingRequests) return <PageLoading cards={0} showTable />;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-500" disabled={active.length === 0}>
-              <Plus className="mr-2 h-4 w-4" />
-              Solicitar Renovação
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Solicitar Renovação de Receita</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3 pt-2">
-              <div className="space-y-1">
-                <Label>Medicamento</Label>
-                <select
-                  className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
-                  value={selectedPrescriptionId}
-                  onChange={(e) => setSelectedPrescriptionId(e.target.value)}
-                >
-                  <option value="">Selecione...</option>
-                  {active.filter((p) => p.renewalEligible).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.medicationName} — {p.dosage} ({p.frequency})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label>Observações (opcional)</Label>
-                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Alguma observação para o médico..." rows={3} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button
-                className="bg-emerald-600 hover:bg-emerald-500"
-                disabled={!selectedPrescriptionId || requestRenewal.isPending}
-                onClick={handleRequest}
-              >
-                {requestRenewal.isPending ? 'Enviando...' : 'Solicitar'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {active.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Medicamentos Ativos</p>
-          <div className="space-y-2">
-            {active.map((p) => (
-              <Card key={p.id} className="border-border bg-card">
-                <CardContent className="p-4 flex items-center justify-between gap-3">
-                  <div className="space-y-0.5 flex-1 min-w-0">
-                    <p className="text-sm font-medium">{p.medicationName}</p>
-                    <p className="text-xs text-muted-foreground">{p.dosage} · {p.frequency} · Dr(a). {p.prescribedBy}</p>
-                    <p className="text-xs text-muted-foreground">Início: {formatDate(p.startDate)}{p.endDate ? ` · Fim: ${formatDate(p.endDate)}` : ''}</p>
-                  </div>
-                  <Badge variant={p.renewalEligible ? 'default' : 'secondary'} className={cn('text-[10px] shrink-0', p.renewalEligible ? 'bg-emerald-600 text-white' : '')}>
-                    {p.renewalEligible ? 'Renovável' : 'Não renovável'}
-                  </Badge>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {requests.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Solicitações de Renovação</p>
-          <Card className="border-border bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Medicamento</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
-                    <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">Solicitado em</th>
-                    <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">Revisado por</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {requests.map((r: RenewalRequest) => (
-                    <tr key={r.id} className="transition-colors hover:bg-accent/30">
-                      <td className="px-4 py-3 text-sm font-medium">{r.medicationName} — {r.dosage}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant="secondary" className={cn('text-[10px] text-white', renewalStatusColor[r.status])}>
-                          {r.status}
-                        </Badge>
-                      </td>
-                      <td className="hidden px-4 py-3 text-sm text-muted-foreground sm:table-cell">{formatDate(r.requestedAt)}</td>
-                      <td className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">{r.reviewedBy ?? '--'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {active.length === 0 && requests.length === 0 && (
-        <EmptyState icon={Pill} message="Nenhuma medicação ativa ou solicitação de renovação" />
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// Tab: Pagamento Online
-// ============================================================================
-
-function PaymentsTab() {
-  const { data: balance } = usePaymentBalance();
-  const { data: pending, isLoading: loadingPending } = usePendingPayments();
-  const { data: history, isLoading: loadingHistory } = usePaymentHistory();
-  const processPayment = useProcessPayment();
-  const downloadReceipt = useDownloadReceipt();
-
-  const [paymentId, setPaymentId] = useState('');
-  const [method, setMethod] = useState<PaymentMethod>('PIX');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<PendingPayment | null>(null);
-
-  const pendingList: PendingPayment[] = Array.isArray(pending) ? pending : [];
-  const historyList: PaymentRecord[] = Array.isArray(history) ? history : [];
-
-  const paymentStatusColor: Record<string, string> = {
-    PENDING: 'bg-yellow-600',
-    PROCESSING: 'bg-blue-600',
-    PAID: 'bg-emerald-600',
-    OVERDUE: 'bg-red-600',
-    CANCELLED: 'bg-zinc-600',
-    REFUNDED: 'bg-indigo-600',
-  };
-
-  function handlePay() {
-    if (!paymentId) return;
-    processPayment.mutate(
-      { paymentId, method },
-      {
-        onSuccess: () => {
-          toast.success('Pagamento processado com sucesso!');
-          setDialogOpen(false);
-          setSelectedPayment(null);
-          setPaymentId('');
-        },
-        onError: () => toast.error('Erro ao processar pagamento'),
-      },
-    );
-  }
-
-  function openPayDialog(p: PendingPayment) {
-    setSelectedPayment(p);
-    setPaymentId(p.id);
-    setDialogOpen(true);
-  }
-
-  if (loadingPending || loadingHistory) return <PageLoading cards={0} showTable />;
-
-  return (
-    <div className="space-y-4">
-      {balance && (
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="border-border bg-card">
-            <CardContent className="p-4 text-center">
-              <p className="text-lg font-bold text-yellow-400">R$ {balance.totalPending.toFixed(2)}</p>
-              <p className="text-xs text-muted-foreground">Pendente</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border bg-card">
-            <CardContent className="p-4 text-center">
-              <p className="text-lg font-bold text-red-400">R$ {balance.totalOverdue.toFixed(2)}</p>
-              <p className="text-xs text-muted-foreground">Vencido</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border bg-card">
-            <CardContent className="p-4 text-center">
-              <p className="text-lg font-bold text-emerald-400">R$ {balance.totalPaid.toFixed(2)}</p>
-              <p className="text-xs text-muted-foreground">Pago</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {pendingList.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Cobranças Pendentes</p>
-          <div className="space-y-2">
-            {pendingList.map((p) => (
-              <Card key={p.id} className="border-border bg-card">
-                <CardContent className="p-4 flex items-center justify-between gap-3">
-                  <div className="space-y-0.5 flex-1 min-w-0">
-                    <p className="text-sm font-medium">{p.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Vencimento: {formatDate(p.dueDate)}
-                      {p.doctorName ? ` · Dr(a). ${p.doctorName}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-sm font-bold">R$ {p.amount.toFixed(2)}</span>
-                    <Badge variant="secondary" className={cn('text-[10px] text-white', paymentStatusColor[p.status])}>
-                      {p.status}
-                    </Badge>
-                    {(p.status === 'PENDING' || p.status === 'OVERDUE') && (
-                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500 h-7 text-xs" onClick={() => openPayDialog(p)}>
-                        Pagar
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {historyList.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Histórico de Pagamentos</p>
-          <Card className="border-border bg-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Descrição</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Valor</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
-                    <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground sm:table-cell">Método</th>
-                    <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">Pago em</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Recibo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {historyList.map((r: PaymentRecord) => (
-                    <tr key={r.id} className="transition-colors hover:bg-accent/30">
-                      <td className="px-4 py-3 text-sm">{r.description}</td>
-                      <td className="px-4 py-3 text-sm font-medium">R$ {r.amount.toFixed(2)}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant="secondary" className={cn('text-[10px] text-white', paymentStatusColor[r.status])}>
-                          {r.status}
-                        </Badge>
-                      </td>
-                      <td className="hidden px-4 py-3 text-sm text-muted-foreground sm:table-cell">{r.method}</td>
-                      <td className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">{formatDate(r.paidAt)}</td>
-                      <td className="px-4 py-3">
-                        {r.receiptUrl || r.status === 'PAID' ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="Baixar recibo"
-                            disabled={downloadReceipt.isPending}
-                            onClick={() => downloadReceipt.mutate(r.id, { onError: () => toast.error('Erro ao baixar recibo') })}
-                          >
-                            <Download className="h-4 w-4 text-emerald-500" />
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">--</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {pendingList.length === 0 && historyList.length === 0 && (
-        <EmptyState icon={FileText} message="Nenhum pagamento encontrado" />
-      )}
-
-      {/* Pay dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Realizar Pagamento</DialogTitle>
-          </DialogHeader>
-          {selectedPayment && (
-            <div className="space-y-3 pt-2">
-              <p className="text-sm text-muted-foreground">{selectedPayment.description}</p>
-              <p className="text-2xl font-bold">R$ {selectedPayment.amount.toFixed(2)}</p>
-              <div className="space-y-1">
-                <Label>Forma de Pagamento</Label>
-                <select
-                  className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
-                  value={method}
-                  onChange={(e) => setMethod(e.target.value as PaymentMethod)}
-                >
-                  <option value="PIX">PIX</option>
-                  <option value="CREDIT_CARD">Cartão de Crédito</option>
-                  <option value="DEBIT_CARD">Cartão de Débito</option>
-                  <option value="BOLETO">Boleto</option>
-                </select>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-500"
-              disabled={processPayment.isPending}
-              onClick={handlePay}
-            >
-              {processPayment.isPending ? 'Processando...' : 'Confirmar Pagamento'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-// ============================================================================
-// Tab: Acesso Familiar (Proxy)
-// ============================================================================
-
-function ProxyAccessTab() {
-  const { data: dependents, isLoading } = useMyDependents();
-  const grantProxy = useGrantProxy();
-  const revokeProxy = useRevokeProxy();
-
-  const [patientId, setPatientId] = useState('');
-  const [relationship, setRelationship] = useState<RelationshipType>('CHILD');
-  const [expiresAt, setExpiresAt] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  const depList: ProxiedPatient[] = Array.isArray(dependents) ? dependents : [];
-
-  const relationshipLabels: Record<RelationshipType, string> = {
-    PARENT: 'Pai/Mãe',
-    CHILD: 'Filho(a)',
-    SPOUSE: 'Cônjuge',
-    GUARDIAN: 'Responsável Legal',
-    CAREGIVER: 'Cuidador',
-    OTHER: 'Outro',
-  };
-
-  function handleGrant() {
-    if (!patientId) return;
-    grantProxy.mutate(
-      { patientId, relationship, expiresAt: expiresAt || undefined },
-      {
-        onSuccess: () => {
-          toast.success('Acesso concedido com sucesso!');
-          setDialogOpen(false);
-          setPatientId('');
-          setExpiresAt('');
-        },
-        onError: () => toast.error('Erro ao conceder acesso'),
-      },
-    );
-  }
-
-  if (isLoading) return <PageLoading cards={0} showTable />;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-500">
-              <Plus className="mr-2 h-4 w-4" />
-              Adicionar Familiar
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Conceder Acesso Familiar</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3 pt-2">
-              <div className="space-y-1">
-                <Label>ID do Paciente Familiar</Label>
-                <Input value={patientId} onChange={(e) => setPatientId(e.target.value)} placeholder="UUID do paciente..." />
-              </div>
-              <div className="space-y-1">
-                <Label>Relação</Label>
-                <select
-                  className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
-                  value={relationship}
-                  onChange={(e) => setRelationship(e.target.value as RelationshipType)}
-                >
-                  {(Object.keys(relationshipLabels) as RelationshipType[]).map((r) => (
-                    <option key={r} value={r}>{relationshipLabels[r]}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label>Expira em (opcional)</Label>
-                <Input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button
-                className="bg-emerald-600 hover:bg-emerald-500"
-                disabled={!patientId || grantProxy.isPending}
-                onClick={handleGrant}
-              >
-                {grantProxy.isPending ? 'Concedendo...' : 'Conceder Acesso'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {depList.length === 0 ? (
-        <EmptyState icon={User} message="Nenhum familiar com acesso ao portal" />
-      ) : (
-        <div className="space-y-2">
-          {depList.map((d) => (
-            <Card key={d.id} className="border-border bg-card">
-              <CardContent className="p-4 flex items-center justify-between gap-3">
-                <div className="space-y-0.5 flex-1 min-w-0">
-                  <p className="text-sm font-medium">{d.patientName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {relationshipLabels[d.relationship]} · Concedido em {formatDate(d.grantedAt)}
-                    {d.expiresAt ? ` · Expira: ${formatDate(d.expiresAt)}` : ''}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant={d.active ? 'default' : 'secondary'} className={cn('text-[10px]', d.active ? 'bg-emerald-600 text-white' : '')}>
-                    {d.active ? 'Ativo' : 'Inativo'}
-                  </Badge>
-                  {d.active && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="h-7 text-xs"
-                      disabled={revokeProxy.isPending}
-                      onClick={() =>
-                        revokeProxy.mutate(d.id, {
-                          onSuccess: () => toast.success('Acesso revogado'),
-                          onError: () => toast.error('Erro ao revogar acesso'),
-                        })
-                      }
-                    >
-                      Revogar
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// Tab: Educação do Paciente
-// ============================================================================
-
-function EducationTab() {
-  const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const { data: contents, isLoading } = useEducationContents(
-    search || selectedCategory ? { search: search || undefined, category: selectedCategory || undefined } : { recommended: true },
-  );
-  const { data: categories } = useEducationCategories();
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  const contentList: EducationContent[] = Array.isArray(contents) ? contents : [];
-  const catList: EducationCategory[] = Array.isArray(categories) ? categories : [];
-
-  if (isLoading) return <PageLoading cards={0} showTable />;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Buscar artigos..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        {catList.length > 0 && (
-          <select
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground"
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-          >
-            <option value="">Todas as categorias</option>
-            {catList.map((c) => (
-              <option key={c.id} value={c.id}>{c.name} ({c.count})</option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      {contentList.length === 0 ? (
-        <EmptyState icon={BookHeart} message="Nenhum conteúdo educacional encontrado" />
-      ) : (
-        <div className="space-y-3">
-          {contentList.map((article) => (
-            <Card key={article.id} className="border-border bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium">{article.title}</p>
-                      {article.recommended && (
-                        <Badge className="bg-emerald-600/20 text-emerald-400 border-emerald-600/30 text-[10px]">
-                          Recomendado
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{article.summary}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                      <span>{article.author}</span>
-                      <span>·</span>
-                      <span>{article.readTimeMinutes} min de leitura</span>
-                      <span>·</span>
-                      <span>{formatDate(article.publishedAt)}</span>
-                    </div>
-                    {expanded === article.id && (
-                      <div className="mt-2 text-sm text-gray-300 border-t border-border pt-2 whitespace-pre-wrap">
-                        {article.content}
-                      </div>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0 text-xs text-emerald-400"
-                    onClick={() => setExpanded(expanded === article.id ? null : article.id)}
-                  >
-                    {expanded === article.id ? 'Fechar' : 'Ler'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// Tab: Pesquisas / NPS / PROMs
-// ============================================================================
-
-function SurveysTab() {
-  const { data: surveys, isLoading } = useSurveys({ status: 'PENDING' });
-  const submitSurvey = useSubmitSurvey();
-  const [activeSurvey, setActiveSurvey] = useState<Survey | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string | number>>({});
-
-  const surveyList: Survey[] = Array.isArray(surveys) ? surveys : [];
-
-  const surveyTypeColor: Record<string, string> = {
-    PREM: 'bg-blue-600',
-    PROM: 'bg-purple-600',
-    NPS: 'bg-emerald-600',
-    GENERAL: 'bg-zinc-600',
-  };
-
-  function handleSubmit() {
-    if (!activeSurvey) return;
-    const answerList = Object.entries(answers).map(([questionId, value]) => ({ questionId, value }));
-    submitSurvey.mutate(
-      { surveyId: activeSurvey.id, answers: answerList },
-      {
-        onSuccess: () => {
-          toast.success('Pesquisa enviada! Obrigado pelo feedback.');
-          setActiveSurvey(null);
-          setAnswers({});
-        },
-        onError: () => toast.error('Erro ao enviar pesquisa'),
-      },
-    );
-  }
-
-  if (isLoading) return <PageLoading cards={0} showTable />;
-
-  if (activeSurvey) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => { setActiveSurvey(null); setAnswers({}); }}>
-            ← Voltar
-          </Button>
-          <div>
-            <p className="text-sm font-medium">{activeSurvey.title}</p>
-            <p className="text-xs text-muted-foreground">{activeSurvey.description}</p>
-          </div>
-        </div>
-        <div className="space-y-4">
-          {activeSurvey.questions.map((q, i) => (
-            <Card key={q.id} className="border-border bg-card">
-              <CardContent className="p-4 space-y-2">
-                <p className="text-sm font-medium">{i + 1}. {q.text}{q.required && <span className="text-red-400 ml-1">*</span>}</p>
-                {q.type === 'SCALE' || q.type === 'NPS' ? (
-                  <div className="flex gap-2 flex-wrap">
-                    {Array.from({ length: (q.maxScale ?? 10) - (q.minScale ?? 0) + 1 }, (_, idx) => (q.minScale ?? 0) + idx).map((n) => (
-                      <button
-                        key={n}
-                        className={cn(
-                          'w-9 h-9 rounded-md border text-sm font-medium transition-colors',
-                          answers[q.id] === n
-                            ? 'bg-emerald-600 border-emerald-600 text-white'
-                            : 'border-border bg-card text-foreground hover:bg-accent/50',
-                        )}
-                        onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: n }))}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                ) : q.type === 'YES_NO' ? (
-                  <div className="flex gap-2">
-                    {['Sim', 'Não'].map((opt) => (
-                      <button
-                        key={opt}
-                        className={cn(
-                          'px-4 py-2 rounded-md border text-sm font-medium transition-colors',
-                          answers[q.id] === opt
-                            ? 'bg-emerald-600 border-emerald-600 text-white'
-                            : 'border-border bg-card text-foreground hover:bg-accent/50',
-                        )}
-                        onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: opt }))}
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                ) : q.type === 'MULTIPLE_CHOICE' && q.options ? (
-                  <div className="flex gap-2 flex-wrap">
-                    {q.options.map((opt) => (
-                      <button
-                        key={opt}
-                        className={cn(
-                          'px-3 py-1.5 rounded-md border text-sm transition-colors',
-                          answers[q.id] === opt
-                            ? 'bg-emerald-600 border-emerald-600 text-white'
-                            : 'border-border bg-card text-foreground hover:bg-accent/50',
-                        )}
-                        onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: opt }))}
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <Textarea
-                    placeholder="Sua resposta..."
-                    value={(answers[q.id] as string) ?? ''}
-                    onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                    rows={3}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <Button
-          className="w-full bg-emerald-600 hover:bg-emerald-500"
-          disabled={submitSurvey.isPending}
-          onClick={handleSubmit}
-        >
-          {submitSurvey.isPending ? 'Enviando...' : 'Enviar Pesquisa'}
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {surveyList.length === 0 ? (
-        <EmptyState icon={FileText} message="Nenhuma pesquisa pendente no momento" />
-      ) : (
-        <div className="space-y-3">
-          {surveyList.map((s) => (
-            <Card key={s.id} className="border-border bg-card">
-              <CardContent className="p-4 flex items-center justify-between gap-3">
-                <div className="space-y-0.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{s.title}</p>
-                    <Badge variant="secondary" className={cn('text-[10px] text-white shrink-0', surveyTypeColor[s.type])}>
-                      {s.type}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{s.description}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {s.questionCount} pergunta{s.questionCount !== 1 ? 's' : ''}
-                    {s.dueDate ? ` · Prazo: ${formatDate(s.dueDate)}` : ''}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-500 shrink-0"
-                  onClick={() => {
-                    setActiveSurvey(s);
-                    setAnswers({});
-                  }}
-                >
-                  Responder
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================================
-// Tab: IA (Triagem, Resumo, Health Coach)
-// ============================================================================
-
-function AiFeaturesTab() {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-border bg-card">
-          <CardContent className="pt-6 text-center">
-            <Bot className="h-10 w-10 text-emerald-500 mx-auto" />
-            <p className="text-foreground font-medium mt-3">Triagem por IA</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Chatbot que avalia sintomas e orienta sobre urgencia
-            </p>
-            <Button className="mt-4 bg-emerald-600 hover:bg-emerald-700" size="sm">
-              Iniciar Triagem
-            </Button>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardContent className="pt-6 text-center">
-            <FileText className="h-10 w-10 text-blue-500 mx-auto" />
-            <p className="text-foreground font-medium mt-3">Resumo para Paciente</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Traduz termos medicos em linguagem acessivel
-            </p>
-            <Button className="mt-4 bg-blue-600 hover:bg-blue-700" size="sm">
-              Gerar Resumo
-            </Button>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardContent className="pt-6 text-center">
-            <Heart className="h-10 w-10 text-pink-500 mx-auto" />
-            <p className="text-foreground font-medium mt-3">Health Coach</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Plano personalizado de saude com metas e acompanhamento
-            </p>
-            <Button className="mt-4 bg-pink-600 hover:bg-pink-700" size="sm">
-              Meu Plano
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// Main Page
+// Main Portal Page
 // ============================================================================
 
 export default function PatientPortalPage() {
   const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string } | null>(null);
+  const patientId = selectedPatient?.id;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="p-6 space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
-              <Heart className="h-5 w-5 text-emerald-500" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Portal do Paciente</h1>
-              <p className="text-sm text-muted-foreground">
-                Acompanhe atendimentos, exames, prescricoes e documentos
-              </p>
-            </div>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10">
+            <Heart className="h-6 w-6 text-emerald-400" />
           </div>
-          <LanguageSelector />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Portal do Paciente</h1>
+            <p className="text-sm text-muted-foreground">
+              Gerencie consultas, exames, mensagens e pagamentos
+            </p>
+          </div>
         </div>
+        <LanguageSelector />
       </div>
 
-      {/* Patient Selector */}
-      <PatientSelector
-        selectedPatient={selectedPatient}
-        onSelect={setSelectedPatient}
-      />
+      {/* Patient selector */}
+      <PatientSelector selectedPatient={selectedPatient} onSelect={setSelectedPatient} />
 
-      {/* Tabs — only shown when a patient is selected */}
-      {selectedPatient ? (
-        <Tabs defaultValue="encounters" className="space-y-4">
-          <TabsList className="bg-card border border-border flex-wrap h-auto gap-1 p-1">
-            <TabsTrigger value="encounters" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Stethoscope className="mr-1.5 h-3.5 w-3.5" />
-              Atendimentos
-            </TabsTrigger>
-            <TabsTrigger value="results" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <TestTube className="mr-1.5 h-3.5 w-3.5" />
-              Exames
-            </TabsTrigger>
-            <TabsTrigger value="prescriptions" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Pill className="mr-1.5 h-3.5 w-3.5" />
-              Prescricoes
-            </TabsTrigger>
-            <TabsTrigger value="appointments" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Calendar className="mr-1.5 h-3.5 w-3.5" />
-              Agenda
-            </TabsTrigger>
-            <TabsTrigger value="vitals" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Activity className="mr-1.5 h-3.5 w-3.5" />
-              Sinais Vitais
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <FileText className="mr-1.5 h-3.5 w-3.5" />
-              Documentos
-            </TabsTrigger>
-            <TabsTrigger value="diary" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <BookHeart className="mr-1.5 h-3.5 w-3.5" />
-              Diario de Saude
-            </TabsTrigger>
-            <TabsTrigger value="uploads" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Upload className="mr-1.5 h-3.5 w-3.5" />
-              Uploads
-            </TabsTrigger>
-            <TabsTrigger value="reminders" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Bell className="mr-1.5 h-3.5 w-3.5" />
-              Lembretes
-            </TabsTrigger>
-            <TabsTrigger value="ai" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Bot className="mr-1.5 h-3.5 w-3.5" />
-              IA
-            </TabsTrigger>
-            <TabsTrigger value="messaging" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Bell className="mr-1.5 h-3.5 w-3.5" />
-              Mensageria
-            </TabsTrigger>
-            <TabsTrigger value="renewal" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Pill className="mr-1.5 h-3.5 w-3.5" />
-              Renovação de Receita
-            </TabsTrigger>
-            <TabsTrigger value="payments" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <Download className="mr-1.5 h-3.5 w-3.5" />
-              Pagamento Online
-            </TabsTrigger>
-            <TabsTrigger value="proxy" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <User className="mr-1.5 h-3.5 w-3.5" />
-              Acesso Familiar
-            </TabsTrigger>
-            <TabsTrigger value="education" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <BookHeart className="mr-1.5 h-3.5 w-3.5" />
-              Educação
-            </TabsTrigger>
-            <TabsTrigger value="surveys" className="text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-              <FileText className="mr-1.5 h-3.5 w-3.5" />
-              Pesquisas
-            </TabsTrigger>
-          </TabsList>
+      {/* Tabs */}
+      <Tabs defaultValue="appointments" className="space-y-4">
+        <TabsList className="flex-wrap h-auto gap-1 bg-zinc-900/50 p-1">
+          <TabsTrigger value="appointments" className="flex items-center gap-1.5 text-xs">
+            <Calendar className="h-3.5 w-3.5" />
+            Agendamento
+          </TabsTrigger>
+          <TabsTrigger value="results" className="flex items-center gap-1.5 text-xs">
+            <TestTube className="h-3.5 w-3.5" />
+            Resultados
+          </TabsTrigger>
+          <TabsTrigger value="messaging" className="flex items-center gap-1.5 text-xs">
+            <MessageSquare className="h-3.5 w-3.5" />
+            Mensagens
+          </TabsTrigger>
+          <TabsTrigger value="payments" className="flex items-center gap-1.5 text-xs">
+            <CreditCard className="h-3.5 w-3.5" />
+            Pagamentos
+          </TabsTrigger>
+          <TabsTrigger value="diary" className="flex items-center gap-1.5 text-xs">
+            <BookHeart className="h-3.5 w-3.5" />
+            Diario de Saude
+          </TabsTrigger>
+          <TabsTrigger value="encounters" className="flex items-center gap-1.5 text-xs">
+            <Stethoscope className="h-3.5 w-3.5" />
+            Atendimentos
+          </TabsTrigger>
+          <TabsTrigger value="prescriptions" className="flex items-center gap-1.5 text-xs">
+            <Pill className="h-3.5 w-3.5" />
+            Prescricoes
+          </TabsTrigger>
+          <TabsTrigger value="documents" className="flex items-center gap-1.5 text-xs">
+            <FileText className="h-3.5 w-3.5" />
+            Documentos
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="encounters">
-            <EncountersTab patientId={selectedPatient.id} />
-          </TabsContent>
-          <TabsContent value="results">
-            <ResultsTab patientId={selectedPatient.id} />
-          </TabsContent>
-          <TabsContent value="prescriptions">
-            <PrescriptionsTab patientId={selectedPatient.id} />
-          </TabsContent>
-          <TabsContent value="appointments">
-            <AppointmentsTab patientId={selectedPatient.id} />
-          </TabsContent>
-          <TabsContent value="vitals">
-            <VitalsTab patientId={selectedPatient.id} />
-          </TabsContent>
-          <TabsContent value="documents">
-            <DocumentsTab patientId={selectedPatient.id} />
-          </TabsContent>
-          <TabsContent value="diary">
-            <HealthDiaryTab />
-          </TabsContent>
-          <TabsContent value="uploads">
-            <DocumentUploadTab />
-          </TabsContent>
-          <TabsContent value="reminders">
-            <RemindersTab />
-          </TabsContent>
-          <TabsContent value="ai">
-            <AiFeaturesTab />
-          </TabsContent>
-          <TabsContent value="messaging">
-            <MessagingTab />
-          </TabsContent>
-          <TabsContent value="renewal">
-            <PrescriptionRenewalTab />
-          </TabsContent>
-          <TabsContent value="payments">
-            <PaymentsTab />
-          </TabsContent>
-          <TabsContent value="proxy">
-            <ProxyAccessTab />
-          </TabsContent>
-          <TabsContent value="education">
-            <EducationTab />
-          </TabsContent>
-          <TabsContent value="surveys">
-            <SurveysTab />
-          </TabsContent>
-        </Tabs>
-      ) : (
-        <Card className="border-border bg-card">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Search className="h-12 w-12 text-muted-foreground" />
-            <p className="mt-4 text-sm text-muted-foreground">
-              Busque e selecione um paciente acima para visualizar o portal
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="appointments"><AppointmentsTab patientId={patientId} /></TabsContent>
+        <TabsContent value="results"><ResultsTab patientId={patientId} /></TabsContent>
+        <TabsContent value="messaging"><MessagingTab /></TabsContent>
+        <TabsContent value="payments"><PaymentsTab /></TabsContent>
+        <TabsContent value="diary"><HealthDiaryTab /></TabsContent>
+        <TabsContent value="encounters"><EncountersTab patientId={patientId} /></TabsContent>
+        <TabsContent value="prescriptions"><PrescriptionsTab patientId={patientId} /></TabsContent>
+        <TabsContent value="documents"><DocumentsTab patientId={patientId} /></TabsContent>
+      </Tabs>
     </div>
   );
 }

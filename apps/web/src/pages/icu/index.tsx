@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   HeartPulse,
   Activity,
@@ -17,7 +17,24 @@ import {
   Flame,
   Brain,
   Sparkles,
+  ListChecks,
+  RotateCcw,
+  Timer,
+  TrendingDown,
+  Clock,
 } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  Legend,
+  AreaChart,
+  Area,
+} from 'recharts';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,6 +68,8 @@ import {
   useDetectSepsis,
   useAssessExtubation,
   useOptimizeVasopressors,
+  useCreateDailyGoals,
+  useCreateProneSession,
 } from '@/services/icu.service';
 import type {
   IcuDevice,
@@ -318,19 +337,22 @@ export default function IcuPage() {
 
       {searchId && !isLoading && (
         <Tabs defaultValue="flowsheet">
-          <TabsList className="bg-zinc-900 border border-zinc-800">
-            <TabsTrigger value="flowsheet"><Activity className="h-4 w-4 mr-1" /> Flowsheet</TabsTrigger>
-            <TabsTrigger value="scores"><Target className="h-4 w-4 mr-1" /> Escores</TabsTrigger>
-            <TabsTrigger value="ventilation"><Wind className="h-4 w-4 mr-1" /> Ventilacao</TabsTrigger>
-            <TabsTrigger value="sedation"><Syringe className="h-4 w-4 mr-1" /> Sedacao</TabsTrigger>
-            <TabsTrigger value="devices"><Shield className="h-4 w-4 mr-1" /> Dispositivos</TabsTrigger>
-            <TabsTrigger value="bundles"><CheckCircle2 className="h-4 w-4 mr-1" /> Bundles</TabsTrigger>
-            <TabsTrigger value="nutrition"><Utensils className="h-4 w-4 mr-1" /> Nutricao</TabsTrigger>
-            <TabsTrigger value="dialysis"><Droplets className="h-4 w-4 mr-1" /> Dialise</TabsTrigger>
-            <TabsTrigger value="hypothermia"><Thermometer className="h-4 w-4 mr-1" /> Hipotermia</TabsTrigger>
-            <TabsTrigger value="ai-sepsis"><Flame className="h-4 w-4 mr-1" /> IA Sepse</TabsTrigger>
-            <TabsTrigger value="ai-extubation"><Wind className="h-4 w-4 mr-1" /> IA Extubacao</TabsTrigger>
-            <TabsTrigger value="ai-vasopressor"><Sparkles className="h-4 w-4 mr-1" /> IA Vasopressor</TabsTrigger>
+          <TabsList className="bg-zinc-900 border border-zinc-800 flex-wrap h-auto gap-1">
+            <TabsTrigger value="flowsheet" className="gap-1 text-xs"><Activity className="h-3.5 w-3.5" /> Flowsheet</TabsTrigger>
+            <TabsTrigger value="daily-goals" className="gap-1 text-xs"><ListChecks className="h-3.5 w-3.5" /> Metas Diarias</TabsTrigger>
+            <TabsTrigger value="scores" className="gap-1 text-xs"><Target className="h-3.5 w-3.5" /> Escores</TabsTrigger>
+            <TabsTrigger value="ventilation" className="gap-1 text-xs"><Wind className="h-3.5 w-3.5" /> Ventilacao</TabsTrigger>
+            <TabsTrigger value="weaning" className="gap-1 text-xs"><TrendingDown className="h-3.5 w-3.5" /> Desmame</TabsTrigger>
+            <TabsTrigger value="prone" className="gap-1 text-xs"><RotateCcw className="h-3.5 w-3.5" /> Prone</TabsTrigger>
+            <TabsTrigger value="sedation" className="gap-1 text-xs"><Syringe className="h-3.5 w-3.5" /> Sedacao</TabsTrigger>
+            <TabsTrigger value="devices" className="gap-1 text-xs"><Shield className="h-3.5 w-3.5" /> Dispositivos</TabsTrigger>
+            <TabsTrigger value="bundles" className="gap-1 text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Bundles</TabsTrigger>
+            <TabsTrigger value="nutrition" className="gap-1 text-xs"><Utensils className="h-3.5 w-3.5" /> Nutricao</TabsTrigger>
+            <TabsTrigger value="dialysis" className="gap-1 text-xs"><Droplets className="h-3.5 w-3.5" /> Dialise</TabsTrigger>
+            <TabsTrigger value="hypothermia" className="gap-1 text-xs"><Thermometer className="h-3.5 w-3.5" /> Hipotermia</TabsTrigger>
+            <TabsTrigger value="ai-sepsis" className="gap-1 text-xs"><Flame className="h-3.5 w-3.5" /> IA Sepse</TabsTrigger>
+            <TabsTrigger value="ai-extubation" className="gap-1 text-xs"><Wind className="h-3.5 w-3.5" /> IA Extubacao</TabsTrigger>
+            <TabsTrigger value="ai-vasopressor" className="gap-1 text-xs"><Sparkles className="h-3.5 w-3.5" /> IA Vasopressor</TabsTrigger>
           </TabsList>
 
           {/* Flowsheet Tab */}
@@ -345,6 +367,38 @@ export default function IcuPage() {
                 <ScoreCard label="Sinais Vitais" score={flowsheet?.vitals?.length ?? 0} subtext="registros" />
                 <ScoreCard label="Ventilacao" score={flowsheet?.ventilation?.length ?? 0} subtext="registros" />
               </div>
+
+              {/* Vitals Chart */}
+              {flowsheet?.vitals && flowsheet.vitals.length > 1 && (
+                <Card className="bg-zinc-900 border-zinc-800">
+                  <CardHeader>
+                    <CardTitle className="text-base">Tendencia de Sinais Vitais</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={flowsheet.vitals.slice(0, 24).reverse().map((v) => ({
+                          time: new Date(v.recordedAt as string).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                          FC: v.heartRate as number,
+                          PAS: v.systolicBP as number,
+                          PAD: v.diastolicBP as number,
+                          SpO2: v.oxygenSaturation as number,
+                          FR: v.respiratoryRate as number,
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                          <XAxis dataKey="time" tick={{ fill: '#71717a', fontSize: 10 }} />
+                          <YAxis tick={{ fill: '#71717a', fontSize: 10 }} />
+                          <RechartsTooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: 8, fontSize: 12 }} />
+                          <Legend formatter={(value: string) => <span className="text-[10px] text-zinc-400">{value}</span>} />
+                          <Line type="monotone" dataKey="FC" stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} name="FC (bpm)" />
+                          <Line type="monotone" dataKey="PAS" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} name="PAS (mmHg)" />
+                          <Line type="monotone" dataKey="SpO2" stroke="#22c55e" strokeWidth={2} dot={{ r: 2 }} name="SpO2 (%)" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Vitals Table */}
               <Card className="bg-zinc-900 border-zinc-800">
@@ -408,6 +462,21 @@ export default function IcuPage() {
                 </Card>
               )}
             </div>
+          </TabsContent>
+
+          {/* Daily Goals Tab */}
+          <TabsContent value="daily-goals" className="mt-4">
+            <DailyGoalsSection patientId={searchId} />
+          </TabsContent>
+
+          {/* Weaning Protocol Tab */}
+          <TabsContent value="weaning" className="mt-4">
+            <WeaningProtocolSection ventilation={flowsheet?.ventilation ?? []} />
+          </TabsContent>
+
+          {/* Prone Positioning Tab */}
+          <TabsContent value="prone" className="mt-4">
+            <PronePositioningSection patientId={searchId} />
           </TabsContent>
 
           {/* Scores Tab */}
@@ -1222,6 +1291,623 @@ export default function IcuPage() {
       )}
 
       <VasoactiveCalculatorDialog open={vasoactiveDialog} onClose={() => setVasoactiveDialog(false)} />
+    </div>
+  );
+}
+
+// ============================================================================
+// Daily Goals Checklist Section
+// ============================================================================
+
+const DAILY_GOALS_CATEGORIES = [
+  {
+    category: 'Neurologico',
+    icon: Brain,
+    color: 'text-purple-400',
+    items: [
+      { key: 'sedation_vacation', label: 'Despertar diario (SAT) realizado' },
+      { key: 'rass_target', label: 'RASS no alvo' },
+      { key: 'delirium_screening', label: 'Triagem de delirium (CAM-ICU)' },
+      { key: 'pain_assessment', label: 'Avaliacao de dor (BPS/CPOT)' },
+    ],
+  },
+  {
+    category: 'Respiratorio',
+    icon: Wind,
+    color: 'text-blue-400',
+    items: [
+      { key: 'sbt_trial', label: 'Teste de respiracao espontanea (SBT)' },
+      { key: 'head_elevation', label: 'Cabeceira elevada 30-45 graus' },
+      { key: 'oral_hygiene', label: 'Higiene oral com clorexidina' },
+      { key: 'lung_protective', label: 'Ventilacao protetora (VT 6mL/kg, DP<15)' },
+    ],
+  },
+  {
+    category: 'Cardiovascular',
+    icon: HeartPulse,
+    color: 'text-red-400',
+    items: [
+      { key: 'map_target', label: 'MAP no alvo (>=65 mmHg)' },
+      { key: 'vasopressor_weaning', label: 'Avaliar desmame de DVA' },
+      { key: 'fluid_balance', label: 'Balanco hidrico revisado' },
+      { key: 'dvt_prophylaxis', label: 'Profilaxia TVP' },
+    ],
+  },
+  {
+    category: 'Renal / Metabolico',
+    icon: Droplets,
+    color: 'text-cyan-400',
+    items: [
+      { key: 'urine_output', label: 'Debito urinario monitorado' },
+      { key: 'electrolytes', label: 'Eletrolitos corrigidos' },
+      { key: 'glycemic_control', label: 'Controle glicemico (140-180 mg/dL)' },
+      { key: 'catheter_review', label: 'Revisao de necessidade de SVD' },
+    ],
+  },
+  {
+    category: 'Infeccioso',
+    icon: Shield,
+    color: 'text-orange-400',
+    items: [
+      { key: 'antibiotic_review', label: 'Antibioticos revisados (descalonamento)' },
+      { key: 'cultures_pending', label: 'Culturas pendentes verificadas' },
+      { key: 'line_review', label: 'Necessidade de acesso central revisada' },
+      { key: 'temp_monitoring', label: 'Curva termica monitorada' },
+    ],
+  },
+  {
+    category: 'Nutricao / Mobilidade',
+    icon: Utensils,
+    color: 'text-emerald-400',
+    items: [
+      { key: 'nutrition_started', label: 'Nutricao enteral precoce (ate 48h)' },
+      { key: 'caloric_target', label: 'Alvo calorico atingido' },
+      { key: 'early_mobilization', label: 'Mobilizacao precoce realizada' },
+      { key: 'ulcer_prophylaxis', label: 'Profilaxia ulcera de estresse' },
+    ],
+  },
+];
+
+function DailyGoalsSection({ patientId }: { patientId: string }) {
+  const createGoals = useCreateDailyGoals();
+  const [goals, setGoals] = useState<Record<string, boolean>>({});
+  const [notes, setNotes] = useState('');
+
+  const totalItems = DAILY_GOALS_CATEGORIES.reduce((sum, cat) => sum + cat.items.length, 0);
+  const checkedCount = Object.values(goals).filter(Boolean).length;
+  const completionPercent = totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0;
+
+  const toggleGoal = (key: string) => {
+    setGoals((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSave = () => {
+    createGoals.mutate(
+      { patientId, goals, notes: notes || undefined, date: new Date().toISOString().slice(0, 10) },
+      {
+        onSuccess: () => toast.success('Metas diarias salvas'),
+        onError: () => toast.error('Erro ao salvar metas'),
+      },
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Progress Header */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <ListChecks className="h-5 w-5 text-emerald-400" />
+              <h3 className="font-semibold">Metas Diarias — {new Date().toLocaleDateString('pt-BR')}</h3>
+            </div>
+            <Badge variant="outline" className={cn(
+              completionPercent === 100 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' :
+              completionPercent >= 70 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' :
+              'bg-red-500/20 text-red-400 border-red-500/50',
+            )}>
+              {checkedCount}/{totalItems} ({completionPercent}%)
+            </Badge>
+          </div>
+          <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
+            <div
+              className={cn('h-full rounded-full transition-all duration-500',
+                completionPercent === 100 ? 'bg-emerald-500' : completionPercent >= 70 ? 'bg-yellow-500' : 'bg-red-500',
+              )}
+              style={{ width: `${completionPercent}%` }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Goal Categories */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {DAILY_GOALS_CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          const catChecked = cat.items.filter((i) => goals[i.key]).length;
+          return (
+            <Card key={cat.category} className="bg-zinc-900 border-zinc-800">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className={cn('text-sm flex items-center gap-2', cat.color)}>
+                    <Icon className="h-4 w-4" />
+                    {cat.category}
+                  </CardTitle>
+                  <span className="text-xs text-zinc-500">{catChecked}/{cat.items.length}</span>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {cat.items.map((item) => (
+                  <label key={item.key} className="flex items-start gap-2 cursor-pointer group">
+                    <button
+                      onClick={() => toggleGoal(item.key)}
+                      className={cn(
+                        'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+                        goals[item.key]
+                          ? 'bg-emerald-500 border-emerald-500'
+                          : 'border-zinc-600 group-hover:border-zinc-400',
+                      )}
+                    >
+                      {goals[item.key] && <CheckCircle2 className="h-3 w-3 text-white" />}
+                    </button>
+                    <span className={cn('text-xs flex-1', goals[item.key] ? 'text-zinc-500 line-through' : 'text-zinc-300')}>
+                      {item.label}
+                    </span>
+                  </label>
+                ))}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Notes + Save */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardContent className="pt-4 space-y-3">
+          <Label className="text-xs">Observacoes do round</Label>
+          <Input
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Observacoes adicionais do round multidisciplinar..."
+            className="bg-zinc-950 border-zinc-700"
+          />
+          <Button
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={handleSave}
+            disabled={createGoals.isPending}
+          >
+            {createGoals.isPending ? 'Salvando...' : 'Salvar Metas Diarias'}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================================
+// Prone Positioning Section
+// ============================================================================
+
+interface ProneSession {
+  id: string;
+  startTime: Date;
+  targetHours: number;
+  position: 'PRONE' | 'SUPINE';
+}
+
+function PronePositioningSection({ patientId }: { patientId: string }) {
+  const createProne = useCreateProneSession();
+  const [sessions, setSessions] = useState<ProneSession[]>([]);
+  const [activeSession, setActiveSession] = useState<ProneSession | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [targetHours, setTargetHours] = useState('16');
+  const [indication, setIndication] = useState('');
+
+  useEffect(() => {
+    if (!activeSession) return;
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - activeSession.startTime.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeSession]);
+
+  const elapsedHours = elapsed / 3600;
+  const targetSecs = (activeSession?.targetHours ?? 16) * 3600;
+  const progressPercent = activeSession ? Math.min((elapsed / targetSecs) * 100, 100) : 0;
+  const isComplete = elapsed >= targetSecs;
+
+  const handleStartProne = () => {
+    const session: ProneSession = {
+      id: `prone-${Date.now()}`,
+      startTime: new Date(),
+      targetHours: parseInt(targetHours, 10) || 16,
+      position: 'PRONE',
+    };
+    setActiveSession(session);
+    setElapsed(0);
+    createProne.mutate(
+      { patientId, targetHours: session.targetHours, indication },
+      {
+        onSuccess: () => toast.success('Sessao de prona iniciada'),
+        onError: () => toast.error('Erro ao registrar prona'),
+      },
+    );
+  };
+
+  const handleEndProne = () => {
+    if (activeSession) {
+      setSessions((prev) => [...prev, activeSession]);
+      setActiveSession(null);
+      setElapsed(0);
+      toast.success('Sessao de prona finalizada');
+    }
+  };
+
+  const formatElapsed = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Active Session */}
+      {activeSession ? (
+        <Card className={cn('border-2', isComplete ? 'bg-emerald-950/20 border-emerald-500/50' : 'bg-blue-950/20 border-blue-500/50')}>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={cn('flex h-12 w-12 items-center justify-center rounded-full',
+                  isComplete ? 'bg-emerald-500/20' : 'bg-blue-500/20',
+                )}>
+                  <RotateCcw className={cn('h-6 w-6', isComplete ? 'text-emerald-400' : 'text-blue-400 animate-spin')} style={{ animationDuration: '8s' }} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Paciente em Prona</h3>
+                  <p className="text-xs text-zinc-400">Iniciado: {activeSession.startTime.toLocaleTimeString('pt-BR')}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className={cn('font-mono text-3xl font-bold tabular-nums', isComplete ? 'text-emerald-400' : 'text-blue-400')}>
+                  {formatElapsed(elapsed)}
+                </p>
+                <p className="text-xs text-zinc-500">Alvo: {activeSession.targetHours}h</p>
+              </div>
+            </div>
+
+            <div className="h-4 rounded-full bg-zinc-800 overflow-hidden mb-3">
+              <div
+                className={cn('h-full rounded-full transition-all duration-1000',
+                  isComplete ? 'bg-emerald-500' : 'bg-blue-500',
+                )}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex gap-4 text-xs text-zinc-400">
+                <span>Tempo decorrido: {elapsedHours.toFixed(1)}h</span>
+                <span>Restante: {Math.max(0, (activeSession.targetHours - elapsedHours)).toFixed(1)}h</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                onClick={handleEndProne}
+              >
+                <Timer className="h-4 w-4 mr-1" />
+                Finalizar Prona
+              </Button>
+            </div>
+
+            {isComplete && (
+              <div className="mt-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3 text-sm text-emerald-400">
+                <CheckCircle2 className="h-4 w-4 inline mr-2" />
+                Tempo alvo atingido! Avalie se deve retornar ao supino ou manter pronacao.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-blue-400" />
+              Iniciar Sessao de Prona
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-zinc-400">
+              Protocolo de pronacao para SDRA (PaO2/FiO2 {'<'} 150). Alvo: 16h em prona.
+              Monitorar pontos de pressao a cada 2h.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Duracao alvo (horas)</Label>
+                <Select value={targetHours} onValueChange={setTargetHours}>
+                  <SelectTrigger className="bg-zinc-950 border-zinc-700"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12">12 horas</SelectItem>
+                    <SelectItem value="16">16 horas (recomendado)</SelectItem>
+                    <SelectItem value="20">20 horas</SelectItem>
+                    <SelectItem value="24">24 horas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Indicacao</Label>
+                <Input value={indication} onChange={(e) => setIndication(e.target.value)} placeholder="SDRA grave, P/F < 150..." className="bg-zinc-950 border-zinc-700" />
+              </div>
+            </div>
+            <Button
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={handleStartProne}
+              disabled={createProne.isPending}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              {createProne.isPending ? 'Iniciando...' : 'Iniciar Pronacao'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Checklist during prone */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardHeader>
+          <CardTitle className="text-sm text-zinc-400">Checklist de Pronacao</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {[
+            'Verificar fixacao do TOT e posicao',
+            'Proteger olhos (pomada e oclusao)',
+            'Proteger pontos de pressao (face, torax, pelve, joelhos)',
+            'Posicionar bracos em "nadador" — alternar a cada 2h',
+            'Monitorar PA, FC, SpO2 continuamente',
+            'Verificar acessos venosos e drenos',
+            'Aspirar secrecoes antes de pronar',
+            'Manter sedacao adequada durante procedimento',
+            'Equipe minima de 5 pessoas para virar',
+            'Documentar horario e equipe envolvida',
+          ].map((item, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs text-zinc-400">
+              <Circle className="h-3 w-3 mt-0.5 shrink-0 text-zinc-600" />
+              {item}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Session History */}
+      {sessions.length > 0 && (
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader>
+            <CardTitle className="text-sm text-zinc-400">Historico de Sessoes ({sessions.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {sessions.map((s) => (
+              <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-zinc-800 text-sm">
+                <div className="flex items-center gap-2">
+                  <RotateCcw className="h-4 w-4 text-blue-400" />
+                  <span>{s.startTime.toLocaleString('pt-BR')}</span>
+                </div>
+                <Badge variant="outline" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50">
+                  {s.targetHours}h
+                </Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Ventilation Weaning Protocol Section
+// ============================================================================
+
+const WEANING_CRITERIA = [
+  { key: 'cause_resolved', label: 'Causa da intubacao resolvida ou em melhora', critical: true },
+  { key: 'fio2_40', label: 'FiO2 <= 40%', critical: true },
+  { key: 'peep_8', label: 'PEEP <= 8 cmH2O', critical: true },
+  { key: 'hemodynamic', label: 'Estavel hemodinamicamente (sem DVA alta dose)', critical: true },
+  { key: 'neuro', label: 'Glasgow >= 8T ou obedece comandos', critical: true },
+  { key: 'temp', label: 'Temperatura < 38.5 C', critical: false },
+  { key: 'hb', label: 'Hemoglobina >= 7 g/dL', critical: false },
+  { key: 'ph', label: 'pH 7.30 - 7.50', critical: false },
+  { key: 'cough', label: 'Reflexo de tosse presente', critical: false },
+  { key: 'secretions', label: 'Secrecoes moderadas ou minimas', critical: false },
+];
+
+const SBT_STEPS = [
+  { step: 1, label: 'Triagem de prontidao', desc: 'Verificar todos os criterios acima', duration: '5 min' },
+  { step: 2, label: 'Despertar diario (SAT)', desc: 'Pausar sedacao e avaliar RASS', duration: '30-60 min' },
+  { step: 3, label: 'Teste de respiracao espontanea', desc: 'PSV 5-7 cmH2O + PEEP 5 ou Tubo-T por 30-120 min', duration: '30-120 min' },
+  { step: 4, label: 'Avaliacao durante SBT', desc: 'Monitorar FR, SpO2, FC, PA, uso de musculatura acessoria', duration: 'Continuo' },
+  { step: 5, label: 'Decisao de extubacao', desc: 'Passou no SBT? Cuff-leak positivo? Preparar extubacao', duration: '5 min' },
+];
+
+function WeaningProtocolSection({ ventilation }: { ventilation: Array<Record<string, unknown>> }) {
+  const [criteria, setCriteria] = useState<Record<string, boolean>>({});
+  const [sbtStep, setSbtStep] = useState(0);
+  const [sbtTimer, setSbtTimer] = useState(0);
+  const [sbtActive, setSbtActive] = useState(false);
+
+  useEffect(() => {
+    if (!sbtActive) return;
+    const interval = setInterval(() => setSbtTimer((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [sbtActive]);
+
+  const criticalMet = WEANING_CRITERIA.filter((c) => c.critical).every((c) => criteria[c.key]);
+  const totalMet = WEANING_CRITERIA.filter((c) => criteria[c.key]).length;
+  const readinessPercent = Math.round((totalMet / WEANING_CRITERIA.length) * 100);
+
+  // Build P/F ratio trend from ventilation data
+  const pfTrend = useMemo(() => {
+    if (!ventilation || ventilation.length === 0) return [];
+    return ventilation.slice(0, 20).reverse().map((v) => ({
+      time: new Date(v.recordedAt as string).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      pf: (v.pfRatio as number) ?? null,
+      fio2: (v.fio2 as number) ?? null,
+      peep: (v.peep as number) ?? null,
+    })).filter((d) => d.pf !== null);
+  }, [ventilation]);
+
+  const formatSbtTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* P/F Trend Chart */}
+      {pfTrend.length > 1 && (
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Tendencia P/F Ratio</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={pfTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                  <XAxis dataKey="time" tick={{ fill: '#71717a', fontSize: 10 }} />
+                  <YAxis tick={{ fill: '#71717a', fontSize: 10 }} domain={[0, 500]} />
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: 8, fontSize: 12 }} />
+                  <Area type="monotone" dataKey="pf" stroke="#22c55e" fill="#22c55e" fillOpacity={0.1} strokeWidth={2} name="P/F Ratio" />
+                  {/* Reference lines for SDRA classification */}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex gap-4 mt-2 text-[10px] text-zinc-500">
+              <span className="flex items-center gap-1"><div className="h-2 w-6 bg-red-500/30 rounded" /> SDRA Grave ({'<'} 100)</span>
+              <span className="flex items-center gap-1"><div className="h-2 w-6 bg-orange-500/30 rounded" /> SDRA Moderada (100-200)</span>
+              <span className="flex items-center gap-1"><div className="h-2 w-6 bg-yellow-500/30 rounded" /> SDRA Leve (200-300)</span>
+              <span className="flex items-center gap-1"><div className="h-2 w-6 bg-emerald-500/30 rounded" /> Normal ({'>'} 300)</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Readiness Criteria */}
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingDown className="h-5 w-5 text-emerald-400" />
+                Criterios de Prontidao para Desmame
+              </CardTitle>
+              <Badge variant="outline" className={cn(
+                readinessPercent === 100 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' :
+                readinessPercent >= 60 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' :
+                'bg-red-500/20 text-red-400 border-red-500/50',
+              )}>
+                {totalMet}/{WEANING_CRITERIA.length}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {WEANING_CRITERIA.map((c) => (
+              <label key={c.key} className="flex items-start gap-2 cursor-pointer group">
+                <button
+                  onClick={() => setCriteria((prev) => ({ ...prev, [c.key]: !prev[c.key] }))}
+                  className={cn(
+                    'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+                    criteria[c.key]
+                      ? 'bg-emerald-500 border-emerald-500'
+                      : 'border-zinc-600 group-hover:border-zinc-400',
+                  )}
+                >
+                  {criteria[c.key] && <CheckCircle2 className="h-3 w-3 text-white" />}
+                </button>
+                <span className={cn('text-xs flex-1', criteria[c.key] ? 'text-zinc-500 line-through' : 'text-zinc-300')}>
+                  {c.label}
+                  {c.critical && <span className="text-red-400 ml-1">*</span>}
+                </span>
+              </label>
+            ))}
+            <p className="text-[10px] text-zinc-600 mt-2">* Criterios obrigatorios para iniciar SBT</p>
+
+            {criticalMet && (
+              <div className="mt-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3 text-xs text-emerald-400">
+                <CheckCircle2 className="h-4 w-4 inline mr-1" />
+                Criterios criticos atendidos — elegivel para SBT!
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* SBT Protocol Steps */}
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wind className="h-5 w-5 text-blue-400" />
+              Protocolo SBT (Teste de Respiracao Espontanea)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {SBT_STEPS.map((step) => (
+              <div
+                key={step.step}
+                className={cn(
+                  'flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer',
+                  sbtStep >= step.step
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : sbtStep === step.step - 1
+                      ? 'bg-blue-500/5 border-blue-500/30 hover:bg-blue-500/10'
+                      : 'bg-zinc-800/50 border-zinc-700/50',
+                )}
+                onClick={() => setSbtStep(step.step)}
+              >
+                <div className={cn(
+                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                  sbtStep >= step.step ? 'bg-emerald-500 text-white' : 'bg-zinc-700 text-zinc-400',
+                )}>
+                  {sbtStep >= step.step ? <CheckCircle2 className="h-4 w-4" /> : step.step}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={cn('text-sm font-medium', sbtStep >= step.step ? 'text-emerald-400' : 'text-zinc-300')}>
+                    {step.label}
+                  </p>
+                  <p className="text-xs text-zinc-500">{step.desc}</p>
+                </div>
+                <span className="text-[10px] text-zinc-600 shrink-0">{step.duration}</span>
+              </div>
+            ))}
+
+            {/* SBT Timer */}
+            {sbtStep >= 3 && (
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 text-center">
+                <p className="text-xs text-zinc-400 mb-2">Cronometro SBT</p>
+                <p className="font-mono text-3xl font-bold text-blue-400 tabular-nums">
+                  {formatSbtTime(sbtTimer)}
+                </p>
+                <div className="flex gap-2 justify-center mt-3">
+                  {!sbtActive ? (
+                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setSbtActive(true)}>
+                      <Clock className="h-3 w-3 mr-1" /> Iniciar SBT
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="border-red-500/50 text-red-400" onClick={() => { setSbtActive(false); setSbtTimer(0); }}>
+                      Parar
+                    </Button>
+                  )}
+                </div>
+                {sbtTimer >= 1800 && (
+                  <p className="text-xs text-emerald-400 mt-2">
+                    <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                    30 minutos atingidos — avaliar paciente
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

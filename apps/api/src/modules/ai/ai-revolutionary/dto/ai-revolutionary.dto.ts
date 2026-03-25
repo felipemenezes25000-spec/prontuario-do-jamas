@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsUUID, IsOptional, IsArray, IsNumber } from 'class-validator';
+import { IsString, IsUUID, IsOptional, IsArray, IsNumber, IsBoolean } from 'class-validator';
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
@@ -66,6 +66,77 @@ export class ClinicalPathwayDto {
   severity?: string;
 }
 
+export class MortalityPredictionDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  patientId!: string;
+
+  @ApiPropertyOptional({ description: 'Admission ID' })
+  @IsUUID()
+  @IsOptional()
+  admissionId?: string;
+}
+
+export class DigitalTwinDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  patientId!: string;
+
+  @ApiPropertyOptional({ description: 'Simulation scenario' })
+  @IsString()
+  @IsOptional()
+  scenario?: string;
+
+  @ApiPropertyOptional({ description: 'Treatment options to simulate' })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  treatmentOptions?: string[];
+}
+
+export class ConversationalBiDto {
+  @ApiProperty({ description: 'Natural language question' })
+  @IsString()
+  question!: string;
+
+  @ApiPropertyOptional({ description: 'Date range start' })
+  @IsString()
+  @IsOptional()
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: 'Date range end' })
+  @IsString()
+  @IsOptional()
+  endDate?: string;
+}
+
+export class MultimodalAnalysisDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  patientId!: string;
+
+  @ApiPropertyOptional({ description: 'Clinical text' })
+  @IsString()
+  @IsOptional()
+  clinicalText?: string;
+
+  @ApiPropertyOptional({ description: 'Image URLs' })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  imageUrls?: string[];
+
+  @ApiPropertyOptional({ description: 'Lab results summary' })
+  @IsString()
+  @IsOptional()
+  labSummary?: string;
+
+  @ApiPropertyOptional({ description: 'Voice transcription' })
+  @IsString()
+  @IsOptional()
+  voiceTranscript?: string;
+}
+
 export class EcgInterpretationDto {
   @ApiProperty({ description: 'Patient ID' })
   @IsUUID()
@@ -103,33 +174,6 @@ export class DigitalPathologyDto {
   stainingMethod?: string;
 }
 
-export class MortalityPredictionDto {
-  @ApiProperty({ description: 'Patient ID' })
-  @IsUUID()
-  patientId!: string;
-
-  @ApiPropertyOptional({ description: 'Admission ID' })
-  @IsUUID()
-  @IsOptional()
-  admissionId?: string;
-}
-
-export class ConversationalBiDto {
-  @ApiProperty({ description: 'Natural language question' })
-  @IsString()
-  question!: string;
-
-  @ApiPropertyOptional({ description: 'Date range start' })
-  @IsString()
-  @IsOptional()
-  startDate?: string;
-
-  @ApiPropertyOptional({ description: 'Date range end' })
-  @IsString()
-  @IsOptional()
-  endDate?: string;
-}
-
 export class GenomicsTreatmentDto {
   @ApiProperty({ description: 'Patient ID' })
   @IsUUID()
@@ -147,56 +191,13 @@ export class GenomicsTreatmentDto {
   diagnosis?: string;
 }
 
-export class DigitalTwinDto {
-  @ApiProperty({ description: 'Patient ID' })
-  @IsUUID()
-  patientId!: string;
-
-  @ApiPropertyOptional({ description: 'Simulation scenario' })
-  @IsString()
-  @IsOptional()
-  scenario?: string;
-
-  @ApiPropertyOptional({ description: 'Treatment options to simulate' })
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  treatmentOptions?: string[];
-}
-
-export class MultimodalAnalysisDto {
-  @ApiProperty({ description: 'Patient ID' })
-  @IsUUID()
-  patientId!: string;
-
-  @ApiPropertyOptional({ description: 'Clinical text' })
-  @IsString()
-  @IsOptional()
-  clinicalText?: string;
-
-  @ApiPropertyOptional({ description: 'Image URLs' })
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  imageUrls?: string[];
-
-  @ApiPropertyOptional({ description: 'Lab results summary' })
-  @IsString()
-  @IsOptional()
-  labSummary?: string;
-
-  @ApiPropertyOptional({ description: 'Voice transcription' })
-  @IsString()
-  @IsOptional()
-  voiceTranscript?: string;
-}
-
 export class AutonomousCodingDto {
   @ApiProperty({ description: 'Encounter ID' })
   @IsUUID()
   encounterId!: string;
 
   @ApiPropertyOptional({ description: 'Auto-submit billing' })
+  @IsBoolean()
   @IsOptional()
   autoSubmit?: boolean;
 }
@@ -297,6 +298,53 @@ export class ClinicalPathwayResponseDto {
   @ApiProperty() aiModel!: string;
 }
 
+export class MortalityPredictionResponseDto {
+  @ApiProperty() patientId!: string;
+  @ApiProperty() riskScore!: number;
+  @ApiProperty() riskLevel!: string;
+  @ApiProperty({ type: [String] }) contributingFactors!: string[];
+  @ApiPropertyOptional() suggestedInterventions?: string[];
+  @ApiPropertyOptional() palliativeCareRecommended?: boolean;
+  @ApiProperty() aiModel!: string;
+  @ApiProperty() calculatedAt!: Date;
+}
+
+export class DigitalTwinResponseDto {
+  @ApiProperty() patientId!: string;
+  @ApiProperty() scenario!: string;
+  @ApiPropertyOptional() simulations?: Array<{
+    treatment: string;
+    predictedOutcome: string;
+    probability: number;
+    timeToEffect: string;
+    sideEffects: string[];
+  }>;
+  @ApiPropertyOptional() optimalStrategy?: string;
+  @ApiProperty() aiModel!: string;
+}
+
+export class ConversationalBiResponseDto {
+  @ApiProperty() question!: string;
+  @ApiProperty() sqlGenerated!: string;
+  @ApiProperty() answer!: string;
+  @ApiPropertyOptional() chartType?: string;
+  @ApiPropertyOptional() chartData?: Record<string, unknown>[];
+  @ApiPropertyOptional() summary?: string;
+  @ApiProperty() aiModel!: string;
+}
+
+export class MultimodalAnalysisResponseDto {
+  @ApiProperty() patientId!: string;
+  @ApiProperty() integratedInsight!: string;
+  @ApiPropertyOptional() textFindings?: string[];
+  @ApiPropertyOptional() imageFindings?: string[];
+  @ApiPropertyOptional() labFindings?: string[];
+  @ApiPropertyOptional() voiceFindings?: string[];
+  @ApiPropertyOptional() synthesizedConclusion?: string;
+  @ApiPropertyOptional() suggestedActions?: string[];
+  @ApiProperty() aiModel!: string;
+}
+
 export class EcgInterpretationResponseDto {
   @ApiProperty() rhythm!: string;
   @ApiProperty() heartRate!: number;
@@ -325,27 +373,6 @@ export class DigitalPathologyResponseDto {
   @ApiPropertyOptional() confidence?: number;
 }
 
-export class MortalityPredictionResponseDto {
-  @ApiProperty() patientId!: string;
-  @ApiProperty() riskScore!: number;
-  @ApiProperty() riskLevel!: string;
-  @ApiProperty({ type: [String] }) contributingFactors!: string[];
-  @ApiPropertyOptional() suggestedInterventions?: string[];
-  @ApiPropertyOptional() palliativeCareRecommended?: boolean;
-  @ApiProperty() aiModel!: string;
-  @ApiProperty() calculatedAt!: Date;
-}
-
-export class ConversationalBiResponseDto {
-  @ApiProperty() question!: string;
-  @ApiProperty() sqlGenerated!: string;
-  @ApiProperty() answer!: string;
-  @ApiPropertyOptional() chartType?: string;
-  @ApiPropertyOptional() chartData?: Record<string, unknown>[];
-  @ApiPropertyOptional() summary?: string;
-  @ApiProperty() aiModel!: string;
-}
-
 export class GenomicsTreatmentResponseDto {
   @ApiProperty() patientId!: string;
   @ApiPropertyOptional() variants?: Array<{
@@ -360,32 +387,6 @@ export class GenomicsTreatmentResponseDto {
     recommendation: string;
   }>;
   @ApiPropertyOptional() contraindicatedDrugs?: string[];
-  @ApiProperty() aiModel!: string;
-}
-
-export class DigitalTwinResponseDto {
-  @ApiProperty() patientId!: string;
-  @ApiProperty() scenario!: string;
-  @ApiPropertyOptional() simulations?: Array<{
-    treatment: string;
-    predictedOutcome: string;
-    probability: number;
-    timeToEffect: string;
-    sideEffects: string[];
-  }>;
-  @ApiPropertyOptional() optimalStrategy?: string;
-  @ApiProperty() aiModel!: string;
-}
-
-export class MultimodalAnalysisResponseDto {
-  @ApiProperty() patientId!: string;
-  @ApiProperty() integratedInsight!: string;
-  @ApiPropertyOptional() textFindings?: string[];
-  @ApiPropertyOptional() imageFindings?: string[];
-  @ApiPropertyOptional() labFindings?: string[];
-  @ApiPropertyOptional() voiceFindings?: string[];
-  @ApiPropertyOptional() synthesizedConclusion?: string;
-  @ApiPropertyOptional() suggestedActions?: string[];
   @ApiProperty() aiModel!: string;
 }
 
@@ -467,4 +468,24 @@ export class IntelligentReferralResponseDto {
   }>;
   @ApiPropertyOptional() referralLetter?: string;
   @ApiPropertyOptional() urgency?: string;
+}
+
+// ─── Metrics Response ────────────────────────────────────────────────────────
+
+export class RevolutionaryMetricsResponseDto {
+  @ApiProperty() totalRequests!: number;
+  @ApiProperty() byFeature!: Array<{
+    feature: string;
+    requests: number;
+    avgLatencyMs: number;
+    successRate: number;
+  }>;
+  @ApiProperty() differentialDiagnosisAccuracy!: number;
+  @ApiProperty() mortalityPredictionAUC!: number;
+  @ApiProperty() digitalTwinSimulations!: number;
+  @ApiProperty() conversationalBiQueries!: number;
+  @ApiProperty() clinicianSatisfaction!: number;
+  @ApiProperty() timeSavedHoursPerWeek!: number;
+  @ApiProperty() topFeatures!: Array<{ feature: string; usageCount: number }>;
+  @ApiProperty() period!: string;
 }

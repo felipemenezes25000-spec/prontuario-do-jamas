@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Body,
   Query,
@@ -19,11 +20,13 @@ import { ParseUUIDPipe } from '../../../common/pipes/parse-uuid.pipe';
 import { AmbientListeningService } from './ambient-listening.service';
 import {
   StartAmbientSessionDto,
+  GenerateNoteDto,
   ApproveAmbientNoteDto,
   AmbientSessionResponseDto,
   AmbientTranscriptResponseDto,
   AmbientClinicalNoteResponseDto,
   AmbientSessionListQueryDto,
+  AmbientSessionListResponseDto,
 } from './dto/ambient-listening.dto';
 
 @ApiTags('AI — Ambient Listening')
@@ -32,8 +35,8 @@ import {
 export class AmbientListeningController {
   constructor(private readonly ambientService: AmbientListeningService) {}
 
-  @Post('start')
-  @ApiOperation({ summary: 'Start ambient listening session' })
+  @Post('sessions')
+  @ApiOperation({ summary: 'Start ambient recording session' })
   @ApiResponse({ status: 201, description: 'Session started', type: AmbientSessionResponseDto })
   async startSession(
     @CurrentUser() user: JwtPayload,
@@ -43,65 +46,111 @@ export class AmbientListeningController {
     return this.ambientService.startSession(
       tenantId,
       user.sub,
+      dto.patientId,
       dto.encounterId,
       dto.language,
+      dto.specialty,
       dto.context,
     );
   }
 
-  @Post(':sessionId/stop')
-  @ApiOperation({ summary: 'Stop ambient session and process recording' })
-  @ApiParam({ name: 'sessionId', description: 'Ambient session UUID' })
-  @ApiResponse({ status: 200, description: 'Session stopped and processed', type: AmbientSessionResponseDto })
+  @Patch('sessions/:id/stop')
+  @ApiOperation({ summary: 'Stop recording and trigger transcription' })
+  @ApiParam({ name: 'id', description: 'Ambient session UUID' })
+  @ApiResponse({ status: 200, description: 'Session stopped and transcription triggered', type: AmbientSessionResponseDto })
   async stopSession(
     @CurrentTenant() tenantId: string,
-    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<AmbientSessionResponseDto> {
-    return this.ambientService.stopSession(tenantId, sessionId);
+    return this.ambientService.stopSession(tenantId, id);
   }
 
-  @Get(':sessionId/transcript')
-  @ApiOperation({ summary: 'Get transcript for ambient session' })
-  @ApiParam({ name: 'sessionId', description: 'Ambient session UUID' })
+  @Get('sessions/:id/transcript')
+  @ApiOperation({ summary: 'Get transcription result with speaker diarization' })
+  @ApiParam({ name: 'id', description: 'Ambient session UUID' })
   @ApiResponse({ status: 200, description: 'Transcript data', type: AmbientTranscriptResponseDto })
   async getTranscript(
     @CurrentTenant() tenantId: string,
-    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<AmbientTranscriptResponseDto> {
-    return this.ambientService.getTranscript(tenantId, sessionId);
+    return this.ambientService.getTranscript(tenantId, id);
   }
 
-  @Get(':sessionId/note')
+  @Post('sessions/:id/generate-note')
+  @ApiOperation({ summary: 'Generate SOAP note from transcript' })
+  @ApiParam({ name: 'id', description: 'Ambient session UUID' })
+  @ApiResponse({ status: 201, description: 'Clinical note generated', type: AmbientClinicalNoteResponseDto })
+  async generateNote(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: GenerateNoteDto,
+  ): Promise<AmbientClinicalNoteResponseDto> {
+    return this.ambientService.generateNote(
+      tenantId,
+      id,
+      dto.format,
+      dto.includeCodingSuggestions,
+      dto.includeMedications,
+      dto.instructions,
+    );
+  }
+
+  @Get('sessions/:id/note')
   @ApiOperation({ summary: 'Get AI-generated clinical note from ambient session' })
-  @ApiParam({ name: 'sessionId', description: 'Ambient session UUID' })
+  @ApiParam({ name: 'id', description: 'Ambient session UUID' })
   @ApiResponse({ status: 200, description: 'Clinical note', type: AmbientClinicalNoteResponseDto })
   async getClinicalNote(
     @CurrentTenant() tenantId: string,
-    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<AmbientClinicalNoteResponseDto> {
-    return this.ambientService.getClinicalNote(tenantId, sessionId);
+    return this.ambientService.getClinicalNote(tenantId, id);
   }
 
-  @Post(':sessionId/approve')
+  @Post('sessions/:id/approve')
   @ApiOperation({ summary: 'Approve AI-generated note and save to chart' })
-  @ApiParam({ name: 'sessionId', description: 'Ambient session UUID' })
+  @ApiParam({ name: 'id', description: 'Ambient session UUID' })
   @ApiResponse({ status: 200, description: 'Note approved', type: AmbientSessionResponseDto })
   async approveNote(
     @CurrentUser() user: JwtPayload,
     @CurrentTenant() tenantId: string,
-    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ApproveAmbientNoteDto,
   ): Promise<AmbientSessionResponseDto> {
-    return this.ambientService.approveNote(tenantId, user.sub, sessionId, dto.editedNote);
+    return this.ambientService.approveNote(
+      tenantId,
+      user.sub,
+      id,
+      dto.editedNote,
+      dto.clinicianComments,
+      dto.diagnosisCodes,
+    );
   }
 
   @Get('sessions')
-  @ApiOperation({ summary: 'List ambient listening sessions' })
-  @ApiResponse({ status: 200, description: 'Session list', type: [AmbientSessionResponseDto] })
+  @ApiOperation({ summary: 'List ambient listening sessions with pagination and filters' })
+  @ApiResponse({ status: 200, description: 'Session list', type: AmbientSessionListResponseDto })
   async listSessions(
     @CurrentTenant() tenantId: string,
     @Query() query: AmbientSessionListQueryDto,
-  ): Promise<AmbientSessionResponseDto[]> {
-    return this.ambientService.listSessions(tenantId, query.encounterId, query.status);
+  ): Promise<AmbientSessionListResponseDto> {
+    return this.ambientService.listSessions(
+      tenantId,
+      query.encounterId,
+      query.patientId,
+      query.status,
+      query.page,
+      query.limit,
+    );
+  }
+
+  @Get('sessions/:id')
+  @ApiOperation({ summary: 'Get ambient session details' })
+  @ApiParam({ name: 'id', description: 'Ambient session UUID' })
+  @ApiResponse({ status: 200, description: 'Session details', type: AmbientSessionResponseDto })
+  async getSession(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<AmbientSessionResponseDto> {
+    return this.ambientService.getSession(tenantId, id);
   }
 }

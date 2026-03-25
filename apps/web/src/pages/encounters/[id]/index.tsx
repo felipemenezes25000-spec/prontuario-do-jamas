@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -27,6 +27,11 @@ import {
   FileCheck,
   ArrowRightCircle,
   LogOut,
+  History,
+  GitBranch,
+  Copy,
+  CalendarClock,
+  ClipboardList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,7 +50,8 @@ import {
 } from '@/components/ui/dialog';
 import { cn, getInitials, calculateAge } from '@/lib/utils';
 import { encounterStatusLabels, encounterTypeLabels, triageLevelColors } from '@/lib/constants';
-import { useEncounter } from '@/services/encounters.service';
+import { useEncounter, usePatientEncounters } from '@/services/encounters.service';
+import { useEncounterNotes } from '@/services/clinical-notes.service';
 import { useAllergies, useConditions } from '@/services/patient-details.service';
 import { QuickAntecedents } from '@/components/medical/quick-antecedents';
 import { ExamRequestModal } from '@/components/medical/exam-request-modal';
@@ -218,6 +224,146 @@ export default function EncounterPage() {
   const authUser = useAuthStore((s) => s.user);
   const patientAlerts = alertsData?.data ?? [];
   const { data: patientConditions = [] } = useConditions(encounter?.patientId ?? '');
+
+  // Previous encounters for copy-forward
+  const { data: patientEncountersData } = usePatientEncounters(encounter?.patientId ?? '', 1, 10);
+  const previousEncounters = useMemo(() => {
+    if (!patientEncountersData?.data || !id) return [];
+    return patientEncountersData.data
+      .filter((e) => e.id !== id && (e.status === 'COMPLETED' || e.status === 'IN_PROGRESS'))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [patientEncountersData, id]);
+
+  // Notes for current encounter (for timeline)
+  const { data: encounterNotesRaw } = useEncounterNotes(id ?? '');
+  const encounterNotes = useMemo(() => {
+    if (!encounterNotesRaw) return [];
+    return Array.isArray(encounterNotesRaw) ? encounterNotesRaw : (encounterNotesRaw as unknown as { data: typeof encounterNotesRaw })?.data ?? [];
+  }, [encounterNotesRaw]);
+
+  // Timeline events — merge notes, prescriptions, vitals into a single chronological view
+  const timelineEvents = useMemo(() => {
+    const events: Array<{
+      id: string;
+      type: 'note' | 'prescription' | 'vitals' | 'exam' | 'alert' | 'encounter_start';
+      title: string;
+      description: string;
+      timestamp: string;
+      icon: 'note' | 'pill' | 'heart' | 'test' | 'alert' | 'clock';
+      color: string;
+      metadata?: { wasAI?: boolean; authorRole?: string };
+    }> = [];
+
+    // Encounter start event
+    if (encounter) {
+      events.push({
+        id: `enc-start-${encounter.id}`,
+        type: 'encounter_start',
+        title: 'Inicio do Atendimento',
+        description: encounter.chiefComplaint ?? 'Atendimento iniciado',
+        timestamp: encounter.startedAt ?? encounter.createdAt,
+        icon: 'clock',
+        color: 'text-teal-400',
+      });
+    }
+
+    // Clinical notes
+    for (const note of encounterNotes) {
+      events.push({
+        id: `note-${note.id}`,
+        type: 'note',
+        title: note.type === 'SOAP' ? 'Nota SOAP' : note.type === 'EVOLUTION' ? 'Evolucao' : note.type === 'ADDENDUM' ? 'Adendo' : `Nota ${note.type}`,
+        description: note.subjective
+          ? `S: ${note.subjective.slice(0, 120)}${note.subjective.length > 120 ? '...' : ''}`
+          : note.freeText
+            ? note.freeText.slice(0, 120) + (note.freeText.length > 120 ? '...' : '')
+            : 'Nota registrada',
+        timestamp: note.createdAt,
+        icon: 'note',
+        color: note.wasGeneratedByAI ? 'text-purple-400' : 'text-blue-400',
+        metadata: { authorRole: note.authorRole, wasAI: note.wasGeneratedByAI },
+      });
+    }
+
+    // Prescriptions
+    for (const presc of patientPrescriptions) {
+      const itemCount = (presc.items ?? []).length;
+      events.push({
+        id: `presc-${presc.id}`,
+        type: 'prescription',
+        title: 'Prescricao',
+        description: `${itemCount} item(ns) — ${presc.status === 'ACTIVE' ? 'Ativa' : presc.status}`,
+        timestamp: presc.createdAt,
+        icon: 'pill',
+        color: 'text-amber-400',
+      });
+    }
+
+    // Vitals trends
+    for (const vital of vitalsTrends.slice(0, 8)) {
+      events.push({
+        id: `vital-${vital.id}`,
+        type: 'vitals',
+        title: 'Sinais Vitais',
+        description: [
+          vital.heartRate ? `FC ${vital.heartRate}` : '',
+          vital.systolicBP ? `PA ${vital.systolicBP}/${vital.diastolicBP}` : '',
+          vital.oxygenSaturation ? `SpO2 ${vital.oxygenSaturation}%` : '',
+          vital.temperature ? `T ${vital.temperature}°C` : '',
+        ].filter(Boolean).join(' | ') || 'Registro de sinais vitais',
+        timestamp: vital.recordedAt,
+        icon: 'heart',
+        color: 'text-red-400',
+      });
+    }
+
+    // Alerts
+    for (const alert of patientAlerts) {
+      events.push({
+        id: `alert-${alert.id}`,
+        type: 'alert',
+        title: `Alerta — ${alert.severity}`,
+        description: alert.message,
+        timestamp: alert.createdAt,
+        icon: 'alert',
+        color: alert.severity === 'CRITICAL' ? 'text-red-400' : 'text-amber-400',
+      });
+    }
+
+    return events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [encounter, encounterNotes, patientPrescriptions, vitalsTrends, patientAlerts]);
+
+  // Copy-forward state
+  const [copyForwardOpen, setCopyForwardOpen] = useState(false);
+  const [selectedPrevEncounterId, setSelectedPrevEncounterId] = useState<string | null>(null);
+  const [prevEncounterNotes, setPrevEncounterNotes] = useState<Array<{ subjective?: string; objective?: string; assessment?: string; plan?: string }>>([]);
+  const [isLoadingPrevNotes, setIsLoadingPrevNotes] = useState(false);
+
+  const handleLoadPreviousNotes = useCallback(async (encId: string) => {
+    setSelectedPrevEncounterId(encId);
+    setIsLoadingPrevNotes(true);
+    try {
+      const { data } = await api.get<Array<{ subjective?: string; objective?: string; assessment?: string; plan?: string }>>('/clinical-notes', {
+        params: { encounterId: encId },
+      });
+      const notes = Array.isArray(data) ? data : (data as unknown as { data: typeof data })?.data ?? [];
+      setPrevEncounterNotes(notes);
+    } catch {
+      toast.error('Erro ao carregar notas anteriores');
+      setPrevEncounterNotes([]);
+    } finally {
+      setIsLoadingPrevNotes(false);
+    }
+  }, []);
+
+  const handleApplyCopyForward = useCallback((note: { subjective?: string; objective?: string; assessment?: string; plan?: string }) => {
+    if (note.subjective) setSubjective((prev) => prev ? `${prev}\n\n--- Copiado do atendimento anterior ---\n${note.subjective}` : note.subjective ?? '');
+    if (note.objective) setObjective((prev) => prev ? `${prev}\n\n--- Copiado do atendimento anterior ---\n${note.objective}` : note.objective ?? '');
+    if (note.assessment) setAssessment((prev) => prev ? `${prev}\n\n--- Copiado do atendimento anterior ---\n${note.assessment}` : note.assessment ?? '');
+    if (note.plan) setPlan((prev) => prev ? `${prev}\n\n--- Copiado do atendimento anterior ---\n${note.plan}` : note.plan ?? '');
+    setCopyForwardOpen(false);
+    toast.success('Nota anterior copiada para os campos SOAP');
+  }, []);
 
   // SOAP state
   const encounterRecord = encounter as Record<string, unknown> | undefined;
@@ -853,15 +999,46 @@ export default function EncounterPage() {
 
           {/* Content Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-card border border-border w-full justify-start">
+            <TabsList className="bg-card border border-border w-full justify-start overflow-x-auto">
               <TabsTrigger value="soap" className="text-xs data-[state=active]:bg-teal-600">SOAP</TabsTrigger>
               <TabsTrigger value="prescricao" className="text-xs data-[state=active]:bg-teal-600">Prescricao</TabsTrigger>
               <TabsTrigger value="exames" className="text-xs data-[state=active]:bg-teal-600">Exames</TabsTrigger>
               <TabsTrigger value="documentos" className="text-xs data-[state=active]:bg-teal-600">Documentos</TabsTrigger>
+              <TabsTrigger value="timeline" className="text-xs data-[state=active]:bg-teal-600">
+                <GitBranch className="mr-1 h-3 w-3" />
+                Timeline
+              </TabsTrigger>
+              <TabsTrigger value="historico" className="text-xs data-[state=active]:bg-teal-600">
+                <History className="mr-1 h-3 w-3" />
+                Historico
+              </TabsTrigger>
             </TabsList>
 
             {/* SOAP Tab */}
             <TabsContent value="soap" className="space-y-4 mt-4">
+              {/* Copy-forward from previous encounter */}
+              {previousEncounters.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-teal-500/30 text-xs text-teal-400 hover:bg-teal-500/10"
+                    onClick={() => {
+                      setCopyForwardOpen(true);
+                      if (previousEncounters[0]) {
+                        void handleLoadPreviousNotes(previousEncounters[0].id);
+                      }
+                    }}
+                  >
+                    <Copy className="mr-1.5 h-3 w-3" />
+                    Copiar de Atendimento Anterior
+                  </Button>
+                  <span className="text-[10px] text-muted-foreground">
+                    {previousEncounters.length} atendimento(s) anterior(es)
+                  </span>
+                </div>
+              )}
+
               {[
                 { key: 'S', label: 'Subjetivo', hint: 'Queixa principal, historia da doenca atual, revisao de sistemas...', value: subjective, onChange: setSubjective },
                 { key: 'O', label: 'Objetivo', hint: 'Exame fisico, sinais vitais, dados laboratoriais...', value: objective, onChange: setObjective },
@@ -1087,6 +1264,232 @@ export default function EncounterPage() {
                   <FileText className="h-10 w-10 text-muted-foreground" />
                   <p className="mt-3 text-sm text-muted-foreground">Nenhum documento gerado ainda</p>
                   <p className="mt-1 text-xs text-muted-foreground">Dite por voz: "atestado de 3 dias" ou "encaminhar para cardiologia"</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Timeline Tab */}
+            <TabsContent value="timeline" className="space-y-4 mt-4">
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                      <GitBranch className="h-4 w-4 text-teal-400" />
+                      Linha do Tempo Clinica
+                    </CardTitle>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {timelineEvents.length} evento(s)
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {timelineEvents.length === 0 ? (
+                    <div className="flex flex-col items-center py-10">
+                      <CalendarClock className="h-10 w-10 text-muted-foreground" />
+                      <p className="mt-3 text-sm text-muted-foreground">Nenhum evento registrado ainda</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Eventos aparecerao conforme o atendimento progride</p>
+                    </div>
+                  ) : (
+                    <div className="relative ml-4 space-y-0">
+                      {/* Vertical timeline line */}
+                      <div className="absolute left-0 top-0 h-full w-px bg-border" />
+
+                      {timelineEvents.map((event, idx) => {
+                        const IconComponent = event.icon === 'note' ? ClipboardList
+                          : event.icon === 'pill' ? Pill
+                          : event.icon === 'heart' ? Heart
+                          : event.icon === 'test' ? TestTube
+                          : event.icon === 'alert' ? AlertTriangle
+                          : Clock;
+
+                        const isFirst = idx === 0;
+
+                        return (
+                          <div key={event.id} className="relative flex gap-4 pb-6 last:pb-0">
+                            {/* Timeline dot */}
+                            <div className={cn(
+                              'relative z-10 flex h-8 w-8 shrink-0 -ml-4 items-center justify-center rounded-full border-2',
+                              isFirst
+                                ? 'border-teal-500 bg-teal-500/20'
+                                : 'border-border bg-card',
+                            )}>
+                              <IconComponent className={cn('h-3.5 w-3.5', event.color)} />
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 min-w-0 -mt-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{event.title}</span>
+                                {event.metadata?.wasAI && (
+                                  <Badge variant="outline" className="text-[9px] border-purple-500/30 text-purple-400">
+                                    <Sparkles className="mr-0.5 h-2.5 w-2.5" />
+                                    IA
+                                  </Badge>
+                                )}
+                                {event.metadata?.authorRole && (
+                                  <Badge variant="secondary" className="text-[9px]">
+                                    {String(event.metadata.authorRole)}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                                {event.description}
+                              </p>
+                              <p className="mt-1 text-[10px] text-muted-foreground/60 font-mono tabular-nums">
+                                {new Date(event.timestamp).toLocaleString('pt-BR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                                {encounter && (
+                                  <span className="ml-2">
+                                    ({(() => {
+                                      const diff = new Date(event.timestamp).getTime() - new Date(encounter.startedAt ?? encounter.createdAt).getTime();
+                                      const mins = Math.max(0, Math.floor(diff / 60000));
+                                      const hrs = Math.floor(mins / 60);
+                                      return hrs > 0 ? `+${hrs}h${(mins % 60).toString().padStart(2, '0')}min` : `+${mins}min`;
+                                    })()})
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Historico Tab — Previous encounters & copy-forward */}
+            <TabsContent value="historico" className="space-y-4 mt-4">
+              <Card className="border-border bg-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <History className="h-4 w-4 text-blue-400" />
+                    Atendimentos Anteriores do Paciente
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {previousEncounters.length === 0 ? (
+                    <div className="flex flex-col items-center py-10">
+                      <History className="h-10 w-10 text-muted-foreground" />
+                      <p className="mt-3 text-sm text-muted-foreground">Nenhum atendimento anterior encontrado</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Este e o primeiro atendimento deste paciente</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {previousEncounters.map((prevEnc) => (
+                        <Card
+                          key={prevEnc.id}
+                          className={cn(
+                            'border cursor-pointer transition-all hover:border-teal-500/30',
+                            selectedPrevEncounterId === prevEnc.id
+                              ? 'border-teal-500/50 bg-teal-500/5'
+                              : 'border-border bg-secondary/20',
+                          )}
+                          onClick={() => void handleLoadPreviousNotes(prevEnc.id)}
+                        >
+                          <CardContent className="py-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                  <p className="text-sm font-medium">
+                                    {new Date(prevEnc.createdAt).toLocaleDateString('pt-BR', {
+                                      day: '2-digit',
+                                      month: 'long',
+                                      year: 'numeric',
+                                    })}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {prevEnc.chiefComplaint ?? 'Sem queixa principal registrada'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="text-[10px]">
+                                  {prevEnc.type === 'CONSULTATION' ? 'Consulta' : prevEnc.type === 'EMERGENCY' ? 'Emergencia' : prevEnc.type === 'RETURN_VISIT' ? 'Retorno' : prevEnc.type}
+                                </Badge>
+                                <Badge
+                                  variant="secondary"
+                                  className={cn(
+                                    'text-[10px]',
+                                    prevEnc.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400',
+                                  )}
+                                >
+                                  {prevEnc.status === 'COMPLETED' ? 'Finalizado' : 'Em Andamento'}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            {/* Expanded notes when selected */}
+                            {selectedPrevEncounterId === prevEnc.id && (
+                              <div className="mt-3 border-t border-border pt-3">
+                                {isLoadingPrevNotes ? (
+                                  <div className="flex items-center justify-center py-4">
+                                    <Loader2 className="h-5 w-5 animate-spin text-teal-400" />
+                                    <span className="ml-2 text-xs text-muted-foreground">Carregando notas...</span>
+                                  </div>
+                                ) : prevEncounterNotes.length === 0 ? (
+                                  <p className="py-2 text-xs text-muted-foreground">Nenhuma nota clinica encontrada neste atendimento.</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {prevEncounterNotes.map((note, noteIdx) => (
+                                      <div key={noteIdx} className="rounded-md border border-border bg-card p-3">
+                                        <div className="space-y-2">
+                                          {note.subjective && (
+                                            <div>
+                                              <span className="text-[10px] font-semibold text-teal-400">S — Subjetivo</span>
+                                              <p className="text-xs text-muted-foreground line-clamp-3">{note.subjective}</p>
+                                            </div>
+                                          )}
+                                          {note.objective && (
+                                            <div>
+                                              <span className="text-[10px] font-semibold text-teal-400">O — Objetivo</span>
+                                              <p className="text-xs text-muted-foreground line-clamp-3">{note.objective}</p>
+                                            </div>
+                                          )}
+                                          {note.assessment && (
+                                            <div>
+                                              <span className="text-[10px] font-semibold text-teal-400">A — Avaliacao</span>
+                                              <p className="text-xs text-muted-foreground line-clamp-3">{note.assessment}</p>
+                                            </div>
+                                          )}
+                                          {note.plan && (
+                                            <div>
+                                              <span className="text-[10px] font-semibold text-teal-400">P — Plano</span>
+                                              <p className="text-xs text-muted-foreground line-clamp-3">{note.plan}</p>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="mt-2 flex justify-end">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 border-teal-500/30 text-[10px] text-teal-400 hover:bg-teal-500/10"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleApplyCopyForward(note);
+                                            }}
+                                          >
+                                            <Copy className="mr-1 h-3 w-3" />
+                                            Copiar para SOAP Atual
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -2109,6 +2512,120 @@ export default function EncounterPage() {
           patientId={encounter.patientId}
         />
       )}
+
+      {/* Copy-Forward Dialog */}
+      <Dialog open={copyForwardOpen} onOpenChange={setCopyForwardOpen}>
+        <DialogContent className="max-w-2xl border-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Copy className="h-5 w-5 text-teal-400" />
+              Copiar de Atendimento Anterior
+            </DialogTitle>
+            <DialogDescription>
+              Selecione uma nota clinica para copiar os campos SOAP para o atendimento atual.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Previous encounter selector */}
+          <div className="flex flex-wrap gap-2">
+            {previousEncounters.slice(0, 5).map((prevEnc) => (
+              <Button
+                key={prevEnc.id}
+                variant={selectedPrevEncounterId === prevEnc.id ? 'default' : 'outline'}
+                size="sm"
+                className={cn(
+                  'text-xs',
+                  selectedPrevEncounterId === prevEnc.id && 'bg-teal-600 hover:bg-teal-500',
+                )}
+                onClick={() => void handleLoadPreviousNotes(prevEnc.id)}
+              >
+                {new Date(prevEnc.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                {prevEnc.chiefComplaint && (
+                  <span className="ml-1 max-w-[120px] truncate text-muted-foreground">
+                    — {prevEnc.chiefComplaint}
+                  </span>
+                )}
+              </Button>
+            ))}
+          </div>
+
+          {/* Notes from selected encounter */}
+          <ScrollArea className="max-h-[400px]">
+            {isLoadingPrevNotes ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-teal-400" />
+                <span className="ml-2 text-sm text-muted-foreground">Carregando notas...</span>
+              </div>
+            ) : prevEncounterNotes.length === 0 ? (
+              <div className="flex flex-col items-center py-8">
+                <ClipboardList className="h-8 w-8 text-muted-foreground" />
+                <p className="mt-2 text-sm text-muted-foreground">Nenhuma nota encontrada neste atendimento</p>
+              </div>
+            ) : (
+              <div className="space-y-3 pr-3">
+                {prevEncounterNotes.map((note, idx) => (
+                  <Card key={idx} className="border-border bg-secondary/20">
+                    <CardContent className="space-y-2 py-3">
+                      {note.subjective && (
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <div className="h-5 w-5 rounded bg-teal-500/20 text-center text-[10px] font-bold leading-5 text-teal-400">S</div>
+                            <span className="text-[10px] text-muted-foreground">Subjetivo</span>
+                          </div>
+                          <p className="mt-1 text-xs text-foreground/80 line-clamp-4">{note.subjective}</p>
+                        </div>
+                      )}
+                      {note.objective && (
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <div className="h-5 w-5 rounded bg-teal-500/20 text-center text-[10px] font-bold leading-5 text-teal-400">O</div>
+                            <span className="text-[10px] text-muted-foreground">Objetivo</span>
+                          </div>
+                          <p className="mt-1 text-xs text-foreground/80 line-clamp-4">{note.objective}</p>
+                        </div>
+                      )}
+                      {note.assessment && (
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <div className="h-5 w-5 rounded bg-teal-500/20 text-center text-[10px] font-bold leading-5 text-teal-400">A</div>
+                            <span className="text-[10px] text-muted-foreground">Avaliacao</span>
+                          </div>
+                          <p className="mt-1 text-xs text-foreground/80 line-clamp-4">{note.assessment}</p>
+                        </div>
+                      )}
+                      {note.plan && (
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <div className="h-5 w-5 rounded bg-teal-500/20 text-center text-[10px] font-bold leading-5 text-teal-400">P</div>
+                            <span className="text-[10px] text-muted-foreground">Plano</span>
+                          </div>
+                          <p className="mt-1 text-xs text-foreground/80 line-clamp-4">{note.plan}</p>
+                        </div>
+                      )}
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          size="sm"
+                          className="h-7 bg-teal-600 text-[10px] hover:bg-teal-500"
+                          onClick={() => handleApplyCopyForward(note)}
+                        >
+                          <Copy className="mr-1 h-3 w-3" />
+                          Aplicar ao SOAP Atual
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCopyForwardOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Voice Intent Router (BLOCO C2) */}
       <VoiceIntentRouter

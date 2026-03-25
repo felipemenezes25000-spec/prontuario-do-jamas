@@ -33,6 +33,24 @@ export interface CodingFilters {
   limit?: number;
 }
 
+export interface CodingStats {
+  totalSessions: number;
+  totalSuggestions: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  pendingCount: number;
+  accuracyRate: number;
+  avgConfidence: number;
+  sessionsByDay: Array<{ date: string; count: number; accuracy: number }>;
+}
+
+export interface CodingMetricPoint {
+  date: string;
+  accuracy: number;
+  suggestions: number;
+  accepted: number;
+}
+
 // ============================================================================
 // Query Keys
 // ============================================================================
@@ -42,6 +60,8 @@ export const codingKeys = {
   lists: () => [...codingKeys.all, 'list'] as const,
   list: (filters?: CodingFilters) => [...codingKeys.lists(), filters] as const,
   detail: (id: string) => [...codingKeys.all, 'detail', id] as const,
+  stats: () => [...codingKeys.all, 'stats'] as const,
+  metrics: () => [...codingKeys.all, 'metrics'] as const,
 };
 
 // ============================================================================
@@ -60,6 +80,37 @@ export function useCodingSessions(filters?: CodingFilters) {
   });
 }
 
+export function useCodingSession(id: string) {
+  return useQuery({
+    queryKey: codingKeys.detail(id),
+    queryFn: async () => {
+      const { data } = await api.get<CodingSession>(`/ai/coding/sessions/${id}`);
+      return data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCodingStats() {
+  return useQuery({
+    queryKey: codingKeys.stats(),
+    queryFn: async () => {
+      const { data } = await api.get<CodingStats>('/ai/coding/stats');
+      return data;
+    },
+  });
+}
+
+export function useCodingMetrics() {
+  return useQuery({
+    queryKey: codingKeys.metrics(),
+    queryFn: async () => {
+      const { data } = await api.get<CodingMetricPoint[]>('/ai/coding/metrics');
+      return data;
+    },
+  });
+}
+
 export function useGenerateCodes() {
   const qc = useQueryClient();
   return useMutation({
@@ -69,6 +120,7 @@ export function useGenerateCodes() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: codingKeys.lists() });
+      qc.invalidateQueries({ queryKey: codingKeys.stats() });
     },
   });
 }
@@ -93,6 +145,7 @@ export function useUpdateCodeStatus() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: codingKeys.lists() });
+      qc.invalidateQueries({ queryKey: codingKeys.stats() });
     },
   });
 }
@@ -102,6 +155,20 @@ export function useBatchCoding() {
   return useMutation({
     mutationFn: async (encounterIds: string[]) => {
       const { data } = await api.post<{ sessions: CodingSession[] }>('/ai/coding/batch', { encounterIds });
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: codingKeys.lists() });
+      qc.invalidateQueries({ queryKey: codingKeys.stats() });
+    },
+  });
+}
+
+export function useReviewCodingSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (sessionId: string) => {
+      const { data } = await api.post<CodingSession>(`/ai/coding/sessions/${sessionId}/review`);
       return data;
     },
     onSuccess: () => {

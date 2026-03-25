@@ -38,6 +38,16 @@ import { AiImagingController } from './ai-imaging/ai-imaging.controller';
 import { AiImagingService } from './ai-imaging/ai-imaging.service';
 import { AiRevolutionaryController } from './ai-revolutionary/ai-revolutionary.controller';
 import { AiRevolutionaryService } from './ai-revolutionary/ai-revolutionary.service';
+import { ImagingAnalysisController } from './imaging-analysis/imaging-analysis.controller';
+import { ImagingAnalysisService } from './imaging-analysis/imaging-analysis.service';
+import { ClinicalDecisionController } from './clinical-decision/clinical-decision.controller';
+import { ClinicalDecisionService } from './clinical-decision/clinical-decision.service';
+import { PredictiveAnalyticsController } from './predictive-analytics/predictive-analytics.controller';
+import { PredictiveAnalyticsService } from './predictive-analytics/predictive-analytics.service';
+import { VoiceNlpController } from './voice-nlp/voice-nlp.controller';
+import { VoiceNlpService } from './voice-nlp/voice-nlp.service';
+import { AdvancedAiController } from './advanced/advanced-ai.controller';
+import { AdvancedAiService } from './advanced/advanced-ai.service';
 
 @Module({
   imports: [ConfigModule],
@@ -50,6 +60,11 @@ import { AiRevolutionaryService } from './ai-revolutionary/ai-revolutionary.serv
     NlpController,
     AiImagingController,
     AiRevolutionaryController,
+    ImagingAnalysisController,
+    ClinicalDecisionController,
+    PredictiveAnalyticsController,
+    VoiceNlpController,
+    AdvancedAiController,
   ],
   providers: [
     OpenAiProvider,
@@ -81,6 +96,11 @@ import { AiRevolutionaryService } from './ai-revolutionary/ai-revolutionary.serv
     NlpService,
     AiImagingService,
     AiRevolutionaryService,
+    ImagingAnalysisService,
+    ClinicalDecisionService,
+    PredictiveAnalyticsService,
+    AdvancedAiService,
+    VoiceNlpService,
   ],
   exports: [
     GeminiProvider,
@@ -110,6 +130,11 @@ import { AiRevolutionaryService } from './ai-revolutionary/ai-revolutionary.serv
     NlpService,
     AiImagingService,
     AiRevolutionaryService,
+    ImagingAnalysisService,
+    ClinicalDecisionService,
+    PredictiveAnalyticsService,
+    AdvancedAiService,
+    VoiceNlpService,
   ],
 })
 export class AiModule {}

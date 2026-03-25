@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Activity,
   Brain,
@@ -11,6 +11,10 @@ import {
   CheckCircle2,
   Plus,
   TrendingUp,
+  PersonStanding,
+  Timer,
+  RotateCcw,
+  BedDouble,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,6 +47,7 @@ import {
   type CatheterBundle,
 } from '@/services/nursing-enhanced.service';
 import api from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -1591,6 +1596,15 @@ export default function NursingEnhancedPage() {
           <TabsTrigger value="bundles" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400 text-xs">
             Bundles
           </TabsTrigger>
+          <TabsTrigger value="morse" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400 text-xs">
+            Morse (Queda)
+          </TabsTrigger>
+          <TabsTrigger value="braden" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400 text-xs">
+            Braden (LP)
+          </TabsTrigger>
+          <TabsTrigger value="repositioning" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400 text-xs">
+            Mudanca Decubito
+          </TabsTrigger>
           <TabsTrigger value="ai-fall" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-gray-400 text-xs">
             IA Queda
           </TabsTrigger>
@@ -1629,6 +1643,15 @@ export default function NursingEnhancedPage() {
         <TabsContent value="bundles">
           <BundlesTab />
         </TabsContent>
+        <TabsContent value="morse">
+          <MorseFallRiskTab />
+        </TabsContent>
+        <TabsContent value="braden">
+          <BradenScaleTab />
+        </TabsContent>
+        <TabsContent value="repositioning">
+          <RepositioningTab />
+        </TabsContent>
         <TabsContent value="ai-fall">
           <AiFallRiskTab />
         </TabsContent>
@@ -1642,6 +1665,590 @@ export default function NursingEnhancedPage() {
           <WorkScheduleTab />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ============================================================================
+// Morse Fall Risk Scale Calculator
+// ============================================================================
+
+const MORSE_ITEMS = [
+  {
+    key: 'history',
+    label: 'Historia de queda (ultimos 3 meses)',
+    options: [
+      { value: 0, label: 'Nao' },
+      { value: 25, label: 'Sim' },
+    ],
+  },
+  {
+    key: 'diagnosis',
+    label: 'Diagnostico secundario',
+    options: [
+      { value: 0, label: 'Nao' },
+      { value: 15, label: 'Sim' },
+    ],
+  },
+  {
+    key: 'ambulatory',
+    label: 'Auxilio na deambulacao',
+    options: [
+      { value: 0, label: 'Nenhum / Acamado / Cadeira de rodas' },
+      { value: 15, label: 'Muleta / Bengala / Andador' },
+      { value: 30, label: 'Apoia-se nos moveis' },
+    ],
+  },
+  {
+    key: 'iv',
+    label: 'Terapia IV / Dispositivo heparinizado',
+    options: [
+      { value: 0, label: 'Nao' },
+      { value: 20, label: 'Sim' },
+    ],
+  },
+  {
+    key: 'gait',
+    label: 'Marcha',
+    options: [
+      { value: 0, label: 'Normal / Acamado / Cadeira' },
+      { value: 10, label: 'Fraca' },
+      { value: 20, label: 'Comprometida / Cambaleante' },
+    ],
+  },
+  {
+    key: 'mental',
+    label: 'Estado mental',
+    options: [
+      { value: 0, label: 'Orientado / Capaz de avaliar capacidade' },
+      { value: 15, label: 'Superestima capacidade / Esquece limitacoes' },
+    ],
+  },
+];
+
+function MorseFallRiskTab() {
+  const [scores, setScores] = useState<Record<string, number>>({});
+
+  const totalScore = Object.values(scores).reduce((sum, v) => sum + v, 0);
+  const riskLevel = totalScore >= 45 ? 'ALTO' : totalScore >= 25 ? 'MODERADO' : 'BAIXO';
+  const riskColor = riskLevel === 'ALTO' ? 'text-red-400' : riskLevel === 'MODERADO' ? 'text-yellow-400' : 'text-green-400';
+  const riskBg = riskLevel === 'ALTO' ? 'bg-red-500/20 border-red-500/50' : riskLevel === 'MODERADO' ? 'bg-yellow-500/20 border-yellow-500/50' : 'bg-green-500/20 border-green-500/50';
+  const allAnswered = MORSE_ITEMS.every((item) => scores[item.key] !== undefined);
+
+  const handleSave = () => {
+    toast.success(`Morse registrado: ${totalScore} pontos (${riskLevel})`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-[#12121a] border-gray-800">
+        <CardHeader>
+          <CardTitle className="text-white text-sm flex items-center gap-2">
+            <PersonStanding className="h-4 w-4 text-orange-400" />
+            Escala de Morse — Risco de Queda
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {MORSE_ITEMS.map((item) => (
+            <div key={item.key} className="space-y-2">
+              <Label className="text-gray-300 text-xs font-medium">{item.label}</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {item.options.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setScores((prev) => ({ ...prev, [item.key]: opt.value }))}
+                    className={cn(
+                      'rounded-lg border p-2.5 text-xs text-left transition-all',
+                      scores[item.key] === opt.value
+                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
+                        : 'border-gray-700 bg-[#0a0a0f] text-gray-400 hover:border-gray-500',
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{opt.label}</span>
+                      <Badge variant="outline" className="text-[10px] ml-2 shrink-0 border-gray-600">
+                        {opt.value}
+                      </Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Result */}
+      {allAnswered && (
+        <Card className={cn('border', riskBg)}>
+          <CardContent className="p-5 text-center space-y-3">
+            <p className="text-xs text-gray-400 uppercase tracking-wider">Pontuacao Morse</p>
+            <p className={cn('text-5xl font-bold tabular-nums', riskColor)}>{totalScore}</p>
+            <Badge className={cn('text-sm px-4 py-1', riskBg, riskColor)}>
+              Risco {riskLevel}
+            </Badge>
+            <div className="text-xs text-gray-400 space-y-1 text-left max-w-md mx-auto mt-4">
+              <p className="font-medium text-gray-300">Intervencoes recomendadas:</p>
+              {riskLevel === 'BAIXO' && <p>- Cuidados universais de prevencao</p>}
+              {riskLevel === 'MODERADO' && (
+                <>
+                  <p>- Implementar protocolo de prevencao de queda</p>
+                  <p>- Orientar paciente e acompanhante</p>
+                  <p>- Grades laterais elevadas</p>
+                </>
+              )}
+              {riskLevel === 'ALTO' && (
+                <>
+                  <p>- Todas as medidas do risco moderado</p>
+                  <p>- Pulseira de identificacao amarela</p>
+                  <p>- Sinalizar leito e prontuario</p>
+                  <p>- Reavaliar medicamentos sedativos</p>
+                  <p>- Acompanhante 24h</p>
+                  <p>- Cama na posicao mais baixa</p>
+                </>
+              )}
+            </div>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white mt-2" onClick={handleSave}>
+              Registrar Avaliacao Morse
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reference Table */}
+      <Card className="bg-[#12121a] border-gray-800">
+        <CardContent className="pt-4">
+          <p className="text-xs font-medium text-gray-400 mb-3">Classificacao de Risco</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg bg-green-500/10 border border-green-500/30 p-3 text-center">
+              <p className="text-lg font-bold text-green-400">0 — 24</p>
+              <p className="text-xs text-green-400">Baixo Risco</p>
+            </div>
+            <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/30 p-3 text-center">
+              <p className="text-lg font-bold text-yellow-400">25 — 44</p>
+              <p className="text-xs text-yellow-400">Risco Moderado</p>
+            </div>
+            <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-center">
+              <p className="text-lg font-bold text-red-400">{'>'} 45</p>
+              <p className="text-xs text-red-400">Alto Risco</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================================
+// Braden Pressure Injury Scale Calculator
+// ============================================================================
+
+const BRADEN_ITEMS = [
+  {
+    key: 'sensory',
+    label: 'Percepcao Sensorial',
+    desc: 'Capacidade de responder significativamente a pressao',
+    options: [
+      { value: 1, label: 'Totalmente limitado', desc: 'Nao responde a estimulos dolorosos' },
+      { value: 2, label: 'Muito limitado', desc: 'Responde apenas a estimulos dolorosos' },
+      { value: 3, label: 'Levemente limitado', desc: 'Responde a comandos verbais, mas nem sempre' },
+      { value: 4, label: 'Nenhuma limitacao', desc: 'Responde a comandos verbais adequadamente' },
+    ],
+  },
+  {
+    key: 'moisture',
+    label: 'Umidade',
+    desc: 'Grau de exposicao da pele a umidade',
+    options: [
+      { value: 1, label: 'Constantemente umida', desc: 'Pele mantida umida quase constantemente' },
+      { value: 2, label: 'Muito umida', desc: 'Pele frequentemente mas nem sempre umida' },
+      { value: 3, label: 'Ocasionalmente umida', desc: 'Troca de roupa 1x extra por dia' },
+      { value: 4, label: 'Raramente umida', desc: 'Pele geralmente seca, troca em intervalos rotina' },
+    ],
+  },
+  {
+    key: 'activity',
+    label: 'Atividade',
+    desc: 'Grau de atividade fisica',
+    options: [
+      { value: 1, label: 'Acamado', desc: 'Confinado ao leito' },
+      { value: 2, label: 'Confinado a cadeira', desc: 'Anda ocasionalmente durante o dia' },
+      { value: 3, label: 'Anda ocasionalmente', desc: 'Anda distancias curtas sem assistencia' },
+      { value: 4, label: 'Anda frequentemente', desc: 'Anda fora do quarto pelo menos 2x/dia' },
+    ],
+  },
+  {
+    key: 'mobility',
+    label: 'Mobilidade',
+    desc: 'Capacidade de mudar e controlar posicao corporal',
+    options: [
+      { value: 1, label: 'Totalmente imobilizado', desc: 'Nao faz nem leves mudancas de posicao' },
+      { value: 2, label: 'Bastante limitado', desc: 'Faz pequenas mudancas ocasionais' },
+      { value: 3, label: 'Levemente limitado', desc: 'Faz mudancas frequentes mas pequenas' },
+      { value: 4, label: 'Nenhuma limitacao', desc: 'Faz mudancas maiores e frequentes sem assistencia' },
+    ],
+  },
+  {
+    key: 'nutrition',
+    label: 'Nutricao',
+    desc: 'Padrao usual de ingestao alimentar',
+    options: [
+      { value: 1, label: 'Muito pobre', desc: 'Nunca come refeicao completa. Raramente 1/3 da oferta' },
+      { value: 2, label: 'Provavelmente inadequada', desc: 'Come cerca de metade da oferta' },
+      { value: 3, label: 'Adequada', desc: 'Come mais da metade da maioria das refeicoes' },
+      { value: 4, label: 'Excelente', desc: 'Come a maioria das refeicoes integralmente' },
+    ],
+  },
+  {
+    key: 'friction',
+    label: 'Friccao e Cisalhamento',
+    desc: 'Dificuldade ao movimentar-se',
+    options: [
+      { value: 1, label: 'Problema', desc: 'Requer assistencia moderada a maxima' },
+      { value: 2, label: 'Problema potencial', desc: 'Move-se com dificuldade, escorrega' },
+      { value: 3, label: 'Nenhum problema aparente', desc: 'Move-se independentemente na cama/cadeira' },
+    ],
+  },
+];
+
+function BradenScaleTab() {
+  const [scores, setScores] = useState<Record<string, number>>({});
+
+  const totalScore = Object.values(scores).reduce((sum, v) => sum + v, 0);
+  const maxScore = 23;
+  const allAnswered = BRADEN_ITEMS.every((item) => scores[item.key] !== undefined);
+
+  const riskLevel = totalScore <= 9 ? 'MUITO ALTO' : totalScore <= 12 ? 'ALTO' : totalScore <= 14 ? 'MODERADO' : totalScore <= 18 ? 'BAIXO' : 'SEM RISCO';
+  const riskColor =
+    riskLevel === 'MUITO ALTO' ? 'text-red-500' :
+    riskLevel === 'ALTO' ? 'text-red-400' :
+    riskLevel === 'MODERADO' ? 'text-orange-400' :
+    riskLevel === 'BAIXO' ? 'text-yellow-400' :
+    'text-green-400';
+  const riskBorder =
+    riskLevel === 'MUITO ALTO' || riskLevel === 'ALTO' ? 'border-red-500/50 bg-red-500/10' :
+    riskLevel === 'MODERADO' ? 'border-orange-500/50 bg-orange-500/10' :
+    riskLevel === 'BAIXO' ? 'border-yellow-500/50 bg-yellow-500/10' :
+    'border-green-500/50 bg-green-500/10';
+
+  const handleSave = () => {
+    toast.success(`Braden registrado: ${totalScore} pontos (${riskLevel})`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-[#12121a] border-gray-800">
+        <CardHeader>
+          <CardTitle className="text-white text-sm flex items-center gap-2">
+            <BedDouble className="h-4 w-4 text-purple-400" />
+            Escala de Braden — Risco de Lesao por Pressao
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {BRADEN_ITEMS.map((item) => (
+            <div key={item.key} className="space-y-2">
+              <div>
+                <Label className="text-gray-300 text-xs font-medium">{item.label}</Label>
+                <p className="text-[10px] text-gray-500">{item.desc}</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                {item.options.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setScores((prev) => ({ ...prev, [item.key]: opt.value }))}
+                    className={cn(
+                      'rounded-lg border p-2.5 text-left transition-all',
+                      scores[item.key] === opt.value
+                        ? 'border-emerald-500 bg-emerald-500/10'
+                        : 'border-gray-700 bg-[#0a0a0f] hover:border-gray-500',
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={cn('text-xs font-medium', scores[item.key] === opt.value ? 'text-emerald-300' : 'text-gray-300')}>
+                        {opt.label}
+                      </span>
+                      <Badge variant="outline" className="text-[10px] border-gray-600 shrink-0">
+                        {opt.value}
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-gray-500">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Result */}
+      {allAnswered && (
+        <Card className={cn('border', riskBorder)}>
+          <CardContent className="p-5 text-center space-y-3">
+            <p className="text-xs text-gray-400 uppercase tracking-wider">Pontuacao Braden</p>
+            <p className={cn('text-5xl font-bold tabular-nums', riskColor)}>{totalScore}</p>
+            <p className="text-xs text-gray-500">de {maxScore} pontos (menor = maior risco)</p>
+            <Badge className={cn('text-sm px-4 py-1', riskBorder, riskColor)}>
+              Risco {riskLevel}
+            </Badge>
+            <div className="text-xs text-gray-400 space-y-1 text-left max-w-md mx-auto mt-4">
+              <p className="font-medium text-gray-300">Intervencoes recomendadas:</p>
+              {(riskLevel === 'MUITO ALTO' || riskLevel === 'ALTO') && (
+                <>
+                  <p>- Colchao pneumatico de pressao alternada</p>
+                  <p>- Mudanca de decubito a cada 2 horas</p>
+                  <p>- Superficie de redistribuicao de pressao</p>
+                  <p>- Avaliacao nutricional diaria</p>
+                  <p>- Protecao de proeminencias osseas</p>
+                  <p>- Hidratacao da pele com AGE</p>
+                </>
+              )}
+              {riskLevel === 'MODERADO' && (
+                <>
+                  <p>- Mudanca de decubito a cada 2 horas</p>
+                  <p>- Colchao de densidade adequada</p>
+                  <p>- Protecao de proeminencias osseas</p>
+                  <p>- Avaliacao nutricional</p>
+                </>
+              )}
+              {riskLevel === 'BAIXO' && (
+                <>
+                  <p>- Cuidados preventivos basicos</p>
+                  <p>- Estimular mobilidade</p>
+                  <p>- Manter pele hidratada</p>
+                </>
+              )}
+            </div>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white mt-2" onClick={handleSave}>
+              Registrar Avaliacao Braden
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reference Scale */}
+      <Card className="bg-[#12121a] border-gray-800">
+        <CardContent className="pt-4">
+          <p className="text-xs font-medium text-gray-400 mb-3">Classificacao de Risco Braden</p>
+          <div className="grid grid-cols-5 gap-2">
+            {[
+              { range: '<= 9', level: 'Muito Alto', color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/30' },
+              { range: '10-12', level: 'Alto', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
+              { range: '13-14', level: 'Moderado', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/30' },
+              { range: '15-18', level: 'Baixo', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/30' },
+              { range: '19-23', level: 'Sem Risco', color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
+            ].map((r) => (
+              <div key={r.range} className={cn('rounded-lg border p-2 text-center', r.bg)}>
+                <p className={cn('text-sm font-bold', r.color)}>{r.range}</p>
+                <p className={cn('text-[10px]', r.color)}>{r.level}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================================
+// Repositioning / Mudanca de Decubito Timer
+// ============================================================================
+
+interface RepositioningRecord {
+  id: string;
+  position: string;
+  time: Date;
+  notes: string;
+}
+
+const POSITIONS = [
+  { key: 'DD', label: 'Decubito Dorsal', icon: '↑' },
+  { key: 'DLD', label: 'Decubito Lateral D', icon: '→' },
+  { key: 'DLE', label: 'Decubito Lateral E', icon: '←' },
+  { key: 'FOWLER', label: 'Fowler (45 graus)', icon: '↗' },
+  { key: 'SEMI_FOWLER', label: 'Semi-Fowler (30 graus)', icon: '↗' },
+  { key: 'VENTRAL', label: 'Decubito Ventral (Prona)', icon: '↓' },
+];
+
+function RepositioningTab() {
+  const [records, setRecords] = useState<RepositioningRecord[]>([]);
+  const [currentPosition, setCurrentPosition] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(0);
+  const [intervalHours, setIntervalHours] = useState(2);
+  const [notes, setNotes] = useState('');
+  const [isTimerActive, setIsTimerActive] = useState(false);
+
+  const targetSeconds = intervalHours * 3600;
+
+  useEffect(() => {
+    if (!isTimerActive || countdown <= 0) return;
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          toast.warning('Hora de mudar o decubito!', { duration: 10000 });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isTimerActive, countdown]);
+
+  const handlePositionChange = useCallback((posKey: string) => {
+    const record: RepositioningRecord = {
+      id: `repo-${Date.now()}`,
+      position: posKey,
+      time: new Date(),
+      notes,
+    };
+    setRecords((prev) => [record, ...prev]);
+    setCurrentPosition(posKey);
+    setCountdown(targetSeconds);
+    setIsTimerActive(true);
+    setNotes('');
+    toast.success(`Posicao registrada: ${POSITIONS.find((p) => p.key === posKey)?.label ?? posKey}`);
+  }, [notes, targetSeconds]);
+
+  const formatCountdown = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const progressPercent = targetSeconds > 0 ? ((targetSeconds - countdown) / targetSeconds) * 100 : 0;
+  const isUrgent = countdown > 0 && countdown < 600; // less than 10 min
+
+  return (
+    <div className="space-y-4">
+      {/* Timer Card */}
+      <Card className={cn('border-2', isUrgent ? 'bg-red-950/20 border-red-500/50 animate-pulse' : countdown === 0 && isTimerActive ? 'bg-red-950/30 border-red-500' : 'bg-[#12121a] border-gray-800')}>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className={cn('flex h-12 w-12 items-center justify-center rounded-full',
+                isUrgent ? 'bg-red-500/20' : 'bg-emerald-500/20',
+              )}>
+                <RotateCcw className={cn('h-6 w-6', isUrgent ? 'text-red-400' : 'text-emerald-400')} />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-white">Mudanca de Decubito</h3>
+                {currentPosition && (
+                  <p className="text-xs text-gray-400">
+                    Posicao atual: <span className="text-emerald-400 font-medium">{POSITIONS.find((p) => p.key === currentPosition)?.label}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="text-right">
+              {isTimerActive ? (
+                <>
+                  <p className={cn('font-mono text-3xl font-bold tabular-nums', countdown === 0 ? 'text-red-400 animate-pulse' : isUrgent ? 'text-red-400' : 'text-emerald-400')}>
+                    {countdown === 0 ? 'MUDAR AGORA' : formatCountdown(countdown)}
+                  </p>
+                  <p className="text-xs text-gray-500">Proximo reposicionamento</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">Selecione uma posicao para iniciar</p>
+              )}
+            </div>
+          </div>
+
+          {isTimerActive && (
+            <div className="h-3 rounded-full bg-gray-800 overflow-hidden mb-4">
+              <div
+                className={cn('h-full rounded-full transition-all duration-1000',
+                  countdown === 0 ? 'bg-red-500' : isUrgent ? 'bg-orange-500' : 'bg-emerald-500',
+                )}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          )}
+
+          {/* Interval Selector */}
+          <div className="flex items-center gap-4 mb-4">
+            <Label className="text-xs text-gray-400 shrink-0">Intervalo:</Label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4].map((h) => (
+                <button
+                  key={h}
+                  onClick={() => setIntervalHours(h)}
+                  className={cn(
+                    'rounded-lg border px-3 py-1.5 text-xs transition-colors',
+                    intervalHours === h
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                      : 'border-gray-700 text-gray-400 hover:border-gray-500',
+                  )}
+                >
+                  {h}h
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Position Buttons */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {POSITIONS.map((pos) => (
+              <button
+                key={pos.key}
+                onClick={() => handlePositionChange(pos.key)}
+                className={cn(
+                  'rounded-lg border p-3 text-center transition-all hover:scale-[1.02]',
+                  currentPosition === pos.key
+                    ? 'border-emerald-500 bg-emerald-500/10'
+                    : 'border-gray-700 bg-[#0a0a0f] hover:border-gray-500',
+                )}
+              >
+                <div className="text-2xl mb-1">{pos.icon}</div>
+                <p className={cn('text-[10px]', currentPosition === pos.key ? 'text-emerald-300' : 'text-gray-400')}>
+                  {pos.label}
+                </p>
+              </button>
+            ))}
+          </div>
+
+          {/* Notes */}
+          <div className="mt-3 space-y-1">
+            <Label className="text-xs text-gray-400">Observacoes (proeminencias, integridade da pele)</Label>
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Hiperemia em sacro, curativo em calcanhares..."
+              className="bg-[#0a0a0f] border-gray-700 text-white text-xs"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* History */}
+      {records.length > 0 && (
+        <Card className="bg-[#12121a] border-gray-800">
+          <CardHeader>
+            <CardTitle className="text-white text-sm flex items-center gap-2">
+              <Timer className="h-4 w-4 text-blue-400" />
+              Historico de Mudancas ({records.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {records.map((rec) => {
+                const pos = POSITIONS.find((p) => p.key === rec.position);
+                return (
+                  <div key={rec.id} className="flex items-center gap-3 p-2 rounded-lg bg-[#0a0a0f] border border-gray-800">
+                    <div className="text-lg w-8 text-center">{pos?.icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-300">{pos?.label}</p>
+                      {rec.notes && <p className="text-[10px] text-gray-500 truncate">{rec.notes}</p>}
+                    </div>
+                    <span className="text-[10px] text-gray-500 font-mono tabular-nums shrink-0">
+                      {rec.time.toLocaleTimeString('pt-BR')}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

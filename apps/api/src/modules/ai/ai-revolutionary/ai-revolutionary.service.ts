@@ -15,6 +15,7 @@ import {
   InboxManagementResponseDto,
   PriorAuthAgentResponseDto,
   IntelligentReferralResponseDto,
+  RevolutionaryMetricsResponseDto,
 } from './dto/ai-revolutionary.dto';
 
 @Injectable()
@@ -117,6 +118,159 @@ export class AiRevolutionaryService {
     };
   }
 
+  // ─── Mortality Prediction ────────────────────────────────────────────────
+
+  async predictMortality(
+    _tenantId: string,
+    patientId: string,
+    _admissionId?: string,
+  ): Promise<MortalityPredictionResponseDto> {
+    this.logger.log(`Predicting mortality for patient ${patientId}`);
+
+    return {
+      patientId,
+      riskScore: 0.18,
+      riskLevel: 'MODERADO',
+      contributingFactors: [
+        'Idade > 75 anos',
+        'Insuficiência renal crônica estágio 3B',
+        'Pneumonia comunitária com CURB-65 = 3',
+        'Albumina sérica < 3.0 g/dL',
+      ],
+      suggestedInterventions: [
+        'Monitorização intensiva nas próximas 48h',
+        'Avaliação nutricional e suplementação',
+        'Considerar interconsulta com nefrologia',
+        'Discutir diretivas antecipadas de vontade com família',
+      ],
+      palliativeCareRecommended: false,
+      aiModel: 'gpt-4o',
+      calculatedAt: new Date(),
+    };
+  }
+
+  // ─── Digital Twin ────────────────────────────────────────────────────────
+
+  async digitalTwin(
+    _tenantId: string,
+    patientId: string,
+    scenario?: string,
+    _treatmentOptions?: string[],
+  ): Promise<DigitalTwinResponseDto> {
+    this.logger.log(`Digital twin simulation for patient ${patientId}`);
+
+    return {
+      patientId,
+      scenario: scenario ?? 'Controle glicêmico em DM2',
+      simulations: [
+        {
+          treatment: 'Manter metformina 850mg 2x/dia',
+          predictedOutcome: 'HbA1c estimada em 6 meses: 7.8%',
+          probability: 0.65,
+          timeToEffect: '3-6 meses',
+          sideEffects: ['Intolerância GI (15%)', 'Deficiência B12 (5%)'],
+        },
+        {
+          treatment: 'Adicionar empagliflozina 25mg/dia',
+          predictedOutcome: 'HbA1c estimada em 6 meses: 7.0%',
+          probability: 0.72,
+          timeToEffect: '2-4 meses',
+          sideEffects: ['ITU (8%)', 'Candidíase genital (5%)', 'Proteção cardiovascular (+)'],
+        },
+        {
+          treatment: 'Adicionar insulina glargina 10UI/dia',
+          predictedOutcome: 'HbA1c estimada em 6 meses: 6.5%',
+          probability: 0.80,
+          timeToEffect: '1-3 meses',
+          sideEffects: ['Hipoglicemia (12%)', 'Ganho de peso (75%)', 'Lipodistrofia (3%)'],
+        },
+      ],
+      optimalStrategy:
+        'Considerando perfil cardiovascular e preferência por via oral: adicionar empagliflozina. ' +
+        'Melhor equilíbrio risco-benefício com proteção cardiorrenal adicional.',
+      aiModel: 'gpt-4o',
+    };
+  }
+
+  // ─── Conversational BI ───────────────────────────────────────────────────
+
+  async conversationalBi(
+    _tenantId: string,
+    question: string,
+    _startDate?: string,
+    _endDate?: string,
+  ): Promise<ConversationalBiResponseDto> {
+    this.logger.log(`Conversational BI: "${question.slice(0, 80)}"`);
+
+    return {
+      question,
+      sqlGenerated: `SELECT COUNT(*) as total, diagnosis_code, diagnosis_name
+FROM admissions a
+JOIN encounters e ON e.id = a.encounter_id
+WHERE a.admission_date >= '2025-10-01'
+  AND diagnosis_code LIKE 'E11%'
+GROUP BY diagnosis_code, diagnosis_name
+ORDER BY total DESC`,
+      answer: 'No último trimestre, foram internados 47 pacientes diabéticos tipo 2, representando 12.3% do total de internações. A média de permanência foi de 6.2 dias, acima da meta de 5 dias.',
+      chartType: 'bar',
+      chartData: [
+        { month: 'Outubro', total: 18 },
+        { month: 'Novembro', total: 15 },
+        { month: 'Dezembro', total: 14 },
+      ],
+      summary: '47 diabéticos internados no último trimestre, tendência de queda.',
+      aiModel: 'gpt-4o',
+    };
+  }
+
+  // ─── Multimodal Analysis ─────────────────────────────────────────────────
+
+  async multimodalAnalysis(
+    _tenantId: string,
+    patientId: string,
+    _clinicalText?: string,
+    _imageUrls?: string[],
+    _labSummary?: string,
+    _voiceTranscript?: string,
+  ): Promise<MultimodalAnalysisResponseDto> {
+    this.logger.log(`Multimodal analysis for patient ${patientId}`);
+
+    return {
+      patientId,
+      integratedInsight:
+        'Análise integrada sugere quadro compatível com pneumonia comunitária de gravidade moderada (CURB-65=2). ' +
+        'Imagem com consolidação em base D, laboratório com leucocitose e PCR elevada, ' +
+        'relato verbal de febre há 3 dias com tosse produtiva.',
+      textFindings: [
+        'Queixa de febre, tosse produtiva e dispneia há 3 dias',
+        'Antecedente de DPOC',
+      ],
+      imageFindings: [
+        'Consolidação em base pulmonar direita',
+        'Derrame pleural laminar à direita',
+      ],
+      labFindings: [
+        'Leucocitose (14.500/mm³) com desvio à esquerda',
+        'PCR: 120 mg/L',
+        'Procalcitonina: 2.1 ng/mL',
+      ],
+      voiceFindings: [
+        'Paciente refere piora progressiva da dispneia',
+        'Nega contato com tuberculose',
+      ],
+      synthesizedConclusion:
+        'Pneumonia adquirida na comunidade com critérios de internação (CURB-65=2). ' +
+        'Consolidação confirmada por imagem com correlação laboratorial infecciosa bacteriana.',
+      suggestedActions: [
+        'Internação hospitalar',
+        'Iniciar ceftriaxona 2g IV + azitromicina 500mg IV',
+        'Solicitar hemocultura e cultura de escarro',
+        'Oxigenioterapia suplementar se SpO2 < 92%',
+      ],
+      aiModel: 'gpt-4o-multimodal',
+    };
+  }
+
   // ─── ECG Interpretation ──────────────────────────────────────────────────
 
   async interpretEcg(
@@ -185,68 +339,6 @@ export class AiRevolutionaryService {
     };
   }
 
-  // ─── Mortality Prediction ────────────────────────────────────────────────
-
-  async predictMortality(
-    _tenantId: string,
-    patientId: string,
-    _admissionId?: string,
-  ): Promise<MortalityPredictionResponseDto> {
-    this.logger.log(`Predicting mortality for patient ${patientId}`);
-
-    return {
-      patientId,
-      riskScore: 0.18,
-      riskLevel: 'MODERADO',
-      contributingFactors: [
-        'Idade > 75 anos',
-        'Insuficiência renal crônica estágio 3B',
-        'Pneumonia comunitária com CURB-65 = 3',
-        'Albumina sérica < 3.0 g/dL',
-      ],
-      suggestedInterventions: [
-        'Monitorização intensiva nas próximas 48h',
-        'Avaliação nutricional e suplementação',
-        'Considerar interconsulta com nefrologia',
-        'Discutir diretivas antecipadas de vontade com família',
-      ],
-      palliativeCareRecommended: false,
-      aiModel: 'gpt-4o',
-      calculatedAt: new Date(),
-    };
-  }
-
-  // ─── Conversational BI ───────────────────────────────────────────────────
-
-  async conversationalBi(
-    _tenantId: string,
-    question: string,
-    _startDate?: string,
-    _endDate?: string,
-  ): Promise<ConversationalBiResponseDto> {
-    this.logger.log(`Conversational BI: "${question.slice(0, 80)}"`);
-
-    return {
-      question,
-      sqlGenerated: `SELECT COUNT(*) as total, diagnosis_code, diagnosis_name
-FROM admissions a
-JOIN encounters e ON e.id = a.encounter_id
-WHERE a.admission_date >= '2025-10-01'
-  AND diagnosis_code LIKE 'E11%'
-GROUP BY diagnosis_code, diagnosis_name
-ORDER BY total DESC`,
-      answer: 'No último trimestre, foram internados 47 pacientes diabéticos tipo 2, representando 12.3% do total de internações. A média de permanência foi de 6.2 dias, acima da meta de 5 dias.',
-      chartType: 'bar',
-      chartData: [
-        { month: 'Outubro', total: 18 },
-        { month: 'Novembro', total: 15 },
-        { month: 'Dezembro', total: 14 },
-      ],
-      summary: '47 diabéticos internados no último trimestre, tendência de queda.',
-      aiModel: 'gpt-4o',
-    };
-  }
-
   // ─── Genomics-guided Treatment ───────────────────────────────────────────
 
   async genomicsTreatment(
@@ -299,98 +391,7 @@ ORDER BY total DESC`,
     };
   }
 
-  // ─── Digital Twin ────────────────────────────────────────────────────────
-
-  async digitalTwin(
-    _tenantId: string,
-    patientId: string,
-    scenario?: string,
-    _treatmentOptions?: string[],
-  ): Promise<DigitalTwinResponseDto> {
-    this.logger.log(`Digital twin simulation for patient ${patientId}`);
-
-    return {
-      patientId,
-      scenario: scenario ?? 'Controle glicêmico em DM2',
-      simulations: [
-        {
-          treatment: 'Manter metformina 850mg 2x/dia',
-          predictedOutcome: 'HbA1c estimada em 6 meses: 7.8%',
-          probability: 0.65,
-          timeToEffect: '3-6 meses',
-          sideEffects: ['Intolerância GI (15%)', 'Deficiência B12 (5%)'],
-        },
-        {
-          treatment: 'Adicionar empagliflozina 25mg/dia',
-          predictedOutcome: 'HbA1c estimada em 6 meses: 7.0%',
-          probability: 0.72,
-          timeToEffect: '2-4 meses',
-          sideEffects: ['ITU (8%)', 'Candidíase genital (5%)', 'Proteção cardiovascular (+)'],
-        },
-        {
-          treatment: 'Adicionar insulina glargina 10UI/dia',
-          predictedOutcome: 'HbA1c estimada em 6 meses: 6.5%',
-          probability: 0.80,
-          timeToEffect: '1-3 meses',
-          sideEffects: ['Hipoglicemia (12%)', 'Ganho de peso (75%)', 'Lipodistrofia (3%)'],
-        },
-      ],
-      optimalStrategy:
-        'Considerando perfil cardiovascular e preferência por via oral: adicionar empagliflozina. ' +
-        'Melhor equilíbrio risco-benefício com proteção cardiorrenal adicional.',
-      aiModel: 'gpt-4o',
-    };
-  }
-
-  // ─── Multimodal Analysis ─────────────────────────────────────────────────
-
-  async multimodalAnalysis(
-    _tenantId: string,
-    patientId: string,
-    _clinicalText?: string,
-    _imageUrls?: string[],
-    _labSummary?: string,
-    _voiceTranscript?: string,
-  ): Promise<MultimodalAnalysisResponseDto> {
-    this.logger.log(`Multimodal analysis for patient ${patientId}`);
-
-    return {
-      patientId,
-      integratedInsight:
-        'Análise integrada sugere quadro compatível com pneumonia comunitária de gravidade moderada (CURB-65=2). ' +
-        'Imagem com consolidação em base D, laboratório com leucocitose e PCR elevada, ' +
-        'relato verbal de febre há 3 dias com tosse produtiva.',
-      textFindings: [
-        'Queixa de febre, tosse produtiva e dispneia há 3 dias',
-        'Antecedente de DPOC',
-      ],
-      imageFindings: [
-        'Consolidação em base pulmonar direita',
-        'Derrame pleural laminar à direita',
-      ],
-      labFindings: [
-        'Leucocitose (14.500/mm³) com desvio à esquerda',
-        'PCR: 120 mg/L',
-        'Procalcitonina: 2.1 ng/mL',
-      ],
-      voiceFindings: [
-        'Paciente refere piora progressiva da dispneia',
-        'Nega contato com tuberculose',
-      ],
-      synthesizedConclusion:
-        'Pneumonia adquirida na comunidade com critérios de internação (CURB-65=2). ' +
-        'Consolidação confirmada por imagem com correlação laboratorial infecciosa bacteriana.',
-      suggestedActions: [
-        'Internação hospitalar',
-        'Iniciar ceftriaxona 2g IV + azitromicina 500mg IV',
-        'Solicitar hemocultura e cultura de escarro',
-        'Oxigenioterapia suplementar se SpO2 < 92%',
-      ],
-      aiModel: 'gpt-4o-multimodal',
-    };
-  }
-
-  // ─── Autonomous Coding & Billing ─────────────────────────────────────────
+  // ─── Autonomous Coding ───────────────────────────────────────────────────
 
   async autonomousCoding(
     _tenantId: string,
@@ -418,7 +419,7 @@ ORDER BY total DESC`,
     };
   }
 
-  // ─── Post-Visit Follow-up Agent ──────────────────────────────────────────
+  // ─── Post-Visit Follow-up ────────────────────────────────────────────────
 
   async postVisitFollowup(
     _tenantId: string,
@@ -443,7 +444,7 @@ ORDER BY total DESC`,
     };
   }
 
-  // ─── Inbox Management Agent ──────────────────────────────────────────────
+  // ─── Inbox Management ────────────────────────────────────────────────────
 
   async manageInbox(
     _tenantId: string,
@@ -469,13 +470,13 @@ ORDER BY total DESC`,
           messageId: randomUUID(),
           patientName: 'Carlos Mendes',
           subject: 'Dúvida sobre horário da metformina',
-          suggestedResponse: 'Sr. Carlos, a metformina deve ser tomada junto ou logo após as refeições para reduzir desconforto gástrico. Mantenha 850mg no almoço e 850mg no jantar conforme prescrito.',
+          suggestedResponse: 'Sr. Carlos, a metformina deve ser tomada junto ou logo após as refeições para reduzir desconforto gástrico.',
         },
         {
           messageId: randomUUID(),
           patientName: 'Ana Paula Santos',
           subject: 'Renovação de receita de losartana',
-          suggestedResponse: 'Sra. Ana Paula, renovo a receita de Losartana 50mg. A receita digital será enviada para seu e-mail. Lembro que a próxima consulta está agendada para 15/04.',
+          suggestedResponse: 'Sra. Ana Paula, renovo a receita de Losartana 50mg. A receita digital será enviada para seu e-mail.',
         },
       ],
       informational: [
@@ -488,7 +489,7 @@ ORDER BY total DESC`,
     };
   }
 
-  // ─── Prior Authorization Agent ───────────────────────────────────────────
+  // ─── Prior Authorization ─────────────────────────────────────────────────
 
   async priorAuthorization(
     _tenantId: string,
@@ -504,8 +505,7 @@ ORDER BY total DESC`,
       formGenerated: true,
       clinicalJustification:
         'Paciente com diagnóstico de neoplasia maligna de mama (C50.9), confirmado por biópsia (AP: carcinoma ductal invasivo, grau II). ' +
-        'Estadiamento T2N1M0 (IIB). Indicação de quimioterapia neoadjuvante conforme protocolo AC-T seguido de cirurgia. ' +
-        'Fundamentação: Diretriz NCCN Breast Cancer v4.2025, Protocolo CBHPM.',
+        'Estadiamento T2N1M0 (IIB). Indicação de quimioterapia neoadjuvante conforme protocolo AC-T seguido de cirurgia.',
       supportingDocuments: [
         'Laudo anatomopatológico',
         'Estadiamento TNM (TC tórax + abdome + cintilografia óssea)',
@@ -547,6 +547,45 @@ ORDER BY total DESC`,
         'Agradeço a avaliação.\n' +
         'Atenciosamente.',
       urgency: 'PRIORITÁRIO',
+    };
+  }
+
+  // ─── Revolutionary AI Metrics ────────────────────────────────────────────
+
+  async getMetrics(_tenantId: string): Promise<RevolutionaryMetricsResponseDto> {
+    this.logger.log('Generating revolutionary AI metrics');
+
+    return {
+      totalRequests: 2847,
+      byFeature: [
+        { feature: 'DIAGNOSIS_DIFFERENTIAL', requests: 520, avgLatencyMs: 1800, successRate: 0.97 },
+        { feature: 'CLINICAL_PATHWAY', requests: 380, avgLatencyMs: 1200, successRate: 0.99 },
+        { feature: 'MORTALITY_PREDICTION', requests: 210, avgLatencyMs: 900, successRate: 0.98 },
+        { feature: 'DIGITAL_TWIN', requests: 185, avgLatencyMs: 2500, successRate: 0.95 },
+        { feature: 'CONVERSATIONAL_BI', requests: 340, avgLatencyMs: 3200, successRate: 0.93 },
+        { feature: 'MULTIMODAL_ANALYSIS', requests: 165, avgLatencyMs: 4500, successRate: 0.92 },
+        { feature: 'ECG_INTERPRETATION', requests: 290, avgLatencyMs: 1500, successRate: 0.96 },
+        { feature: 'DIGITAL_PATHOLOGY', requests: 95, avgLatencyMs: 5200, successRate: 0.90 },
+        { feature: 'GENOMICS_TREATMENT', requests: 42, avgLatencyMs: 2800, successRate: 0.94 },
+        { feature: 'AUTONOMOUS_CODING', requests: 280, avgLatencyMs: 1100, successRate: 0.97 },
+        { feature: 'INBOX_MANAGEMENT', requests: 150, avgLatencyMs: 800, successRate: 0.99 },
+        { feature: 'PRIOR_AUTH_AGENT', requests: 110, avgLatencyMs: 2200, successRate: 0.91 },
+        { feature: 'INTELLIGENT_REFERRAL', requests: 80, avgLatencyMs: 1600, successRate: 0.96 },
+      ],
+      differentialDiagnosisAccuracy: 0.87,
+      mortalityPredictionAUC: 0.89,
+      digitalTwinSimulations: 185,
+      conversationalBiQueries: 340,
+      clinicianSatisfaction: 4.3,
+      timeSavedHoursPerWeek: 28.5,
+      topFeatures: [
+        { feature: 'Diagnóstico Diferencial', usageCount: 520 },
+        { feature: 'Protocolo Clínico', usageCount: 380 },
+        { feature: 'BI Conversacional', usageCount: 340 },
+        { feature: 'Interpretação de ECG', usageCount: 290 },
+        { feature: 'Codificação Autônoma', usageCount: 280 },
+      ],
+      period: '2026-01 a 2026-03',
     };
   }
 }
