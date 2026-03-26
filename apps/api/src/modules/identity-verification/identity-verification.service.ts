@@ -5,19 +5,19 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { VerifyIdentityDto, VerificationType } from './identity-verification.dto';
 
-interface LivenessResult {
+export interface LivenessResult {
   isLive: boolean;
   confidence: number;
   antiSpoofScore: number;
 }
 
-interface FaceMatchResult {
+export interface FaceMatchResult {
   isMatch: boolean;
   similarity: number;
   threshold: number;
 }
 
-interface VerificationResult {
+export interface VerificationResult {
   id: string;
   patientId: string;
   verificationType: VerificationType;
@@ -28,7 +28,7 @@ interface VerificationResult {
   documentId: string;
 }
 
-interface VerificationStatus {
+export interface VerificationStatus {
   patientId: string;
   isVerified: boolean;
   lastVerification: VerificationResult | null;

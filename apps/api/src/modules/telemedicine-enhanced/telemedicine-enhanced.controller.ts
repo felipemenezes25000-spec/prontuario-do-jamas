@@ -29,6 +29,7 @@ import {
   RequestDoctorConsultDto,
   AddParticipantDto,
 } from './telemedicine-enhanced.dto';
+import { SendChatMessageDto } from './dto/telemedicine-chat.dto';
 
 @ApiTags('Telemedicine — Enhanced')
 @ApiBearerAuth('access-token')
@@ -207,6 +208,49 @@ export class TelemedicineEnhancedController {
     @Param('roomName') roomName: string,
   ) {
     return this.service.listParticipants(tenantId, roomName);
+  }
+
+  // Text Chat
+  @Post('session/:sessionId/chat')
+  @ApiOperation({ summary: 'Send text chat message in a teleconsultation session' })
+  @ApiParam({ name: 'sessionId', description: 'Teleconsultation session UUID' })
+  async sendChatMessage(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Body() dto: SendChatMessageDto,
+  ) {
+    return this.service.sendChatMessage(tenantId, sessionId, user.email, dto);
+  }
+
+  @Get('session/:sessionId/chat')
+  @ApiOperation({ summary: 'Get chat history for a teleconsultation session' })
+  @ApiParam({ name: 'sessionId', description: 'Teleconsultation session UUID' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'pageSize', required: false })
+  async getChatHistory(
+    @CurrentTenant() tenantId: string,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.getChatHistory(
+      tenantId,
+      sessionId,
+      page ? parseInt(page, 10) : undefined,
+      pageSize ? parseInt(pageSize, 10) : undefined,
+    );
+  }
+
+  @Patch('session/:sessionId/chat/read')
+  @ApiOperation({ summary: 'Mark all chat messages as read for current user' })
+  @ApiParam({ name: 'sessionId', description: 'Teleconsultation session UUID' })
+  async markMessagesRead(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+  ) {
+    return this.service.markMessagesRead(tenantId, sessionId, user.email);
   }
 
   // IA: Urgency Detection

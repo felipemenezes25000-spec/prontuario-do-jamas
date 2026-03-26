@@ -420,3 +420,31 @@ body {
 .clinical-alert-border-info {
   border-left: 4px solid #0284C7;
 }
+
+/* ─── Accessibility: High Contrast ─── */
+.high-contrast {
+  --color-foreground: #ffffff;
+  --color-muted-foreground: #d4d4d8;
+  --color-border: #52525b;
+  --color-input: #52525b;
+}
+.high-contrast .dark {
+  --color-foreground: #ffffff;
+  --color-muted-foreground: #e4e4e7;
+  --color-border: #71717a;
+  --color-input: #71717a;
+}
+
+/* ─── Accessibility: Reduced Motion ─── */
+.reduce-motion,
+.reduce-motion * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* ─── Focus visible outline (WCAG 2.1 AA) ─── */
+:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}

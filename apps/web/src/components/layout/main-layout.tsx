@@ -2,6 +2,8 @@ import { Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui.store';
 import { RealtimeProvider } from '@/components/realtime/realtime-provider';
+import { SkipNav } from '@/components/accessibility/SkipNav';
+import { LiveRegion } from '@/components/accessibility/LiveRegion';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { Breadcrumbs } from './breadcrumbs';
@@ -11,6 +13,8 @@ export function MainLayout() {
 
   return (
     <RealtimeProvider>
+      <SkipNav />
+      <LiveRegion />
       <div className="min-h-screen bg-background">
         <Sidebar />
         <div
@@ -20,7 +24,7 @@ export function MainLayout() {
           )}
         >
           <Header />
-          <main className="flex-1 p-4 lg:p-6">
+          <main id="main-content" className="flex-1 p-4 lg:p-6" tabIndex={-1}>
             <Breadcrumbs />
             <Outlet />
           </main>

@@ -6,6 +6,7 @@ import {
   CreatePrenatalCardDto,
   RecordPartogramDto,
   RecordUltrasoundDto,
+  CreateObstetricHistoryDto,
 } from './dto/create-obstetrics.dto';
 
 @Injectable()
@@ -39,6 +40,7 @@ export class ObstetricsService {
           gravida: dto.gravida,
           para: dto.para,
           abortions: dto.abortions,
+          cesareanCount: dto.cesareanCount,
           bloodType: dto.bloodType,
           riskClassification: dto.riskClassification,
           riskFactors: dto.riskFactors,
@@ -95,6 +97,99 @@ export class ObstetricsService {
         dto.encounterId,
       ),
     });
+  }
+
+  // =========================================================================
+  // GPAC Obstetric History
+  // =========================================================================
+
+  async saveObstetricHistory(tenantId: string, userEmail: string, dto: CreateObstetricHistoryDto) {
+    const gpacLabel = `G${dto.gravida}P${dto.para}A${dto.abortions}C${dto.cesareans}`;
+
+    // Upsert: find existing obstetric history for patient, update if exists
+    const existing = await this.prisma.clinicalDocument.findFirst({
+      where: {
+        tenantId,
+        patientId: dto.patientId,
+        title: { startsWith: '[OBSTETRIC_HISTORY]' },
+        status: { not: 'VOIDED' },
+      },
+    });
+
+    const content = JSON.stringify({
+      gravida: dto.gravida,
+      para: dto.para,
+      abortions: dto.abortions,
+      cesareans: dto.cesareans,
+      livingChildren: dto.livingChildren,
+      lastMenstrualPeriod: dto.lastMenstrualPeriod,
+      notes: dto.notes,
+      gpac: gpacLabel,
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (existing) {
+      return this.prisma.clinicalDocument.update({
+        where: { id: existing.id },
+        data: {
+          title: `[OBSTETRIC_HISTORY] ${gpacLabel}`,
+          content,
+        },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+    }
+
+    // Resolve author by email
+    const author = await this.prisma.user.findFirst({
+      where: { email: userEmail },
+      select: { id: true },
+    });
+
+    return this.prisma.clinicalDocument.create({
+      data: {
+        tenantId,
+        patientId: dto.patientId,
+        authorId: author?.id ?? 'SYSTEM',
+        type: 'CUSTOM' as const,
+        title: `[OBSTETRIC_HISTORY] ${gpacLabel}`,
+        content,
+        status: 'FINAL' as const,
+      },
+      include: { author: { select: { id: true, name: true, role: true } } },
+    });
+  }
+
+  async getObstetricHistory(tenantId: string, patientId: string) {
+    const doc = await this.prisma.clinicalDocument.findFirst({
+      where: {
+        tenantId,
+        patientId,
+        title: { startsWith: '[OBSTETRIC_HISTORY]' },
+        status: { not: 'VOIDED' },
+      },
+      include: { author: { select: { id: true, name: true, role: true } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (!doc) {
+      return null;
+    }
+
+    const parsed = doc.content ? JSON.parse(doc.content) : {};
+    return {
+      id: doc.id,
+      gravida: parsed.gravida ?? 0,
+      para: parsed.para ?? 0,
+      abortions: parsed.abortions ?? 0,
+      cesareans: parsed.cesareans ?? 0,
+      livingChildren: parsed.livingChildren ?? 0,
+      lastMenstrualPeriod: parsed.lastMenstrualPeriod ?? null,
+      notes: parsed.notes ?? null,
+      gpac: parsed.gpac ?? null,
+      author: doc.author,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    };
   }
 
   async findByPatient(tenantId: string, patientId: string) {

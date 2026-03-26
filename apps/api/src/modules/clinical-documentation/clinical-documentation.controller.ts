@@ -37,6 +37,7 @@ import {
   AiAutoCompleteDto,
   AiTranslateNoteDto,
   AiPatientSummaryDto,
+  UnifiedTimelineQueryDto,
 } from './dto/clinical-documentation.dto';
 import {
   CreateCaseDiscussionFullDto,
@@ -364,6 +365,36 @@ export class ClinicalDocumentationController {
   @ApiResponse({ status: 200, description: 'Available templates' })
   async getAvailableTemplates() {
     return this.service.getAvailableTemplates();
+  }
+
+  // --- Unified Clinical Timeline ---
+
+  @Get('unified-timeline/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get unified clinical timeline aggregating all document types' })
+  @ApiQuery({ name: 'startDate', required: false, description: 'Start date filter (ISO datetime)' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'End date filter (ISO datetime)' })
+  @ApiQuery({ name: 'types', required: false, description: 'Filter by document types (comma-separated)' })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Cursor for pagination (ISO datetime)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default 20)' })
+  @ApiResponse({ status: 200, description: 'Unified timeline with paginated results' })
+  async getUnifiedTimeline(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId') patientId: string,
+    @Query() query: UnifiedTimelineQueryDto,
+  ) {
+    // Parse comma-separated types if provided as a string
+    const types = query.types
+      ? (Array.isArray(query.types) ? query.types : (query.types as unknown as string).split(','))
+      : undefined;
+
+    return this.service.getUnifiedTimeline(tenantId, patientId, {
+      startDate: query.startDate,
+      endDate: query.endDate,
+      types,
+      cursor: query.cursor,
+      limit: query.limit,
+    });
   }
 
   // --- AI Features ---

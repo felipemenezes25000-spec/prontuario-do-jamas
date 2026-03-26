@@ -50,6 +50,17 @@ interface AsyncConsultation {
   createdAt: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  sessionId: string;
+  tenantId: string;
+  senderEmail: string;
+  message: string;
+  attachmentUrl?: string;
+  readBy: string[];
+  sentAt: string;
+}
+
 interface RpmAlert {
   id: string;
   patientId: string;
@@ -688,6 +699,139 @@ export class TelemedicineEnhancedService {
         joinedAt: d.createdAt.toISOString(),
       };
     });
+  }
+
+  // =========================================================================
+  // Text Chat in Telemedicine
+  // =========================================================================
+
+  async sendChatMessage(
+    tenantId: string,
+    sessionId: string,
+    userEmail: string,
+    dto: { message: string; attachmentUrl?: string },
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: { tenantId, email: userEmail },
+      select: { id: true },
+    });
+    if (!user) throw new ForbiddenException('Usuário não encontrado.');
+
+    // Verify the session exists
+    const session = await this.prisma.clinicalDocument.findFirst({
+      where: { id: sessionId, tenantId, type: 'CUSTOM' },
+      select: { patientId: true },
+    });
+    if (!session) throw new NotFoundException('Sessão de teleconsulta não encontrada.');
+
+    const chatMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      sessionId,
+      tenantId,
+      senderEmail: userEmail,
+      message: dto.message,
+      attachmentUrl: dto.attachmentUrl,
+      readBy: [userEmail],
+      sentAt: new Date().toISOString(),
+    };
+
+    const doc = await this.prisma.clinicalDocument.create({
+      data: {
+        tenantId,
+        patientId: session.patientId,
+        authorId: user.id,
+        type: 'CUSTOM',
+        title: `[TELE_CHAT] ${sessionId}`,
+        content: JSON.stringify(chatMessage),
+        status: 'SIGNED',
+      },
+    });
+
+    return {
+      messageId: doc.id,
+      sessionId,
+      senderEmail: userEmail,
+      sentAt: chatMessage.sentAt,
+    };
+  }
+
+  async getChatHistory(
+    tenantId: string,
+    sessionId: string,
+    page?: number,
+    pageSize?: number,
+  ) {
+    const currentPage = page ?? 1;
+    const currentPageSize = pageSize ?? 50;
+    const skip = (currentPage - 1) * currentPageSize;
+
+    const where = {
+      tenantId,
+      type: 'CUSTOM' as const,
+      title: `[TELE_CHAT] ${sessionId}`,
+    };
+
+    const [docs, total] = await Promise.all([
+      this.prisma.clinicalDocument.findMany({
+        where,
+        skip,
+        take: currentPageSize,
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, content: true, createdAt: true },
+      }),
+      this.prisma.clinicalDocument.count({ where }),
+    ]);
+
+    const messages = docs.map((d) => {
+      const msg = JSON.parse(d.content ?? '{}') as ChatMessage;
+      return {
+        messageId: d.id,
+        senderEmail: msg.senderEmail,
+        message: msg.message,
+        attachmentUrl: msg.attachmentUrl,
+        readBy: msg.readBy,
+        sentAt: msg.sentAt,
+      };
+    });
+
+    return {
+      data: messages,
+      total,
+      page: currentPage,
+      pageSize: currentPageSize,
+      totalPages: Math.ceil(total / currentPageSize),
+    };
+  }
+
+  async markMessagesRead(
+    tenantId: string,
+    sessionId: string,
+    userEmail: string,
+  ) {
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        type: 'CUSTOM',
+        title: `[TELE_CHAT] ${sessionId}`,
+      },
+      select: { id: true, content: true },
+    });
+
+    let markedCount = 0;
+
+    for (const doc of docs) {
+      const msg = JSON.parse(doc.content ?? '{}') as ChatMessage;
+      if (!msg.readBy.includes(userEmail)) {
+        msg.readBy.push(userEmail);
+        await this.prisma.clinicalDocument.update({
+          where: { id: doc.id },
+          data: { content: JSON.stringify(msg) },
+        });
+        markedCount++;
+      }
+    }
+
+    return { sessionId, markedCount, readBy: userEmail };
   }
 
   // =========================================================================

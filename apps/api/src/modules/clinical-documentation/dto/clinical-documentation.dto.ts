@@ -259,6 +259,44 @@ export class PatientTimelineFilterDto {
 }
 
 // ============================================================================
+// Unified Clinical Timeline DTOs
+// ============================================================================
+
+export class UnifiedTimelineQueryDto {
+  @ApiPropertyOptional({ description: 'Start date filter (ISO datetime)' })
+  @IsOptional() @IsString() startDate?: string;
+
+  @ApiPropertyOptional({ description: 'End date filter (ISO datetime)' })
+  @IsOptional() @IsString() endDate?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by document types (comma-separated title prefixes)', isArray: true })
+  @IsOptional() @IsArray() @IsString({ each: true }) types?: string[];
+
+  @ApiPropertyOptional({ description: 'Cursor for pagination (ISO datetime of last item)' })
+  @IsOptional() @IsString() cursor?: string;
+
+  @ApiPropertyOptional({ description: 'Number of items per page', default: 20 })
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(1) @Max(100) limit?: number;
+}
+
+export interface UnifiedTimelineEntry {
+  id: string;
+  type: string;
+  title: string;
+  summary: string;
+  createdAt: string;
+  createdBy: { id: string; name: string } | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface UnifiedTimelineResponse {
+  items: UnifiedTimelineEntry[];
+  total: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+// ============================================================================
 // AI Feature DTOs
 // ============================================================================
 

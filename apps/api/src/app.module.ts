@@ -133,6 +133,13 @@ import { ContractsModule } from './modules/contracts/contracts.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
 import { MedicalCalculatorsModule } from './modules/medical-calculators/medical-calculators.module';
 import { FoodServiceModule } from './modules/food-service/food-service.module';
+// Emergency Protocols
+import { CardiacArrestModule } from './modules/cardiac-arrest/cardiac-arrest.module';
+// Identity Verification & Accreditation
+import { IdentityVerificationModule } from './modules/identity-verification/identity-verification.module';
+import { AccreditationModule } from './modules/accreditation/accreditation.module';
+// Device Integration (IEEE 11073 & Remote Exam Devices)
+import { DeviceIntegrationModule } from './modules/device-integration/device-integration.module';
 
 @Module({
   imports: [
@@ -266,6 +273,13 @@ import { FoodServiceModule } from './modules/food-service/food-service.module';
     MedicalRecordsModule,
     MedicalCalculatorsModule,
     FoodServiceModule,
+    // Emergency Protocols
+    CardiacArrestModule,
+    // Identity Verification & Accreditation
+    IdentityVerificationModule,
+    AccreditationModule,
+    // Device Integration (IEEE 11073 & Remote Exam Devices)
+    DeviceIntegrationModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

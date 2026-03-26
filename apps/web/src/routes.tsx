@@ -144,6 +144,7 @@ const WasteManagementPage = lazy(() => import('@/pages/waste-management'));
 const OmbudsmanPage = lazy(() => import('@/pages/ombudsman'));
 const ProcurementPage = lazy(() => import('@/pages/procurement'));
 const ContractsPage = lazy(() => import('@/pages/contracts'));
+const AccessibilityPage = lazy(() => import('@/pages/accessibility'));
 
 function PageLoader() {
   return (
@@ -348,6 +349,7 @@ export function AppRoutes() {
         <Route path="ouvidoria" element={<SuspenseWrap><OmbudsmanPage /></SuspenseWrap>} />
         <Route path="compras" element={<SuspenseWrap><ProcurementPage /></SuspenseWrap>} />
         <Route path="contratos" element={<SuspenseWrap><ContractsPage /></SuspenseWrap>} />
+        <Route path="acessibilidade" element={<SuspenseWrap><AccessibilityPage /></SuspenseWrap>} />
         <Route
           path="tenants"
           element={

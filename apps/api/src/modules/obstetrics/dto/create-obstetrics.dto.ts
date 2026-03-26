@@ -1,4 +1,4 @@
-import { IsString, IsUUID, IsOptional, IsObject, IsNumber, IsDateString } from 'class-validator';
+import { IsString, IsUUID, IsOptional, IsObject, IsNumber, IsDateString, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreatePrenatalCardDto {
@@ -10,6 +10,7 @@ export class CreatePrenatalCardDto {
   @ApiPropertyOptional() @IsNumber() @IsOptional() gravida?: number;
   @ApiPropertyOptional() @IsNumber() @IsOptional() para?: number;
   @ApiPropertyOptional() @IsNumber() @IsOptional() abortions?: number;
+  @ApiPropertyOptional({ description: 'Number of cesarean sections' }) @IsNumber() @IsOptional() cesareanCount?: number;
   @ApiPropertyOptional() @IsString() @IsOptional() bloodType?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() riskClassification?: string;
   @ApiPropertyOptional() @IsObject() @IsOptional() riskFactors?: Record<string, unknown>;
@@ -43,4 +44,15 @@ export class RecordUltrasoundDto {
   @ApiPropertyOptional() @IsObject() @IsOptional() biometry?: Record<string, unknown>;
   @ApiPropertyOptional() @IsObject() @IsOptional() doppler?: Record<string, unknown>;
   @ApiPropertyOptional() @IsString() @IsOptional() notes?: string;
+}
+
+export class CreateObstetricHistoryDto {
+  @ApiProperty({ description: 'Patient UUID' }) @IsUUID() patientId!: string;
+  @ApiProperty({ description: 'Total pregnancies (gravida / G)' }) @IsNumber() @Min(0) gravida!: number;
+  @ApiProperty({ description: 'Total deliveries (para / P)' }) @IsNumber() @Min(0) para!: number;
+  @ApiProperty({ description: 'Number of abortions (A)' }) @IsNumber() @Min(0) abortions!: number;
+  @ApiProperty({ description: 'Number of cesarean sections (C)' }) @IsNumber() @Min(0) cesareans!: number;
+  @ApiProperty({ description: 'Number of living children' }) @IsNumber() @Min(0) livingChildren!: number;
+  @ApiPropertyOptional({ description: 'Last menstrual period (ISO date)' }) @IsDateString() @IsOptional() lastMenstrualPeriod?: string;
+  @ApiPropertyOptional({ description: 'Additional clinical notes' }) @IsString() @IsOptional() notes?: string;
 }

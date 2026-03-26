@@ -28,6 +28,8 @@ import {
   TimelineEventType,
   InterConsultStatus,
   DocumentLockStatus,
+  UnifiedTimelineEntry,
+  UnifiedTimelineResponse,
 } from './dto/clinical-documentation.dto';
 import {
   CreateCaseDiscussionFullDto,
@@ -784,6 +786,108 @@ export class ClinicalDocumentationService {
       language: 'pt-BR',
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  // =========================================================================
+  // Unified Clinical Timeline
+  // =========================================================================
+
+  async getUnifiedTimeline(
+    tenantId: string,
+    patientId: string,
+    filters?: { startDate?: string; endDate?: string; types?: string[]; cursor?: string; limit?: number },
+  ): Promise<UnifiedTimelineResponse> {
+    const limit = filters?.limit ?? 20;
+    const cursorDate = filters?.cursor ? new Date(filters.cursor) : undefined;
+    const startDate = filters?.startDate ? new Date(filters.startDate) : undefined;
+    const endDate = filters?.endDate ? new Date(filters.endDate) : undefined;
+
+    // Verify patient exists in tenant
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: patientId, tenantId },
+    });
+    if (!patient) {
+      throw new NotFoundException(`Paciente com ID "${patientId}" não encontrado`);
+    }
+
+    // Build date filter for clinicalDocument
+    const dateFilter: Record<string, Date> = {};
+    if (cursorDate) dateFilter.lt = cursorDate;
+    if (startDate) dateFilter.gte = startDate;
+    if (endDate) dateFilter.lte = endDate;
+    const hasDateFilter = Object.keys(dateFilter).length > 0;
+
+    // Build type filter: if types are specified, filter by title prefix
+    const titleFilter = filters?.types?.length
+      ? { OR: filters.types.map((t) => ({ title: { startsWith: `[${t}]` } as const })) }
+      : {};
+
+    // Query all ClinicalDocuments for this patient, sorted by date desc
+    const where = {
+      tenantId,
+      patientId,
+      status: { not: 'VOIDED' as const },
+      ...(hasDateFilter ? { createdAt: dateFilter } : {}),
+      ...titleFilter,
+    };
+
+    const [documents, total] = await Promise.all([
+      this.prisma.clinicalDocument.findMany({
+        where,
+        include: {
+          author: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit + 1,
+      }),
+      this.prisma.clinicalDocument.count({ where }),
+    ]);
+
+    const hasMore = documents.length > limit;
+    const resultDocs = documents.slice(0, limit);
+
+    const items: UnifiedTimelineEntry[] = resultDocs.map((doc) => {
+      const parsedContent = doc.content ? JSON.parse(doc.content) : {};
+      const docType = this.extractDocumentType(doc.title);
+
+      return {
+        id: doc.id,
+        type: docType,
+        title: doc.title,
+        summary: this.generateSummary(doc.title, parsedContent),
+        createdAt: doc.createdAt.toISOString(),
+        createdBy: doc.author ?? null,
+        metadata: {
+          documentType: doc.type,
+          status: doc.status,
+          encounterId: doc.encounterId,
+          pdfUrl: doc.pdfUrl,
+          ...parsedContent,
+        },
+      };
+    });
+
+    const nextCursor = hasMore && items.length > 0
+      ? items[items.length - 1].createdAt
+      : null;
+
+    return { items, total, nextCursor, hasMore };
+  }
+
+  private extractDocumentType(title: string): string {
+    const match = title.match(/^\[([^\]]+)\]/);
+    return match ? match[1] : 'UNKNOWN';
+  }
+
+  private generateSummary(title: string, content: Record<string, unknown>): string {
+    // Remove the bracket prefix to get a human-readable summary
+    const cleanTitle = title.replace(/^\[[^\]]+\]\s*/, '');
+    if (cleanTitle) return cleanTitle;
+
+    // Fallback: use content keys to build a summary
+    const keys = Object.keys(content).filter((k) => k !== 'updatedAt' && k !== 'createdAt');
+    if (keys.length === 0) return title;
+    return keys.slice(0, 3).join(', ');
   }
 
   // =========================================================================
