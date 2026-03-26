@@ -121,3 +121,124 @@ export class PixQueryDto {
   @IsString({ each: true })
   targetDomains?: string[];
 }
+
+// ─── PDQ (Patient Demographics Query) DTOs ────────────────────────────────
+
+export class PdqSearchDto {
+  @ApiPropertyOptional({ description: 'Patient family name' })
+  @IsOptional()
+  @IsString()
+  familyName?: string;
+
+  @ApiPropertyOptional({ description: 'Patient given name' })
+  @IsOptional()
+  @IsString()
+  givenName?: string;
+
+  @ApiPropertyOptional({ description: 'Patient birth date (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsDateString()
+  birthDate?: string;
+
+  @ApiPropertyOptional({ description: 'Patient gender' })
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @ApiPropertyOptional({ description: 'Identifier domain OID' })
+  @IsOptional()
+  @IsString()
+  identifierDomain?: string;
+
+  @ApiPropertyOptional({ description: 'Identifier value (e.g. CPF)' })
+  @IsOptional()
+  @IsString()
+  identifierValue?: string;
+}
+
+// ─── MHD (Mobile access to Health Documents) DTOs ─────────────────────────
+
+export class MhdDocumentDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  @IsNotEmpty()
+  patientId: string;
+
+  @ApiProperty({ description: 'Document type identifier' })
+  @IsString()
+  @IsNotEmpty()
+  documentType: string;
+
+  @ApiProperty({ description: 'Document content' })
+  @IsString()
+  @IsNotEmpty()
+  content: string;
+
+  @ApiProperty({ description: 'MIME type of the document' })
+  @IsString()
+  @IsNotEmpty()
+  mimeType: string;
+
+  @ApiProperty({ description: 'Document title' })
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+}
+
+export class MhdFindDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  @IsNotEmpty()
+  patientId: string;
+
+  @ApiPropertyOptional({ description: 'Search from date' })
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Search to date' })
+  @IsOptional()
+  @IsDateString()
+  dateTo?: string;
+
+  @ApiPropertyOptional({ description: 'Document type filter' })
+  @IsOptional()
+  @IsString()
+  type?: string;
+}
+
+// ─── XCA (Cross-Community Access) DTOs ────────────────────────────────────
+
+export class XcaQueryDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  @IsNotEmpty()
+  patientId: string;
+
+  @ApiProperty({ description: 'Community ID (OID)' })
+  @IsString()
+  @IsNotEmpty()
+  communityId: string;
+
+  @ApiPropertyOptional({ description: 'Date from filter' })
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Date to filter' })
+  @IsOptional()
+  @IsDateString()
+  dateTo?: string;
+}
+
+export class XcaRetrieveDto {
+  @ApiProperty({ description: 'Unique document ID from the external community' })
+  @IsString()
+  @IsNotEmpty()
+  documentUniqueId: string;
+
+  @ApiProperty({ description: 'Community ID (OID) of the source community' })
+  @IsString()
+  @IsNotEmpty()
+  communityId: string;
+}

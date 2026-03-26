@@ -39,6 +39,11 @@ import {
   PredictExtubationDto,
   SuggestVasopressorTitrationDto,
 } from './dto/icu-advanced.dto';
+import {
+  CreateRassAssessmentDto,
+  CreateCamIcuDto,
+  RecordBisDto,
+} from './dto/icu-assessments.dto';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
@@ -326,6 +331,95 @@ export class IcuController {
     @Body() dto: SuggestVasopressorTitrationDto,
   ) {
     return this.icuService.suggestVasopressorTitration(tenantId, patientId, dto);
+  }
+
+  // ─── RASS Assessment ───────────────────────────────────────────────────
+
+  @Post('rass')
+  @ApiOperation({ summary: 'Record RASS (Richmond Agitation-Sedation Scale) assessment' })
+  @ApiResponse({ status: 201, description: 'RASS assessment recorded' })
+  async recordRass(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateRassAssessmentDto,
+  ) {
+    return this.icuService.recordRass(tenantId, user.sub, dto);
+  }
+
+  @Get('rass/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get RASS assessment history with trend for patient' })
+  async getRassHistory(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+  ) {
+    return this.icuService.getRassHistory(tenantId, patientId);
+  }
+
+  @Get('rass/:patientId/latest')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get latest RASS score with interpretation' })
+  async getLatestRass(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+  ) {
+    return this.icuService.getLatestRass(tenantId, patientId);
+  }
+
+  // ─── CAM-ICU Assessment ──────────────────────────────────────────────────
+
+  @Post('cam-icu')
+  @ApiOperation({ summary: 'Record CAM-ICU (Confusion Assessment Method) assessment' })
+  @ApiResponse({ status: 201, description: 'CAM-ICU assessment recorded' })
+  async recordCamIcu(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateCamIcuDto,
+  ) {
+    return this.icuService.recordCamIcu(tenantId, user.sub, dto);
+  }
+
+  @Get('cam-icu/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get CAM-ICU assessment history with delirium trend' })
+  async getCamIcuHistory(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+  ) {
+    return this.icuService.getCamIcuHistory(tenantId, patientId);
+  }
+
+  @Get('cam-icu/:patientId/status')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get current delirium status for patient' })
+  async getDeliriumStatus(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+  ) {
+    return this.icuService.getDeliriumStatus(tenantId, patientId);
+  }
+
+  // ─── BIS Monitoring ──────────────────────────────────────────────────────
+
+  @Post('bis')
+  @ApiOperation({ summary: 'Record BIS (Bispectral Index) value' })
+  @ApiResponse({ status: 201, description: 'BIS value recorded' })
+  async recordBis(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: RecordBisDto,
+  ) {
+    return this.icuService.recordBis(tenantId, user.sub, dto);
+  }
+
+  @Get('bis/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get BIS monitoring history with trend' })
+  async getBisHistory(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+  ) {
+    return this.icuService.getBisHistory(tenantId, patientId);
   }
 
   // ─── Flowsheet ──────────────────────────────────────────────────────────

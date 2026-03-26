@@ -20,6 +20,13 @@ import {
   PredictResultDto,
   DetectSampleSwapDto,
 } from './dto/lis-advanced.dto';
+import {
+  MarkCollectedDto,
+  PhlebotomyWorklistItem,
+  PhlebotomyStats,
+  PhlebotomyUrgency,
+  TubeNeeded,
+} from './dto/phlebotomy.dto';
 
 export interface QcPoint {
   id: string;
@@ -744,6 +751,207 @@ export class LisService {
       resultsCount: dto.results.length,
       updatedExams,
       status: 'RESULTS_RECEIVED',
+    };
+  }
+
+  // ─── Phlebotomy Worklist (Mapa de Coleta) ─────────────────────────────────
+
+  async getPhlebotomyWorklist(
+    tenantId: string,
+    options: { ward?: string; date?: string; urgentFirst?: boolean },
+  ): Promise<{ ward: string; items: PhlebotomyWorklistItem[] }[]> {
+    // Get pending samples
+    let pendingSamples = this.samples.filter(
+      (s) => s.tenantId === tenantId && s.status === SampleStatus.REGISTERED,
+    );
+
+    // Filter by date if provided
+    if (options.date) {
+      const filterDate = new Date(options.date).toISOString().slice(0, 10);
+      pendingSamples = pendingSamples.filter(
+        (s) => s.createdAt.toISOString().slice(0, 10) === filterDate,
+      );
+    }
+
+    // Fetch patient data for enrichment
+    const patientIds = [...new Set(pendingSamples.map((s) => s.patientId))];
+    const patients = patientIds.length > 0
+      ? await this.prisma.patient.findMany({
+          where: { id: { in: patientIds }, tenantId },
+          select: { id: true, fullName: true },
+        })
+      : [];
+    const patientMap = new Map(patients.map((p) => [p.id, p.fullName]));
+
+    // Build worklist items with simulated ward/bed/urgency data
+    const URGENCY_PRIORITY: Record<PhlebotomyUrgency, number> = {
+      STAT: 0,
+      URGENT: 1,
+      ROUTINE: 2,
+    };
+
+    const TUBE_COLORS: Record<string, string> = {
+      BLOOD: 'Roxo (EDTA)',
+      URINE: 'Amarelo (Urina)',
+      CSF: 'Transparente (LCR)',
+      STOOL: 'Marrom',
+      SPUTUM: 'Transparente',
+      SWAB: 'Transparente',
+      TISSUE: 'Formol',
+      ASPIRATE: 'Citrato',
+      OTHER: 'Cinza',
+    };
+
+    const items: PhlebotomyWorklistItem[] = pendingSamples.map((sample, idx) => {
+      // Derive urgency heuristically from notes or exam count
+      let urgency: PhlebotomyUrgency = 'ROUTINE';
+      if (sample.notes?.toUpperCase().includes('STAT') || sample.notes?.toUpperCase().includes('EMERGÊNCIA')) {
+        urgency = 'STAT';
+      } else if (sample.notes?.toUpperCase().includes('URGENT') || sample.notes?.toUpperCase().includes('URGENTE')) {
+        urgency = 'URGENT';
+      }
+
+      const ward = sample.collectionSite ?? `Andar ${(idx % 5) + 1}`;
+      const room = `${(idx % 20) + 100}`;
+      const bed = String.fromCharCode(65 + (idx % 4)); // A, B, C, D
+
+      const tubesNeeded: TubeNeeded[] = [{
+        color: TUBE_COLORS[sample.sampleType] ?? 'Cinza',
+        sampleType: sample.sampleType,
+        examName: sample.examRequestIds.length > 0
+          ? `Exame(s): ${sample.examRequestIds.length}`
+          : 'Coleta geral',
+      }];
+
+      const fastingRequired = sample.notes?.toUpperCase().includes('JEJUM') ?? false;
+
+      return {
+        sampleId: sample.id,
+        patientId: sample.patientId,
+        patientName: patientMap.get(sample.patientId) ?? 'Paciente desconhecido',
+        room,
+        bed,
+        tubesNeeded,
+        fastingRequired,
+        specialInstructions: sample.notes,
+        collectionTime: sample.createdAt.toISOString(),
+        urgency,
+        ward,
+      };
+    });
+
+    // Filter by ward
+    let filtered = items;
+    if (options.ward) {
+      filtered = items.filter((i) => i.ward.toLowerCase().includes(options.ward!.toLowerCase()));
+    }
+
+    // Sort by urgency if requested (default true)
+    if (options.urgentFirst !== false) {
+      filtered.sort((a, b) => URGENCY_PRIORITY[a.urgency] - URGENCY_PRIORITY[b.urgency]);
+    }
+
+    // Group by ward
+    const wardMap = new Map<string, PhlebotomyWorklistItem[]>();
+    for (const item of filtered) {
+      const existing = wardMap.get(item.ward);
+      if (existing) {
+        existing.push(item);
+      } else {
+        wardMap.set(item.ward, [item]);
+      }
+    }
+
+    return Array.from(wardMap.entries()).map(([ward, wardItems]) => ({
+      ward,
+      items: wardItems,
+    }));
+  }
+
+  async markCollected(
+    tenantId: string,
+    sampleId: string,
+    dto: MarkCollectedDto,
+  ): Promise<LabSample> {
+    const sample = this.samples.find(
+      (s) => s.id === sampleId && s.tenantId === tenantId,
+    );
+    if (!sample) {
+      throw new NotFoundException(`Sample "${sampleId}" not found`);
+    }
+
+    if (sample.status !== SampleStatus.REGISTERED) {
+      throw new BadRequestException(
+        `Sample status is "${sample.status}" — only REGISTERED samples can be marked as collected`,
+      );
+    }
+
+    sample.status = SampleStatus.COLLECTED;
+    sample.collectedAt = new Date(dto.collectedAt);
+    sample.collectorId = dto.collectedBy;
+    if (dto.notes) {
+      sample.notes = dto.notes;
+    }
+    sample.updatedAt = new Date();
+
+    // Update linked exam results
+    if (sample.examRequestIds.length > 0) {
+      await this.prisma.examResult.updateMany({
+        where: { id: { in: sample.examRequestIds } },
+        data: { status: 'COLLECTED', collectedAt: new Date(dto.collectedAt) },
+      });
+    }
+
+    return sample;
+  }
+
+  async getPhlebotomyStats(
+    tenantId: string,
+    date?: string,
+  ): Promise<PhlebotomyStats> {
+    const targetDate = date ?? new Date().toISOString().slice(0, 10);
+
+    const daySamples = this.samples.filter((s) => {
+      if (s.tenantId !== tenantId) return false;
+      return s.createdAt.toISOString().slice(0, 10) === targetDate;
+    });
+
+    const totalPending = daySamples.filter(
+      (s) => s.status === SampleStatus.REGISTERED,
+    ).length;
+
+    const totalCollected = daySamples.filter(
+      (s) => s.status === SampleStatus.COLLECTED
+        || s.status === SampleStatus.RECEIVED
+        || s.status === SampleStatus.PROCESSING
+        || s.status === SampleStatus.COMPLETED,
+    ).length;
+
+    const totalRefused = daySamples.filter(
+      (s) => s.status === SampleStatus.REJECTED,
+    ).length;
+
+    // Group by hour
+    const byHour: Array<{ hour: number; pending: number; collected: number }> = [];
+    for (let h = 0; h < 24; h++) {
+      const hourSamples = daySamples.filter(
+        (s) => s.createdAt.getHours() === h,
+      );
+      byHour.push({
+        hour: h,
+        pending: hourSamples.filter((s) => s.status === SampleStatus.REGISTERED).length,
+        collected: hourSamples.filter(
+          (s) => s.status !== SampleStatus.REGISTERED && s.status !== SampleStatus.REJECTED,
+        ).length,
+      });
+    }
+
+    return {
+      date: targetDate,
+      totalPending,
+      totalCollected,
+      totalRefused,
+      byHour,
     };
   }
 }

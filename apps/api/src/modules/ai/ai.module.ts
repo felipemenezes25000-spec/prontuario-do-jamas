@@ -48,6 +48,8 @@ import { VoiceNlpController } from './voice-nlp/voice-nlp.controller';
 import { VoiceNlpService } from './voice-nlp/voice-nlp.service';
 import { AdvancedAiController } from './advanced/advanced-ai.controller';
 import { AdvancedAiService } from './advanced/advanced-ai.service';
+import { ArrhythmiaDetectionController } from './arrhythmia-detection/arrhythmia-detection.controller';
+import { ArrhythmiaDetectionService } from './arrhythmia-detection/arrhythmia-detection.service';
 
 @Module({
   imports: [ConfigModule],
@@ -65,6 +67,7 @@ import { AdvancedAiService } from './advanced/advanced-ai.service';
     PredictiveAnalyticsController,
     VoiceNlpController,
     AdvancedAiController,
+    ArrhythmiaDetectionController,
   ],
   providers: [
     OpenAiProvider,
@@ -101,6 +104,7 @@ import { AdvancedAiService } from './advanced/advanced-ai.service';
     PredictiveAnalyticsService,
     AdvancedAiService,
     VoiceNlpService,
+    ArrhythmiaDetectionService,
   ],
   exports: [
     GeminiProvider,
@@ -135,6 +139,7 @@ import { AdvancedAiService } from './advanced/advanced-ai.service';
     PredictiveAnalyticsService,
     AdvancedAiService,
     VoiceNlpService,
+    ArrhythmiaDetectionService,
   ],
 })
 export class AiModule {}

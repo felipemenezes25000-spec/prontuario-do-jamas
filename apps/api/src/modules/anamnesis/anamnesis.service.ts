@@ -16,6 +16,7 @@ import {
   ImportFhirHistoryDto,
   AiInconsistencyCheckDto,
   AiAnamnesisSuggestionsDto,
+  CreateObstetricHistoryDto,
   ProblemStatus,
 } from './dto/anamnesis.dto';
 
@@ -246,6 +247,36 @@ export class AnamnesisService {
     });
     if (!doc) return null;
     return { id: doc.id, ...JSON.parse(doc.content ?? '{}'), author: doc.author, updatedAt: doc.updatedAt };
+  }
+
+  // =========================================================================
+  // Obstetric History — Detailed GPAC with Previous Pregnancies
+  // =========================================================================
+
+  async createObstetricHistory(tenantId: string, authorId: string, dto: CreateObstetricHistoryDto) {
+    const gpacLabel = `G${dto.gravida}P${dto.para}A${dto.abortions}C${dto.cesareans}`;
+
+    return this.prisma.clinicalDocument.create({
+      data: {
+        tenantId,
+        patientId: dto.patientId,
+        authorId,
+        type: 'CUSTOM',
+        title: `[OBSTETRIC_HISTORY:GPAC] ${gpacLabel}`,
+        content: JSON.stringify({
+          gravida: dto.gravida,
+          para: dto.para,
+          abortions: dto.abortions,
+          cesareans: dto.cesareans,
+          livingChildren: dto.livingChildren,
+          gpac: gpacLabel,
+          previousPregnancies: dto.previousPregnancies,
+          createdAt: new Date().toISOString(),
+        }),
+        status: 'FINAL',
+      },
+      include: { author: { select: { id: true, name: true } } },
+    });
   }
 
   // =========================================================================

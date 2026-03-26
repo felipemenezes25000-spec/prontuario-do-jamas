@@ -16,6 +16,11 @@ import { IheProfilesService } from './ihe-profiles.service';
 import {
   XdsProvideRegisterDto,
   PixQueryDto,
+  PdqSearchDto,
+  MhdDocumentDto,
+  MhdFindDto,
+  XcaQueryDto,
+  XcaRetrieveDto,
 } from './dto/ihe-profiles.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
@@ -78,6 +83,65 @@ export class IheProfilesController {
   ) {
     return this.iheService.pixQuery(tenantId, dto);
   }
+
+  // ─── PDQ Endpoints ────────────────────────────────────────────────────
+
+  @Post('pdq/search')
+  @ApiOperation({ summary: 'PDQ Patient Demographics Query (ITI-47)' })
+  @ApiResponse({ status: 200, description: 'Matching patients' })
+  async pdqSearch(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: PdqSearchDto,
+  ) {
+    return this.iheService.pdqSearch(tenantId, dto);
+  }
+
+  // ─── MHD Endpoints ───────────────────────────────────────────────────
+
+  @Post('mhd/provide')
+  @ApiOperation({ summary: 'MHD Provide Document Bundle (ITI-65)' })
+  @ApiResponse({ status: 201, description: 'Document submitted' })
+  async mhdProvideDocument(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: MhdDocumentDto,
+  ) {
+    return this.iheService.mhdProvideDocument(tenantId, user.sub, dto);
+  }
+
+  @Post('mhd/find')
+  @ApiOperation({ summary: 'MHD Find Document References (ITI-67)' })
+  @ApiResponse({ status: 200, description: 'Document references' })
+  async mhdFindDocuments(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: MhdFindDto,
+  ) {
+    return this.iheService.mhdFindDocuments(tenantId, dto);
+  }
+
+  // ─── XCA Endpoints ───────────────────────────────────────────────────
+
+  @Post('xca/query')
+  @ApiOperation({ summary: 'XCA Cross Gateway Query (ITI-38)' })
+  @ApiResponse({ status: 200, description: 'Cross-community query results' })
+  async xcaCrossGatewayQuery(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: XcaQueryDto,
+  ) {
+    return this.iheService.xcaCrossGatewayQuery(tenantId, dto);
+  }
+
+  @Post('xca/retrieve')
+  @ApiOperation({ summary: 'XCA Cross Gateway Retrieve (ITI-39)' })
+  @ApiResponse({ status: 200, description: 'Retrieved document' })
+  async xcaCrossGatewayRetrieve(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: XcaRetrieveDto,
+  ) {
+    return this.iheService.xcaCrossGatewayRetrieve(tenantId, dto);
+  }
+
+  // ─── ATNA Endpoints ──────────────────────────────────────────────────
 
   @Get('atna/audit')
   @ApiOperation({ summary: 'ATNA Audit Trail' })

@@ -24,6 +24,11 @@ import {
   SuggestVasopressorTitrationDto,
   HypothermiaPhase,
 } from './dto/icu-advanced.dto';
+import {
+  CreateRassAssessmentDto,
+  CreateCamIcuDto,
+  RecordBisDto,
+} from './dto/icu-assessments.dto';
 
 @Injectable()
 export class IcuService {
@@ -1210,5 +1215,442 @@ export class IcuService {
       ...JSON.parse(doc.content as string),
       createdAt: doc.createdAt,
     }));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ICU Clinical Assessments: RASS, CAM-ICU, BIS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ─── RASS (Richmond Agitation-Sedation Scale) ─────────────────────────────
+
+  private readonly RASS_DESCRIPTIONS: Record<number, string> = {
+    [-5]: 'Irresponsivo (Unarousable)',
+    [-4]: 'Sedação profunda (Deep sedation)',
+    [-3]: 'Sedação moderada (Moderate sedation)',
+    [-2]: 'Sedação leve (Light sedation)',
+    [-1]: 'Sonolento (Drowsy)',
+    [0]: 'Alerta e calmo (Alert and calm)',
+    [1]: 'Inquieto (Restless)',
+    [2]: 'Agitado (Agitated)',
+    [3]: 'Muito agitado (Very agitated)',
+    [4]: 'Combativo (Combative)',
+  };
+
+  private interpretRass(score: number): { interpretation: string; alert: boolean; alertMessage: string | null } {
+    let interpretation: string;
+    let alert = false;
+    let alertMessage: string | null = null;
+
+    if (score < -3) {
+      interpretation = 'Sedação profunda - considerar reduzir sedativo';
+      alert = true;
+      alertMessage = `ALERTA: RASS ${score} — Sedação profunda. Avaliar necessidade de redução de sedativo.`;
+    } else if (score > 1) {
+      interpretation = 'Agitação - avaliar causa e considerar medicação';
+      alert = true;
+      alertMessage = `ALERTA: RASS +${score} — Agitação significativa. Avaliar causa subjacente e considerar intervenção.`;
+    } else if (score === 0) {
+      interpretation = 'Nível ideal - alerta e calmo';
+    } else if (score < 0) {
+      interpretation = 'Sedação leve a moderada';
+    } else {
+      interpretation = 'Leve inquietação';
+    }
+
+    return { interpretation, alert, alertMessage };
+  }
+
+  async recordRass(tenantId: string, authorId: string, dto: CreateRassAssessmentDto) {
+    const description = this.RASS_DESCRIPTIONS[dto.score] ?? `RASS ${dto.score}`;
+    const { interpretation, alert, alertMessage } = this.interpretRass(dto.score);
+
+    const doc = await this.prisma.clinicalDocument.create({
+      data: {
+        patientId: dto.patientId,
+        encounterId: dto.encounterId,
+        authorId,
+        tenantId,
+        type: 'CUSTOM',
+        title: '[ICU:RASS] RASS Assessment',
+        content: JSON.stringify({
+          assessmentType: 'RASS',
+          score: dto.score,
+          description,
+          interpretation,
+          alert,
+          alertMessage,
+          userDescription: dto.description,
+          assessedAt: new Date().toISOString(),
+        }),
+        generatedByAI: false,
+        status: 'FINAL',
+      },
+    });
+
+    if (alert) {
+      this.logger.warn(`RASS Alert for patient ${dto.patientId}: ${alertMessage}`);
+    }
+
+    return {
+      id: doc.id,
+      score: dto.score,
+      description,
+      interpretation,
+      alert,
+      alertMessage,
+      createdAt: doc.createdAt,
+    };
+  }
+
+  async getRassHistory(tenantId: string, patientId: string) {
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        patientId,
+        title: { startsWith: '[ICU:RASS]' },
+        status: 'FINAL',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    const assessments = docs.map((doc) => ({
+      id: doc.id,
+      ...JSON.parse(doc.content as string),
+      createdAt: doc.createdAt,
+    }));
+
+    // Calculate trend
+    const scores = assessments.map((a) => a.score as number);
+    let trend: 'IMPROVING' | 'STABLE' | 'WORSENING' | 'INSUFFICIENT_DATA' = 'INSUFFICIENT_DATA';
+    if (scores.length >= 3) {
+      const recent = scores.slice(0, 3);
+      const avgRecent = recent.reduce((a, b) => a + b, 0) / recent.length;
+      const older = scores.slice(3, 6);
+      if (older.length > 0) {
+        const avgOlder = older.reduce((a, b) => a + b, 0) / older.length;
+        const diff = Math.abs(avgRecent) - Math.abs(avgOlder);
+        if (diff < -0.5) trend = 'IMPROVING';
+        else if (diff > 0.5) trend = 'WORSENING';
+        else trend = 'STABLE';
+      }
+    }
+
+    return { assessments, trend, total: assessments.length };
+  }
+
+  async getLatestRass(tenantId: string, patientId: string) {
+    const doc = await this.prisma.clinicalDocument.findFirst({
+      where: {
+        tenantId,
+        patientId,
+        title: { startsWith: '[ICU:RASS]' },
+        status: 'FINAL',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('No RASS assessment found for this patient');
+    }
+
+    const content = JSON.parse(doc.content as string);
+    return {
+      id: doc.id,
+      ...content,
+      createdAt: doc.createdAt,
+    };
+  }
+
+  // ─── CAM-ICU (Confusion Assessment Method for ICU) ────────────────────────
+
+  private evaluateCamIcu(dto: CreateCamIcuDto): { deliriumPositive: boolean; reasoning: string } {
+    // Positive for delirium if: Feature1 AND Feature2 AND (Feature3 OR Feature4)
+    const deliriumPositive =
+      dto.feature1_acuteOnset &&
+      dto.feature2_inattention &&
+      (dto.feature3_alteredLoc || dto.feature4_disorganizedThinking);
+
+    const featuresPresent: string[] = [];
+    if (dto.feature1_acuteOnset) featuresPresent.push('Início agudo/curso flutuante');
+    if (dto.feature2_inattention) featuresPresent.push('Desatenção');
+    if (dto.feature3_alteredLoc) featuresPresent.push('Nível de consciência alterado');
+    if (dto.feature4_disorganizedThinking) featuresPresent.push('Pensamento desorganizado');
+
+    let reasoning: string;
+    if (deliriumPositive) {
+      reasoning = `DELIRIUM POSITIVO — Features presentes: ${featuresPresent.join(', ')}. ` +
+        'Critério: Feature 1 + Feature 2 + (Feature 3 OU Feature 4) satisfeito.';
+    } else {
+      reasoning = `DELIRIUM NEGATIVO — Features presentes: ${featuresPresent.length > 0 ? featuresPresent.join(', ') : 'nenhuma'}. ` +
+        'Critério não satisfeito.';
+    }
+
+    return { deliriumPositive, reasoning };
+  }
+
+  async recordCamIcu(tenantId: string, authorId: string, dto: CreateCamIcuDto) {
+    const { deliriumPositive, reasoning } = this.evaluateCamIcu(dto);
+
+    const doc = await this.prisma.clinicalDocument.create({
+      data: {
+        patientId: dto.patientId,
+        encounterId: dto.encounterId,
+        authorId,
+        tenantId,
+        type: 'CUSTOM',
+        title: '[ICU:CAM-ICU] CAM-ICU Assessment',
+        content: JSON.stringify({
+          assessmentType: 'CAM_ICU',
+          feature1_acuteOnset: dto.feature1_acuteOnset,
+          feature2_inattention: dto.feature2_inattention,
+          feature3_alteredLoc: dto.feature3_alteredLoc,
+          feature4_disorganizedThinking: dto.feature4_disorganizedThinking,
+          rassScore: dto.rassScore,
+          deliriumPositive,
+          reasoning,
+          assessedAt: new Date().toISOString(),
+        }),
+        generatedByAI: false,
+        status: 'FINAL',
+      },
+    });
+
+    if (deliriumPositive) {
+      this.logger.warn(`CAM-ICU POSITIVE for patient ${dto.patientId}: Delirium detected`);
+    }
+
+    return {
+      id: doc.id,
+      deliriumPositive,
+      reasoning,
+      features: {
+        feature1_acuteOnset: dto.feature1_acuteOnset,
+        feature2_inattention: dto.feature2_inattention,
+        feature3_alteredLoc: dto.feature3_alteredLoc,
+        feature4_disorganizedThinking: dto.feature4_disorganizedThinking,
+      },
+      rassScore: dto.rassScore,
+      createdAt: doc.createdAt,
+    };
+  }
+
+  async getCamIcuHistory(tenantId: string, patientId: string) {
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        patientId,
+        title: { startsWith: '[ICU:CAM-ICU]' },
+        status: 'FINAL',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    const assessments = docs.map((doc) => ({
+      id: doc.id,
+      ...JSON.parse(doc.content as string),
+      createdAt: doc.createdAt,
+    }));
+
+    // Delirium trend
+    const positiveCount = assessments.filter((a) => a.deliriumPositive === true).length;
+    const negativeCount = assessments.filter((a) => a.deliriumPositive === false).length;
+
+    return {
+      assessments,
+      total: assessments.length,
+      deliriumStats: {
+        positiveCount,
+        negativeCount,
+        positiveRate: assessments.length > 0
+          ? Math.round((positiveCount / assessments.length) * 100)
+          : 0,
+      },
+    };
+  }
+
+  async getDeliriumStatus(tenantId: string, patientId: string) {
+    const doc = await this.prisma.clinicalDocument.findFirst({
+      where: {
+        tenantId,
+        patientId,
+        title: { startsWith: '[ICU:CAM-ICU]' },
+        status: 'FINAL',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('No CAM-ICU assessment found for this patient');
+    }
+
+    const content = JSON.parse(doc.content as string);
+    return {
+      id: doc.id,
+      deliriumPositive: content.deliriumPositive as boolean,
+      reasoning: content.reasoning as string,
+      rassScore: content.rassScore as number | undefined,
+      assessedAt: content.assessedAt as string,
+      createdAt: doc.createdAt,
+    };
+  }
+
+  // ─── BIS (Bispectral Index) ───────────────────────────────────────────────
+
+  private interpretBis(bisValue: number): {
+    interpretation: string;
+    zone: string;
+    alert: boolean;
+    alertMessage: string | null;
+  } {
+    let interpretation: string;
+    let zone: string;
+    let alert = false;
+    let alertMessage: string | null = null;
+
+    if (bisValue === 0) {
+      interpretation = 'EEG isoelétrico (Flat EEG)';
+      zone = 'FLAT_EEG';
+      alert = true;
+      alertMessage = 'ALERTA CRÍTICO: BIS 0 — EEG isoelétrico detectado.';
+    } else if (bisValue <= 20) {
+      interpretation = 'Hipnose profunda / supressão de surto (Burst suppression)';
+      zone = 'BURST_SUPPRESSION';
+      alert = true;
+      alertMessage = `ALERTA: BIS ${bisValue} — Supressão cerebral profunda. Considerar redução anestésica.`;
+    } else if (bisValue <= 40) {
+      interpretation = 'Hipnose profunda (Deep hypnosis)';
+      zone = 'DEEP_HYPNOSIS';
+    } else if (bisValue <= 60) {
+      interpretation = 'Anestesia geral — faixa alvo (General anesthesia - target range)';
+      zone = 'GENERAL_ANESTHESIA';
+    } else if (bisValue <= 80) {
+      interpretation = 'Sedação (Sedation)';
+      zone = 'SEDATION';
+      alert = true;
+      alertMessage = `ALERTA: BIS ${bisValue} — Risco de awareness durante procedimento cirúrgico.`;
+    } else {
+      interpretation = 'Acordado (Awake)';
+      zone = 'AWAKE';
+      alert = true;
+      alertMessage = `ALERTA: BIS ${bisValue} — Paciente acordado. Alto risco de awareness intraoperatória.`;
+    }
+
+    return { interpretation, zone, alert, alertMessage };
+  }
+
+  async recordBis(tenantId: string, authorId: string, dto: RecordBisDto) {
+    const { interpretation, zone, alert, alertMessage } = this.interpretBis(dto.bisValue);
+
+    const doc = await this.prisma.clinicalDocument.create({
+      data: {
+        patientId: dto.patientId,
+        encounterId: dto.encounterId,
+        authorId,
+        tenantId,
+        type: 'CUSTOM',
+        title: '[ICU:BIS] BIS Monitoring',
+        content: JSON.stringify({
+          assessmentType: 'BIS',
+          bisValue: dto.bisValue,
+          emgValue: dto.emgValue,
+          sqiValue: dto.sqiValue,
+          anestheticAgent: dto.anestheticAgent,
+          notes: dto.notes,
+          interpretation,
+          zone,
+          alert,
+          alertMessage,
+          targetRange: { min: 40, max: 60 },
+          inTargetRange: dto.bisValue >= 40 && dto.bisValue <= 60,
+          recordedAt: new Date().toISOString(),
+        }),
+        generatedByAI: false,
+        status: 'FINAL',
+      },
+    });
+
+    if (alert) {
+      this.logger.warn(`BIS Alert for patient ${dto.patientId}: ${alertMessage}`);
+    }
+
+    return {
+      id: doc.id,
+      bisValue: dto.bisValue,
+      interpretation,
+      zone,
+      alert,
+      alertMessage,
+      inTargetRange: dto.bisValue >= 40 && dto.bisValue <= 60,
+      createdAt: doc.createdAt,
+    };
+  }
+
+  async getBisHistory(tenantId: string, patientId: string) {
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        patientId,
+        title: { startsWith: '[ICU:BIS]' },
+        status: 'FINAL',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    const records = docs.map((doc) => ({
+      id: doc.id,
+      ...JSON.parse(doc.content as string),
+      createdAt: doc.createdAt,
+    }));
+
+    // Trend: average of last 5 vs previous 5
+    const values = records.map((r) => r.bisValue as number);
+    let trend: 'INCREASING' | 'DECREASING' | 'STABLE' | 'INSUFFICIENT_DATA' = 'INSUFFICIENT_DATA';
+    if (values.length >= 4) {
+      const half = Math.floor(values.length / 2);
+      const recentAvg = values.slice(0, half).reduce((a, b) => a + b, 0) / half;
+      const olderAvg = values.slice(half, half * 2).reduce((a, b) => a + b, 0) / half;
+      const diff = recentAvg - olderAvg;
+      if (diff > 5) trend = 'INCREASING';
+      else if (diff < -5) trend = 'DECREASING';
+      else trend = 'STABLE';
+    }
+
+    return { records, trend, total: records.length };
+  }
+
+  async getBisTarget(tenantId: string, patientId: string) {
+    const doc = await this.prisma.clinicalDocument.findFirst({
+      where: {
+        tenantId,
+        patientId,
+        title: { startsWith: '[ICU:BIS]' },
+        status: 'FINAL',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('No BIS record found for this patient');
+    }
+
+    const content = JSON.parse(doc.content as string);
+    return {
+      id: doc.id,
+      currentBis: content.bisValue as number,
+      targetRange: { min: 40, max: 60 },
+      inTargetRange: content.inTargetRange as boolean,
+      interpretation: content.interpretation as string,
+      zone: content.zone as string,
+      deviation: content.bisValue < 40
+        ? content.bisValue - 40
+        : content.bisValue > 60
+          ? content.bisValue - 60
+          : 0,
+      recordedAt: content.recordedAt as string,
+      createdAt: doc.createdAt,
+    };
   }
 }

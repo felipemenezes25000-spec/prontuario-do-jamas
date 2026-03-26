@@ -38,6 +38,11 @@ import {
   AiTranslateNoteDto,
   AiPatientSummaryDto,
 } from './dto/clinical-documentation.dto';
+import {
+  CreateCaseDiscussionFullDto,
+  RecordCaseDiscussionOutcomeDto,
+  ListCaseDiscussionsFilterDto,
+} from './dto/case-discussion.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 
@@ -108,6 +113,58 @@ export class ClinicalDocumentationController {
     @Query('patientId') patientId?: string,
   ) {
     return this.service.listCaseDiscussions(tenantId, patientId);
+  }
+
+  // --- Enhanced Case Discussion / Junta Médica ---
+
+  @Post('case-discussion/full')
+  @ApiOperation({ summary: 'Create enhanced case discussion with scheduling and participants' })
+  @ApiResponse({ status: 201, description: 'Case discussion created' })
+  async createCaseDiscussionFull(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateCaseDiscussionFullDto,
+  ) {
+    return this.service.createCaseDiscussionFull(tenantId, user.sub, dto);
+  }
+
+  @Post('case-discussion/:id/outcome')
+  @ApiParam({ name: 'id', description: 'Case discussion document UUID' })
+  @ApiOperation({ summary: 'Record case discussion outcome and conclusions' })
+  @ApiResponse({ status: 200, description: 'Outcome recorded' })
+  async recordDiscussionOutcome(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RecordCaseDiscussionOutcomeDto,
+  ) {
+    return this.service.recordDiscussionOutcome(tenantId, user.sub, { ...dto, discussionId: id });
+  }
+
+  @Get('case-discussions')
+  @ApiOperation({ summary: 'List case discussions with filters' })
+  @ApiQuery({ name: 'patientId', required: false })
+  @ApiQuery({ name: 'type', required: false })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiResponse({ status: 200, description: 'Filtered list of case discussions' })
+  async listCaseDiscussionsFull(
+    @CurrentTenant() tenantId: string,
+    @Query() filters: ListCaseDiscussionsFilterDto,
+  ) {
+    return this.service.listCaseDiscussionsFull(tenantId, filters);
+  }
+
+  @Get('case-discussion/:id')
+  @ApiParam({ name: 'id', description: 'Case discussion document UUID' })
+  @ApiOperation({ summary: 'Get full case discussion detail' })
+  @ApiResponse({ status: 200, description: 'Case discussion detail' })
+  async getCaseDiscussion(
+    @CurrentTenant() tenantId: string,
+    @Param('id') id: string,
+  ) {
+    return this.service.getCaseDiscussion(tenantId, id);
   }
 
   // --- Attendance Declaration ---

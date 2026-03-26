@@ -66,11 +66,13 @@ describe('LgpdService', () => {
       create: jest.fn(),
       count: jest.fn(),
       groupBy: jest.fn(),
+      findMany: jest.fn(),
     },
     anonymizationLog: {
       create: jest.fn(),
       update: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     encounter: {
       count: jest.fn(),
@@ -85,9 +87,16 @@ describe('LgpdService', () => {
     auditLog: {
       aggregate: jest.fn(),
       deleteMany: jest.fn(),
+      count: jest.fn(),
     },
     dataAccessRequest: {
       count: jest.fn(),
+    },
+    clinicalDocument: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
     },
   };
 
@@ -532,6 +541,301 @@ describe('LgpdService', () => {
       const result = await service.purgeExpiredData(tenantId);
 
       expect(result.results).toHaveLength(0);
+    });
+  });
+
+  // ─── DPO Dashboard ───────────────────────────────────────────────────────
+
+  describe('getDpoDashboard', () => {
+    it('should return comprehensive dashboard data', async () => {
+      mockPrisma.consentRecord.count
+        .mockResolvedValueOnce(100) // totalConsents
+        .mockResolvedValueOnce(80)  // activeConsents
+        .mockResolvedValueOnce(10); // revokedConsents
+      mockPrisma.consentRecord.groupBy.mockResolvedValue([
+        { type: 'LGPD_GENERAL', _count: 50 },
+        { type: 'VOICE_RECORDING', _count: 30 },
+      ]);
+      mockPrisma.dataAccessLog.findMany.mockResolvedValue([
+        { createdAt: new Date('2026-03-20') },
+        { createdAt: new Date('2026-03-20') },
+        { createdAt: new Date('2026-03-21') },
+      ]);
+      mockPrisma.clinicalDocument.findMany.mockResolvedValue([]);
+      mockPrisma.anonymizationLog.count.mockResolvedValue(5);
+      mockPrisma.consentRecord.findMany.mockResolvedValue([
+        { type: 'LGPD_GENERAL' },
+        { type: 'VOICE_RECORDING' },
+      ]);
+      mockPrisma.dataRetentionPolicy.findMany.mockResolvedValue([
+        { dataCategory: 'HEALTH_RECORDS', retentionYears: 20 },
+      ]);
+      mockPrisma.auditLog.count.mockResolvedValue(50);
+
+      const result = await service.getDpoDashboard(tenantId);
+
+      expect(result.totalConsents).toBe(100);
+      expect(result.activeConsents).toBe(80);
+      expect(result.revokedConsents).toBe(10);
+      expect(result.consentsByType).toHaveLength(2);
+      expect(result.dataAccessLogsByDay).toHaveLength(2);
+      expect(result.anonymizationsPerformed).toBe(5);
+      expect(result.complianceScore).toBeGreaterThanOrEqual(0);
+      expect(result.complianceScore).toBeLessThanOrEqual(100);
+    });
+  });
+
+  // ─── Subject Requests ────────────────────────────────────────────────────
+
+  describe('createSubjectRequest', () => {
+    it('should create a subject request stored as ClinicalDocument', async () => {
+      mockPrisma.patient.findFirst.mockResolvedValue(mockPatient);
+      const mockDoc = {
+        id: 'doc-1',
+        patientId,
+        tenantId,
+        title: '[LGPD:REQUEST] ACCESS — Paciente',
+        content: '{}',
+        status: 'DRAFT',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      mockPrisma.clinicalDocument.create.mockResolvedValue(mockDoc);
+
+      const result = await service.createSubjectRequest(tenantId, {
+        type: 'ACCESS',
+        patientId,
+        requestedBy: 'Paciente',
+        description: 'Solicito acesso aos meus dados',
+      }, userId);
+
+      expect(result.id).toBe('doc-1');
+      expect(result.type).toBe('ACCESS');
+      expect(result.status).toBe('PENDING');
+      expect(result.deadline).toBeDefined();
+      expect(mockPrisma.clinicalDocument.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          title: expect.stringContaining('[LGPD:REQUEST]'),
+          type: 'CUSTOM',
+          status: 'DRAFT',
+        }),
+      });
+    });
+
+    it('should throw NotFoundException for non-existent patient', async () => {
+      mockPrisma.patient.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createSubjectRequest(tenantId, {
+          type: 'DELETION',
+          patientId: 'nonexistent',
+          requestedBy: 'test',
+          description: 'test',
+        }, userId),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('listSubjectRequests', () => {
+    it('should list and parse subject requests from ClinicalDocuments', async () => {
+      mockPrisma.clinicalDocument.findMany.mockResolvedValue([
+        {
+          id: 'doc-1',
+          patientId,
+          title: '[LGPD:REQUEST] ACCESS — Paciente',
+          content: JSON.stringify({
+            type: 'ACCESS',
+            requestedBy: 'Paciente',
+            description: 'Acesso aos dados',
+            status: 'PENDING',
+            deadline: '2026-04-10T00:00:00.000Z',
+            response: null,
+          }),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
+      const result = await service.listSubjectRequests(tenantId, {});
+
+      expect(result).toHaveLength(1);
+      expect(result[0].type).toBe('ACCESS');
+      expect(result[0].status).toBe('PENDING');
+      expect(result[0].requestedBy).toBe('Paciente');
+    });
+  });
+
+  describe('updateSubjectRequest', () => {
+    it('should update status of a subject request', async () => {
+      const existingDoc = {
+        id: 'doc-1',
+        tenantId,
+        title: '[LGPD:REQUEST] ACCESS — Paciente',
+        content: JSON.stringify({
+          type: 'ACCESS',
+          requestedBy: 'Paciente',
+          description: 'test',
+          status: 'PENDING',
+          deadline: '2026-04-10T00:00:00.000Z',
+          response: null,
+          statusHistory: [{ status: 'PENDING', timestamp: '2026-03-25T00:00:00.000Z' }],
+        }),
+      };
+      mockPrisma.clinicalDocument.findFirst.mockResolvedValue(existingDoc);
+      mockPrisma.clinicalDocument.update.mockResolvedValue({
+        ...existingDoc,
+        updatedAt: new Date(),
+      });
+
+      const result = await service.updateSubjectRequest(
+        tenantId,
+        'doc-1',
+        'COMPLETED',
+        'Dados exportados com sucesso',
+      );
+
+      expect(result.status).toBe('COMPLETED');
+      expect(result.response).toBe('Dados exportados com sucesso');
+    });
+
+    it('should throw NotFoundException for non-existent request', async () => {
+      mockPrisma.clinicalDocument.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateSubjectRequest(tenantId, 'nonexistent', 'COMPLETED'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── Data Incidents ──────────────────────────────────────────────────────
+
+  describe('createDataIncident', () => {
+    it('should create a data incident stored as ClinicalDocument', async () => {
+      mockPrisma.patient.findFirst.mockResolvedValue(mockPatient);
+      const mockDoc = {
+        id: 'inc-1',
+        tenantId,
+        title: '[LGPD:INCIDENT] HIGH — 50 registros afetados',
+        content: '{}',
+        status: 'DRAFT',
+        createdAt: new Date(),
+      };
+      mockPrisma.clinicalDocument.create.mockResolvedValue(mockDoc);
+
+      const result = await service.createDataIncident(tenantId, {
+        severity: 'HIGH',
+        affectedRecords: 50,
+        description: 'Acesso nao autorizado detectado',
+        containmentActions: 'Credenciais revogadas',
+        notifiedAnpd: true,
+      }, userId);
+
+      expect(result.id).toBe('inc-1');
+      expect(result.severity).toBe('HIGH');
+      expect(result.status).toBe('DETECTED');
+      expect(result.notifiedAnpd).toBe(true);
+    });
+  });
+
+  describe('listDataIncidents', () => {
+    it('should list and parse incidents', async () => {
+      mockPrisma.clinicalDocument.findMany.mockResolvedValue([
+        {
+          id: 'inc-1',
+          title: '[LGPD:INCIDENT] HIGH — 50 registros afetados',
+          content: JSON.stringify({
+            severity: 'HIGH',
+            affectedRecords: 50,
+            description: 'Acesso nao autorizado',
+            containmentActions: 'Credenciais revogadas',
+            notifiedAnpd: true,
+            status: 'DETECTED',
+            timeline: [{ status: 'DETECTED', timestamp: '2026-03-25T00:00:00.000Z' }],
+          }),
+          createdAt: new Date(),
+        },
+      ]);
+
+      const result = await service.listDataIncidents(tenantId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].severity).toBe('HIGH');
+      expect(result[0].affectedRecords).toBe(50);
+      expect(result[0].notifiedAnpd).toBe(true);
+    });
+  });
+
+  // ─── DPIA ────────────────────────────────────────────────────────────────
+
+  describe('generateDpia', () => {
+    it('should generate and store a DPIA', async () => {
+      mockPrisma.patient.findFirst.mockResolvedValue(mockPatient);
+      const mockDoc = {
+        id: 'dpia-1',
+        tenantId,
+        title: '[LGPD:DPIA] Processamento biometrico',
+        content: '{}',
+        status: 'FINAL',
+        createdAt: new Date(),
+      };
+      mockPrisma.clinicalDocument.create.mockResolvedValue(mockDoc);
+
+      const result = await service.generateDpia(tenantId, {
+        processName: 'Processamento biometrico',
+        purpose: 'Autenticacao de pacientes',
+        dataCategories: ['PERSONAL_IDENTIFICATION'],
+        risks: ['Vazamento de dados'],
+        mitigationMeasures: ['Criptografia', 'Controle de acesso'],
+      }, userId);
+
+      expect(result.id).toBe('dpia-1');
+      expect(result.processName).toBe('Processamento biometrico');
+      expect(result.riskLevel).toBe('LOW'); // 2 mitigations for 1 risk = LOW
+    });
+
+    it('should calculate HIGH risk when mitigations are insufficient', async () => {
+      mockPrisma.patient.findFirst.mockResolvedValue(mockPatient);
+      mockPrisma.clinicalDocument.create.mockResolvedValue({
+        id: 'dpia-2',
+        createdAt: new Date(),
+      });
+
+      const result = await service.generateDpia(tenantId, {
+        processName: 'Processo arriscado',
+        purpose: 'Teste',
+        dataCategories: ['HEALTH_RECORDS'],
+        risks: ['Risco 1', 'Risco 2', 'Risco 3', 'Risco 4'],
+        mitigationMeasures: ['Mitigacao 1'],
+      }, userId);
+
+      expect(result.riskLevel).toBe('HIGH'); // 1 mitigation for 4 risks = HIGH
+    });
+  });
+
+  describe('listDpias', () => {
+    it('should list and parse DPIAs', async () => {
+      mockPrisma.clinicalDocument.findMany.mockResolvedValue([
+        {
+          id: 'dpia-1',
+          title: '[LGPD:DPIA] Processamento biometrico',
+          content: JSON.stringify({
+            processName: 'Processamento biometrico',
+            purpose: 'Autenticacao',
+            dataCategories: ['PERSONAL_IDENTIFICATION'],
+            risks: ['Vazamento'],
+            mitigationMeasures: ['Criptografia'],
+            riskLevel: 'LOW',
+            generatedAt: '2026-03-25T00:00:00.000Z',
+          }),
+          createdAt: new Date(),
+        },
+      ]);
+
+      const result = await service.listDpias(tenantId);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].processName).toBe('Processamento biometrico');
+      expect(result[0].riskLevel).toBe('LOW');
     });
   });
 });

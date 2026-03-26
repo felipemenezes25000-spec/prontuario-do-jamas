@@ -63,6 +63,9 @@ export const icuKeys = {
   scores: (patientId: string) => [...icuKeys.all, 'scores', patientId] as const,
   devices: (patientId: string) => [...icuKeys.all, 'devices', patientId] as const,
   bundles: (patientId: string) => [...icuKeys.all, 'bundles', patientId] as const,
+  rass: (patientId: string) => [...icuKeys.all, 'rass', patientId] as const,
+  camIcu: (patientId: string) => [...icuKeys.all, 'cam-icu', patientId] as const,
+  bis: (patientId: string) => [...icuKeys.all, 'bis', patientId] as const,
 };
 
 // ─── Hooks ─────────────────────────────────────────────────────────────────
@@ -410,5 +413,216 @@ export function useOptimizeVasopressors() {
       const { data } = await api.post<VasopressorOptimizationResult>('/icu/ai/optimize-vasopressors', payload);
       return data;
     },
+  });
+}
+
+// ─── ICU Assessments: RASS, CAM-ICU, BIS ─────────────────────────────────────
+
+export interface RassAssessment {
+  id: string;
+  assessmentType: 'RASS';
+  score: number;
+  description: string;
+  interpretation: string;
+  alert: boolean;
+  alertMessage: string | null;
+  userDescription?: string;
+  assessedAt: string;
+  createdAt: string;
+}
+
+export interface RassHistory {
+  assessments: RassAssessment[];
+  trend: 'IMPROVING' | 'STABLE' | 'WORSENING' | 'INSUFFICIENT_DATA';
+  total: number;
+}
+
+export interface CamIcuAssessment {
+  id: string;
+  assessmentType: 'CAM_ICU';
+  feature1_acuteOnset: boolean;
+  feature2_inattention: boolean;
+  feature3_alteredLoc: boolean;
+  feature4_disorganizedThinking: boolean;
+  rassScore?: number;
+  deliriumPositive: boolean;
+  reasoning: string;
+  assessedAt: string;
+  createdAt: string;
+}
+
+export interface CamIcuHistory {
+  assessments: CamIcuAssessment[];
+  total: number;
+  deliriumStats: {
+    positiveCount: number;
+    negativeCount: number;
+    positiveRate: number;
+  };
+}
+
+export interface BisRecord {
+  id: string;
+  assessmentType: 'BIS';
+  bisValue: number;
+  emgValue?: number;
+  sqiValue?: number;
+  anestheticAgent?: string;
+  notes?: string;
+  interpretation: string;
+  zone: string;
+  alert: boolean;
+  alertMessage: string | null;
+  targetRange: { min: number; max: number };
+  inTargetRange: boolean;
+  recordedAt: string;
+  createdAt: string;
+}
+
+export interface BisHistory {
+  records: BisRecord[];
+  trend: 'INCREASING' | 'DECREASING' | 'STABLE' | 'INSUFFICIENT_DATA';
+  total: number;
+}
+
+export interface BisTarget {
+  id: string;
+  currentBis: number;
+  targetRange: { min: number; max: number };
+  inTargetRange: boolean;
+  interpretation: string;
+  zone: string;
+  deviation: number;
+  recordedAt: string;
+  createdAt: string;
+}
+
+// ─── RASS Hooks ──────────────────────────────────────────────────────────────
+
+export function useRecordRass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: { patientId: string; encounterId?: string; score: number; description?: string }) => {
+      const { data } = await api.post<RassAssessment>('/icu/rass', dto);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: icuKeys.rass(variables.patientId) });
+      qc.invalidateQueries({ queryKey: icuKeys.flowsheet(variables.patientId) });
+    },
+  });
+}
+
+export function useRassHistory(patientId: string) {
+  return useQuery({
+    queryKey: icuKeys.rass(patientId),
+    queryFn: async () => {
+      const { data } = await api.get<RassHistory>(`/icu/rass/${patientId}`);
+      return data;
+    },
+    enabled: !!patientId,
+  });
+}
+
+export function useLatestRass(patientId: string) {
+  return useQuery({
+    queryKey: [...icuKeys.rass(patientId), 'latest'],
+    queryFn: async () => {
+      const { data } = await api.get<RassAssessment>(`/icu/rass/${patientId}/latest`);
+      return data;
+    },
+    enabled: !!patientId,
+  });
+}
+
+// ─── CAM-ICU Hooks ──────────────────────────────────────────────────────────
+
+export function useRecordCamIcu() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: {
+      patientId: string;
+      encounterId?: string;
+      feature1_acuteOnset: boolean;
+      feature2_inattention: boolean;
+      feature3_alteredLoc: boolean;
+      feature4_disorganizedThinking: boolean;
+      rassScore?: number;
+    }) => {
+      const { data } = await api.post<CamIcuAssessment>('/icu/cam-icu', dto);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: icuKeys.camIcu(variables.patientId) });
+      qc.invalidateQueries({ queryKey: icuKeys.flowsheet(variables.patientId) });
+    },
+  });
+}
+
+export function useCamIcuHistory(patientId: string) {
+  return useQuery({
+    queryKey: icuKeys.camIcu(patientId),
+    queryFn: async () => {
+      const { data } = await api.get<CamIcuHistory>(`/icu/cam-icu/${patientId}`);
+      return data;
+    },
+    enabled: !!patientId,
+  });
+}
+
+export function useDeliriumStatus(patientId: string) {
+  return useQuery({
+    queryKey: [...icuKeys.camIcu(patientId), 'status'],
+    queryFn: async () => {
+      const { data } = await api.get<{ deliriumPositive: boolean; reasoning: string; rassScore?: number; assessedAt: string }>(`/icu/cam-icu/${patientId}/status`);
+      return data;
+    },
+    enabled: !!patientId,
+  });
+}
+
+// ─── BIS Hooks ──────────────────────────────────────────────────────────────
+
+export function useRecordBis() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: {
+      patientId: string;
+      encounterId?: string;
+      bisValue: number;
+      emgValue?: number;
+      sqiValue?: number;
+      anestheticAgent?: string;
+      notes?: string;
+    }) => {
+      const { data } = await api.post<BisRecord>('/icu/bis', dto);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: icuKeys.bis(variables.patientId) });
+      qc.invalidateQueries({ queryKey: icuKeys.flowsheet(variables.patientId) });
+    },
+  });
+}
+
+export function useBisHistory(patientId: string) {
+  return useQuery({
+    queryKey: icuKeys.bis(patientId),
+    queryFn: async () => {
+      const { data } = await api.get<BisHistory>(`/icu/bis/${patientId}`);
+      return data;
+    },
+    enabled: !!patientId,
+  });
+}
+
+export function useBisTarget(patientId: string) {
+  return useQuery({
+    queryKey: [...icuKeys.bis(patientId), 'target'],
+    queryFn: async () => {
+      const { data } = await api.get<BisTarget>(`/icu/bis/${patientId}`);
+      return data;
+    },
+    enabled: !!patientId,
   });
 }

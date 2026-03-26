@@ -23,7 +23,16 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { RecordConsentDto, SetRetentionPolicyDto, ComplianceReportQueryDto } from './dto';
+import {
+  RecordConsentDto,
+  SetRetentionPolicyDto,
+  ComplianceReportQueryDto,
+  CreateSubjectRequestDto,
+  ListSubjectRequestsDto,
+  UpdateSubjectRequestDto,
+  CreateDataIncidentDto,
+  CreateDpiaDto,
+} from './dto';
 import { ConsentType } from '@prisma/client';
 
 /**
@@ -172,5 +181,124 @@ export class LgpdController {
   @ApiResponse({ status: 200, description: 'Expired data purged' })
   async purgeExpiredData(@CurrentTenant() tenantId: string) {
     return this.lgpdService.purgeExpiredData(tenantId);
+  }
+
+  // ─── DPO Dashboard ──────────────────────────────────────────────────────
+
+  /** Get DPO dashboard data — LGPD Art. 41 */
+  @Get('dpo/dashboard')
+  @ApiOperation({ summary: 'Get DPO dashboard data (LGPD Art. 41)' })
+  @ApiResponse({ status: 200, description: 'DPO dashboard data' })
+  async getDpoDashboard(@CurrentTenant() tenantId: string) {
+    return this.lgpdService.getDpoDashboard(tenantId);
+  }
+
+  // ─── Subject Requests (LGPD Art. 18) ─────────────────────────────────────
+
+  /** Create a data subject request — LGPD Art. 18 */
+  @Post('subject-requests')
+  @ApiOperation({ summary: 'Create data subject request (LGPD Art. 18)' })
+  @ApiResponse({ status: 201, description: 'Subject request created' })
+  async createSubjectRequest(
+    @Body() dto: CreateSubjectRequestDto,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.lgpdService.createSubjectRequest(tenantId, {
+      type: dto.type,
+      patientId: dto.patientId,
+      requestedBy: dto.requestedBy,
+      description: dto.description,
+    }, user.sub);
+  }
+
+  /** List subject requests with filters */
+  @Get('subject-requests')
+  @ApiOperation({ summary: 'List data subject requests' })
+  @ApiResponse({ status: 200, description: 'Subject requests list' })
+  async listSubjectRequests(
+    @Query() query: ListSubjectRequestsDto,
+    @CurrentTenant() tenantId: string,
+  ) {
+    return this.lgpdService.listSubjectRequests(tenantId, {
+      status: query.status,
+      type: query.type,
+      startDate: query.startDate,
+      endDate: query.endDate,
+    });
+  }
+
+  /** Update a subject request status */
+  @Put('subject-requests/:requestId')
+  @ApiParam({ name: 'requestId', description: 'Subject request UUID' })
+  @ApiOperation({ summary: 'Update subject request status' })
+  @ApiResponse({ status: 200, description: 'Subject request updated' })
+  async updateSubjectRequest(
+    @Param('requestId') requestId: string,
+    @Body() dto: UpdateSubjectRequestDto,
+    @CurrentTenant() tenantId: string,
+  ) {
+    return this.lgpdService.updateSubjectRequest(
+      tenantId,
+      requestId,
+      dto.status,
+      dto.response,
+    );
+  }
+
+  // ─── Data Incidents (LGPD Art. 48) ───────────────────────────────────────
+
+  /** Record a data incident — LGPD Art. 48 */
+  @Post('incidents')
+  @ApiOperation({ summary: 'Record data breach/incident (LGPD Art. 48)' })
+  @ApiResponse({ status: 201, description: 'Incident recorded' })
+  async createDataIncident(
+    @Body() dto: CreateDataIncidentDto,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.lgpdService.createDataIncident(tenantId, {
+      severity: dto.severity,
+      affectedRecords: dto.affectedRecords,
+      description: dto.description,
+      containmentActions: dto.containmentActions,
+      notifiedAnpd: dto.notifiedAnpd,
+    }, user.sub);
+  }
+
+  /** List data incidents */
+  @Get('incidents')
+  @ApiOperation({ summary: 'List data incidents' })
+  @ApiResponse({ status: 200, description: 'Incidents list' })
+  async listDataIncidents(@CurrentTenant() tenantId: string) {
+    return this.lgpdService.listDataIncidents(tenantId);
+  }
+
+  // ─── DPIA (LGPD Art. 38) ────────────────────────────────────────────────
+
+  /** Generate a DPIA — LGPD Art. 38 */
+  @Post('dpia')
+  @ApiOperation({ summary: 'Generate Data Protection Impact Assessment (LGPD Art. 38)' })
+  @ApiResponse({ status: 201, description: 'DPIA generated' })
+  async generateDpia(
+    @Body() dto: CreateDpiaDto,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.lgpdService.generateDpia(tenantId, {
+      processName: dto.processName,
+      purpose: dto.purpose,
+      dataCategories: dto.dataCategories,
+      risks: dto.risks,
+      mitigationMeasures: dto.mitigationMeasures,
+    }, user.sub);
+  }
+
+  /** List all DPIAs */
+  @Get('dpia')
+  @ApiOperation({ summary: 'List Data Protection Impact Assessments' })
+  @ApiResponse({ status: 200, description: 'DPIA list' })
+  async listDpias(@CurrentTenant() tenantId: string) {
+    return this.lgpdService.listDpias(tenantId);
   }
 }

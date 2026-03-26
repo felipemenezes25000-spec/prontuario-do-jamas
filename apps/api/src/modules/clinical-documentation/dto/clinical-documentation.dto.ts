@@ -236,6 +236,29 @@ export class CreateFromTemplateDto {
 }
 
 // ============================================================================
+// Patient Timeline DTOs
+// ============================================================================
+
+export enum TimelineEventType {
+  ENCOUNTER = 'ENCOUNTER',
+  NOTE = 'NOTE',
+  PRESCRIPTION = 'PRESCRIPTION',
+  LAB = 'LAB',
+  VITALS = 'VITALS',
+  SURGERY = 'SURGERY',
+  ADMISSION = 'ADMISSION',
+  DISCHARGE = 'DISCHARGE',
+}
+
+export class PatientTimelineFilterDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() dateFrom?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() dateTo?: string;
+  @ApiPropertyOptional({ enum: TimelineEventType, isArray: true })
+  @IsOptional() @IsArray() @IsEnum(TimelineEventType, { each: true })
+  types?: TimelineEventType[];
+}
+
+// ============================================================================
 // AI Feature DTOs
 // ============================================================================
 

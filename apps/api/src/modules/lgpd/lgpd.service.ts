@@ -12,6 +12,12 @@ import {
   DataCategory,
 } from '@prisma/client';
 import * as crypto from 'crypto';
+import {
+  SubjectRequestType,
+  SubjectRequestStatus,
+  IncidentSeverity,
+  IncidentStatus,
+} from './dto/lgpd-dpo.dto';
 
 /**
  * LGPD Compliance Service
@@ -642,5 +648,580 @@ export class LgpdService {
         legalBasis: p.legalBasis,
       })),
     };
+  }
+
+  // ─── DPO Dashboard (LGPD Art. 41) ──────────────────────────────────────────
+
+  /**
+   * Get comprehensive DPO (Data Protection Officer) dashboard data.
+   * LGPD Art. 41 — The controller shall appoint a DPO.
+   */
+  async getDpoDashboard(tenantId: string) {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const ninetyDaysAgo = new Date(now);
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    // Consent metrics
+    const [totalConsents, activeConsents, revokedConsents] = await Promise.all([
+      this.prisma.consentRecord.count({ where: { tenantId } }),
+      this.prisma.consentRecord.count({
+        where: {
+          tenantId,
+          granted: true,
+          revokedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      }),
+      this.prisma.consentRecord.count({
+        where: { tenantId, revokedAt: { not: null } },
+      }),
+    ]);
+
+    // Consents grouped by type
+    const consentsByType = await this.prisma.consentRecord.groupBy({
+      by: ['type'],
+      where: { tenantId },
+      _count: true,
+    });
+
+    // Data access logs last 30 days grouped by day
+    const accessLogs = await this.prisma.dataAccessLog.findMany({
+      where: { tenantId, createdAt: { gte: thirtyDaysAgo } },
+      select: { createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const accessByDay = new Map<string, number>();
+    for (const log of accessLogs) {
+      const dayKey = log.createdAt.toISOString().split('T')[0];
+      accessByDay.set(dayKey, (accessByDay.get(dayKey) ?? 0) + 1);
+    }
+    const dataAccessLogsByDay = Array.from(accessByDay.entries()).map(
+      ([date, count]) => ({ date, count }),
+    );
+
+    // Pending subject requests (stored as ClinicalDocument with [LGPD:REQUEST] prefix)
+    const pendingSubjectRequests = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        title: { startsWith: '[LGPD:REQUEST]' },
+        status: 'DRAFT', // DRAFT = PENDING in our mapping
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Anonymizations last 90 days
+    const anonymizationsPerformed = await this.prisma.anonymizationLog.count({
+      where: {
+        tenantId,
+        status: 'COMPLETED',
+        createdAt: { gte: ninetyDaysAgo },
+      },
+    });
+
+    // Data categories at risk: find ConsentTypes with no active consent across any patient
+    const allConsentTypes = Object.values(ConsentType);
+    const activeConsentTypes = await this.prisma.consentRecord.findMany({
+      where: {
+        tenantId,
+        granted: true,
+        revokedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: { type: true },
+      distinct: ['type'],
+    });
+    const activeTypeSet = new Set(activeConsentTypes.map((c) => c.type));
+    const categoriesAtRisk = allConsentTypes.filter((t) => !activeTypeSet.has(t));
+
+    // Compliance score (0-100)
+    const retentionPolicies = await this.prisma.dataRetentionPolicy.findMany({
+      where: { tenantId },
+    });
+    const auditLogCount = await this.prisma.auditLog.count({
+      where: { tenantId, timestamp: { gte: thirtyDaysAgo } },
+    });
+
+    let complianceScore = 0;
+    // 40 points: percentage of consent types that are active
+    const consentCoverage =
+      allConsentTypes.length > 0
+        ? (activeTypeSet.size / allConsentTypes.length) * 40
+        : 0;
+    complianceScore += Math.round(consentCoverage);
+
+    // 30 points: retention policies configured (at least 4 categories expected)
+    const expectedCategories = 4;
+    const retentionCoverage = Math.min(retentionPolicies.length / expectedCategories, 1) * 30;
+    complianceScore += Math.round(retentionCoverage);
+
+    // 30 points: audit trail active (at least 1 log in last 30 days)
+    complianceScore += auditLogCount > 0 ? 30 : 0;
+
+    return {
+      totalConsents,
+      activeConsents,
+      revokedConsents,
+      consentsByType: consentsByType.map((c) => ({
+        type: c.type,
+        count: c._count,
+      })),
+      dataAccessLogsByDay,
+      pendingSubjectRequests: pendingSubjectRequests.map((doc) => ({
+        id: doc.id,
+        title: doc.title,
+        content: doc.content,
+        status: doc.status,
+        createdAt: doc.createdAt,
+      })),
+      anonymizationsPerformed,
+      categoriesAtRisk,
+      complianceScore: Math.min(complianceScore, 100),
+    };
+  }
+
+  // ─── Subject Requests (LGPD Art. 18) ───────────────────────────────────────
+
+  /**
+   * Create a data subject request.
+   * LGPD Art. 18 — Data subject rights. Deadline: 15 days.
+   * Stored as ClinicalDocument with title prefix [LGPD:REQUEST].
+   */
+  async createSubjectRequest(
+    tenantId: string,
+    data: {
+      type: SubjectRequestType;
+      patientId: string;
+      requestedBy: string;
+      description: string;
+    },
+    authorId: string,
+  ) {
+    // Verify patient exists
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: data.patientId, tenantId },
+    });
+    if (!patient) {
+      throw new NotFoundException(
+        `Paciente com ID "${data.patientId}" nao encontrado neste tenant`,
+      );
+    }
+
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + 15); // LGPD Art. 18 — 15 days
+
+    const content = JSON.stringify({
+      type: data.type,
+      requestedBy: data.requestedBy,
+      description: data.description,
+      status: SubjectRequestStatus.PENDING,
+      deadline: deadline.toISOString(),
+      response: null,
+      statusHistory: [
+        {
+          status: SubjectRequestStatus.PENDING,
+          timestamp: new Date().toISOString(),
+          note: 'Solicitacao criada',
+        },
+      ],
+    });
+
+    const document = await this.prisma.clinicalDocument.create({
+      data: {
+        patientId: data.patientId,
+        authorId,
+        tenantId,
+        type: 'CUSTOM',
+        title: `[LGPD:REQUEST] ${data.type} — ${data.requestedBy}`,
+        content,
+        status: 'DRAFT', // DRAFT = PENDING
+      },
+    });
+
+    this.logger.log(
+      `Subject request ${data.type} created for patient ${data.patientId} by ${data.requestedBy}`,
+    );
+
+    return {
+      id: document.id,
+      type: data.type,
+      patientId: data.patientId,
+      requestedBy: data.requestedBy,
+      description: data.description,
+      status: SubjectRequestStatus.PENDING,
+      deadline: deadline.toISOString(),
+      createdAt: document.createdAt,
+    };
+  }
+
+  /**
+   * List data subject requests with optional filters.
+   */
+  async listSubjectRequests(
+    tenantId: string,
+    filters: {
+      status?: SubjectRequestStatus;
+      type?: SubjectRequestType;
+      startDate?: string;
+      endDate?: string;
+    },
+  ) {
+    // Map SubjectRequestStatus to DocumentStatus for DB query
+    const statusToDocStatus: Record<SubjectRequestStatus, string> = {
+      [SubjectRequestStatus.PENDING]: 'DRAFT',
+      [SubjectRequestStatus.IN_PROGRESS]: 'DRAFT',
+      [SubjectRequestStatus.COMPLETED]: 'FINAL',
+      [SubjectRequestStatus.DENIED]: 'FINAL',
+    };
+
+    const where: Record<string, unknown> = {
+      tenantId,
+      title: { startsWith: '[LGPD:REQUEST]' },
+    };
+
+    if (filters.status) {
+      where['status'] = statusToDocStatus[filters.status];
+    }
+
+    if (filters.type) {
+      where['title'] = { startsWith: `[LGPD:REQUEST] ${filters.type}` };
+    }
+
+    if (filters.startDate || filters.endDate) {
+      const createdAt: Record<string, Date> = {};
+      if (filters.startDate) createdAt['gte'] = new Date(filters.startDate);
+      if (filters.endDate) createdAt['lte'] = new Date(filters.endDate);
+      where['createdAt'] = createdAt;
+    }
+
+    const documents = await this.prisma.clinicalDocument.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return documents.map((doc) => {
+      const parsed = doc.content ? JSON.parse(doc.content) as {
+        type: SubjectRequestType;
+        requestedBy: string;
+        description: string;
+        status: SubjectRequestStatus;
+        deadline: string;
+        response: string | null;
+      } : null;
+
+      return {
+        id: doc.id,
+        type: parsed?.type ?? 'UNKNOWN',
+        patientId: doc.patientId,
+        requestedBy: parsed?.requestedBy ?? '',
+        description: parsed?.description ?? '',
+        status: parsed?.status ?? SubjectRequestStatus.PENDING,
+        deadline: parsed?.deadline ?? null,
+        response: parsed?.response ?? null,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+      };
+    });
+  }
+
+  /**
+   * Update the status of a data subject request.
+   */
+  async updateSubjectRequest(
+    tenantId: string,
+    requestId: string,
+    status: SubjectRequestStatus,
+    response?: string,
+  ) {
+    const document = await this.prisma.clinicalDocument.findFirst({
+      where: {
+        id: requestId,
+        tenantId,
+        title: { startsWith: '[LGPD:REQUEST]' },
+      },
+    });
+
+    if (!document) {
+      throw new NotFoundException(
+        `Solicitacao LGPD com ID "${requestId}" nao encontrada`,
+      );
+    }
+
+    const parsed = document.content ? JSON.parse(document.content) as {
+      type: SubjectRequestType;
+      requestedBy: string;
+      description: string;
+      status: SubjectRequestStatus;
+      deadline: string;
+      response: string | null;
+      statusHistory: Array<{ status: string; timestamp: string; note?: string }>;
+    } : null;
+
+    if (!parsed) {
+      throw new BadRequestException('Conteudo da solicitacao invalido');
+    }
+
+    parsed.status = status;
+    parsed.response = response ?? parsed.response;
+    parsed.statusHistory.push({
+      status,
+      timestamp: new Date().toISOString(),
+      note: response,
+    });
+
+    const docStatus =
+      status === SubjectRequestStatus.COMPLETED || status === SubjectRequestStatus.DENIED
+        ? 'FINAL'
+        : 'DRAFT';
+
+    const updated = await this.prisma.clinicalDocument.update({
+      where: { id: requestId },
+      data: {
+        content: JSON.stringify(parsed),
+        status: docStatus as 'DRAFT' | 'FINAL',
+      },
+    });
+
+    this.logger.log(
+      `Subject request ${requestId} updated to ${status}`,
+    );
+
+    return {
+      id: updated.id,
+      type: parsed.type,
+      status: parsed.status,
+      response: parsed.response,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
+  // ─── Data Incidents (LGPD Art. 48) ─────────────────────────────────────────
+
+  /**
+   * Record a data breach/incident.
+   * LGPD Art. 48 — Controller must notify the authority and data subjects
+   * in case of a security incident that may cause risk or damage.
+   * Stored as ClinicalDocument with title prefix [LGPD:INCIDENT].
+   */
+  async createDataIncident(
+    tenantId: string,
+    data: {
+      severity: IncidentSeverity;
+      affectedRecords: number;
+      description: string;
+      containmentActions: string;
+      notifiedAnpd: boolean;
+    },
+    authorId: string,
+  ) {
+    const content = JSON.stringify({
+      severity: data.severity,
+      affectedRecords: data.affectedRecords,
+      description: data.description,
+      containmentActions: data.containmentActions,
+      notifiedAnpd: data.notifiedAnpd,
+      status: IncidentStatus.DETECTED,
+      timeline: [
+        {
+          status: IncidentStatus.DETECTED,
+          timestamp: new Date().toISOString(),
+          note: data.description,
+        },
+      ],
+    });
+
+    // Use a system patient placeholder for incident docs.
+    // We need a patientId for ClinicalDocument — use the authorId to look up a
+    // "system" patient or pick the first patient in the tenant as placeholder.
+    const systemPatient = await this.prisma.patient.findFirst({
+      where: { tenantId },
+      select: { id: true },
+    });
+
+    if (!systemPatient) {
+      throw new BadRequestException(
+        'Nenhum paciente cadastrado no tenant — necessario para registro de incidente',
+      );
+    }
+
+    const document = await this.prisma.clinicalDocument.create({
+      data: {
+        patientId: systemPatient.id,
+        authorId,
+        tenantId,
+        type: 'CUSTOM',
+        title: `[LGPD:INCIDENT] ${data.severity} — ${data.affectedRecords} registros afetados`,
+        content,
+        status: 'DRAFT',
+      },
+    });
+
+    this.logger.warn(
+      `Data incident created: severity=${data.severity}, affected=${data.affectedRecords}, anpd_notified=${data.notifiedAnpd}`,
+    );
+
+    return {
+      id: document.id,
+      severity: data.severity,
+      affectedRecords: data.affectedRecords,
+      status: IncidentStatus.DETECTED,
+      notifiedAnpd: data.notifiedAnpd,
+      createdAt: document.createdAt,
+    };
+  }
+
+  /**
+   * List all data incidents for a tenant.
+   */
+  async listDataIncidents(tenantId: string) {
+    const documents = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        title: { startsWith: '[LGPD:INCIDENT]' },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return documents.map((doc) => {
+      const parsed = doc.content ? JSON.parse(doc.content) as {
+        severity: IncidentSeverity;
+        affectedRecords: number;
+        description: string;
+        containmentActions: string;
+        notifiedAnpd: boolean;
+        status: IncidentStatus;
+        timeline: Array<{ status: string; timestamp: string; note?: string }>;
+      } : null;
+
+      return {
+        id: doc.id,
+        severity: parsed?.severity ?? IncidentSeverity.LOW,
+        affectedRecords: parsed?.affectedRecords ?? 0,
+        description: parsed?.description ?? '',
+        containmentActions: parsed?.containmentActions ?? '',
+        notifiedAnpd: parsed?.notifiedAnpd ?? false,
+        status: parsed?.status ?? IncidentStatus.DETECTED,
+        timeline: parsed?.timeline ?? [],
+        createdAt: doc.createdAt,
+      };
+    });
+  }
+
+  // ─── DPIA — Data Protection Impact Assessment (LGPD Art. 38) ───────────────
+
+  /**
+   * Generate and store a Data Protection Impact Assessment.
+   * LGPD Art. 38 — The authority may request a DPIA.
+   * Stored as ClinicalDocument with title prefix [LGPD:DPIA].
+   */
+  async generateDpia(
+    tenantId: string,
+    data: {
+      processName: string;
+      purpose: string;
+      dataCategories: string[];
+      risks: string[];
+      mitigationMeasures: string[];
+    },
+    authorId: string,
+  ) {
+    const content = JSON.stringify({
+      processName: data.processName,
+      purpose: data.purpose,
+      dataCategories: data.dataCategories,
+      risks: data.risks,
+      mitigationMeasures: data.mitigationMeasures,
+      riskLevel: this.calculateDpiaRiskLevel(data.risks.length, data.mitigationMeasures.length),
+      generatedAt: new Date().toISOString(),
+      lgpdReference: 'Lei 13.709/2018, Art. 38',
+    });
+
+    // Use first patient as placeholder for the DPIA document
+    const systemPatient = await this.prisma.patient.findFirst({
+      where: { tenantId },
+      select: { id: true },
+    });
+
+    if (!systemPatient) {
+      throw new BadRequestException(
+        'Nenhum paciente cadastrado no tenant — necessario para registro de DPIA',
+      );
+    }
+
+    const document = await this.prisma.clinicalDocument.create({
+      data: {
+        patientId: systemPatient.id,
+        authorId,
+        tenantId,
+        type: 'CUSTOM',
+        title: `[LGPD:DPIA] ${data.processName}`,
+        content,
+        status: 'FINAL',
+      },
+    });
+
+    this.logger.log(
+      `DPIA generated for process "${data.processName}" in tenant ${tenantId}`,
+    );
+
+    return {
+      id: document.id,
+      processName: data.processName,
+      purpose: data.purpose,
+      dataCategories: data.dataCategories,
+      risks: data.risks,
+      mitigationMeasures: data.mitigationMeasures,
+      riskLevel: this.calculateDpiaRiskLevel(data.risks.length, data.mitigationMeasures.length),
+      createdAt: document.createdAt,
+    };
+  }
+
+  /**
+   * List all DPIAs for a tenant.
+   */
+  async listDpias(tenantId: string) {
+    const documents = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        title: { startsWith: '[LGPD:DPIA]' },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return documents.map((doc) => {
+      const parsed = doc.content ? JSON.parse(doc.content) as {
+        processName: string;
+        purpose: string;
+        dataCategories: string[];
+        risks: string[];
+        mitigationMeasures: string[];
+        riskLevel: string;
+        generatedAt: string;
+      } : null;
+
+      return {
+        id: doc.id,
+        processName: parsed?.processName ?? '',
+        purpose: parsed?.purpose ?? '',
+        dataCategories: parsed?.dataCategories ?? [],
+        risks: parsed?.risks ?? [],
+        mitigationMeasures: parsed?.mitigationMeasures ?? [],
+        riskLevel: parsed?.riskLevel ?? 'UNKNOWN',
+        createdAt: doc.createdAt,
+      };
+    });
+  }
+
+  /**
+   * Calculate risk level for a DPIA based on risk-to-mitigation ratio.
+   */
+  private calculateDpiaRiskLevel(riskCount: number, mitigationCount: number): string {
+    if (riskCount === 0) return 'LOW';
+    const ratio = mitigationCount / riskCount;
+    if (ratio >= 1) return 'LOW';
+    if (ratio >= 0.5) return 'MEDIUM';
+    return 'HIGH';
   }
 }

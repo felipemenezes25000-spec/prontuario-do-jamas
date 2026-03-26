@@ -24,9 +24,17 @@ import {
   AiAutoCompleteDto,
   AiTranslateNoteDto,
   AiPatientSummaryDto,
+  PatientTimelineFilterDto,
+  TimelineEventType,
   InterConsultStatus,
   DocumentLockStatus,
 } from './dto/clinical-documentation.dto';
+import {
+  CreateCaseDiscussionFullDto,
+  RecordCaseDiscussionOutcomeDto,
+  ListCaseDiscussionsFilterDto,
+  CaseDiscussionStatus,
+} from './dto/case-discussion.dto';
 
 // ============================================================================
 // Specialty template defaults
@@ -178,7 +186,7 @@ export class ClinicalDocumentationService {
   }
 
   // =========================================================================
-  // Case Discussion / Medical Board
+  // Case Discussion / Medical Board (legacy simple method)
   // =========================================================================
 
   async createCaseDiscussion(tenantId: string, authorId: string, dto: CreateCaseDiscussionDto) {
@@ -215,6 +223,98 @@ export class ClinicalDocumentationService {
       include: { author: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // =========================================================================
+  // Enhanced Case Discussion / Junta Médica
+  // =========================================================================
+
+  async createCaseDiscussionFull(tenantId: string, authorId: string, dto: CreateCaseDiscussionFullDto) {
+    return this.prisma.clinicalDocument.create({
+      data: {
+        tenantId,
+        patientId: dto.patientId,
+        encounterId: dto.encounterId,
+        authorId,
+        type: 'CUSTOM',
+        title: `[CASE_DISCUSSION:${dto.type}] ${dto.title}`,
+        content: JSON.stringify({
+          discussionType: dto.type,
+          scheduledDate: dto.scheduledDate,
+          participants: dto.participants,
+          clinicalSummary: dto.clinicalSummary,
+          questionsForDiscussion: dto.questionsForDiscussion,
+          status: CaseDiscussionStatus.SCHEDULED,
+          createdAt: new Date().toISOString(),
+        }),
+        status: 'DRAFT',
+      },
+      include: { author: { select: { id: true, name: true } } },
+    });
+  }
+
+  async recordDiscussionOutcome(tenantId: string, userId: string, dto: RecordCaseDiscussionOutcomeDto) {
+    const doc = await this.findDocumentOrFail(dto.discussionId, tenantId);
+    const existing = JSON.parse(doc.content ?? '{}');
+
+    return this.prisma.clinicalDocument.update({
+      where: { id: dto.discussionId },
+      data: {
+        content: JSON.stringify({
+          ...existing,
+          status: CaseDiscussionStatus.COMPLETED,
+          conclusions: dto.conclusions,
+          agreedPlan: dto.agreedPlan,
+          recommendations: dto.recommendations,
+          followUpDate: dto.followUpDate,
+          dissenting: dto.dissenting,
+          recordingUrl: dto.recordingUrl,
+          completedBy: userId,
+          completedAt: new Date().toISOString(),
+        }),
+        status: 'FINAL',
+      },
+      include: { author: { select: { id: true, name: true } } },
+    });
+  }
+
+  async listCaseDiscussionsFull(tenantId: string, filters: ListCaseDiscussionsFilterDto) {
+    const where: Record<string, unknown> = {
+      tenantId,
+      title: { startsWith: '[CASE_DISCUSSION' },
+    };
+    if (filters.patientId) where.patientId = filters.patientId;
+    if (filters.type) {
+      where.title = { startsWith: `[CASE_DISCUSSION:${filters.type}]` };
+    }
+    if (filters.status) {
+      where.content = { contains: `"status":"${filters.status}"` };
+    }
+
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where,
+      include: { author: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (filters.dateFrom || filters.dateTo) {
+      return docs.filter((d) => {
+        const parsed = JSON.parse(d.content ?? '{}');
+        const scheduledDate = parsed.scheduledDate as string | undefined;
+        if (!scheduledDate) return true;
+        if (filters.dateFrom && scheduledDate < filters.dateFrom) return false;
+        if (filters.dateTo && scheduledDate > filters.dateTo) return false;
+        return true;
+      });
+    }
+
+    return docs;
+  }
+
+  async getCaseDiscussion(tenantId: string, discussionId: string) {
+    const doc = await this.findDocumentOrFail(discussionId, tenantId);
+    const content = JSON.parse(doc.content ?? '{}');
+    return { ...doc, parsedContent: content };
   }
 
   // =========================================================================

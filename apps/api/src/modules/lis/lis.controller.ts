@@ -31,6 +31,7 @@ import {
   PredictResultDto,
   DetectSampleSwapDto,
 } from './dto/lis-advanced.dto';
+import { MarkCollectedDto } from './dto/phlebotomy.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
@@ -236,5 +237,49 @@ export class LisController {
     @Body() dto: DetectSampleSwapDto,
   ) {
     return this.lisService.detectSampleSwap(tenantId, dto);
+  }
+
+  // ─── Phlebotomy Worklist (Mapa de Coleta) ─────────────────────────────────
+
+  @Get('phlebotomy/worklist')
+  @ApiOperation({ summary: 'Get phlebotomy worklist grouped by ward' })
+  @ApiQuery({ name: 'ward', required: false, description: 'Filter by ward/floor' })
+  @ApiQuery({ name: 'date', required: false, description: 'Filter by date (ISO)' })
+  @ApiQuery({ name: 'urgentFirst', required: false, description: 'Sort urgent first (default true)' })
+  @ApiResponse({ status: 200, description: 'Phlebotomy worklist' })
+  async getPhlebotomyWorklist(
+    @CurrentTenant() tenantId: string,
+    @Query('ward') ward?: string,
+    @Query('date') date?: string,
+    @Query('urgentFirst') urgentFirst?: string,
+  ) {
+    return this.lisService.getPhlebotomyWorklist(tenantId, {
+      ward,
+      date,
+      urgentFirst: urgentFirst !== undefined ? urgentFirst === 'true' : undefined,
+    });
+  }
+
+  @Patch('phlebotomy/:sampleId/collected')
+  @ApiParam({ name: 'sampleId', description: 'Sample UUID' })
+  @ApiOperation({ summary: 'Mark a sample as collected by phlebotomist' })
+  @ApiResponse({ status: 200, description: 'Sample marked as collected' })
+  async markCollected(
+    @CurrentTenant() tenantId: string,
+    @Param('sampleId', ParseUUIDPipe) sampleId: string,
+    @Body() dto: MarkCollectedDto,
+  ) {
+    return this.lisService.markCollected(tenantId, sampleId, dto);
+  }
+
+  @Get('phlebotomy/stats')
+  @ApiOperation({ summary: 'Get phlebotomy collection statistics for a date' })
+  @ApiQuery({ name: 'date', required: false, description: 'Date (ISO), defaults to today' })
+  @ApiResponse({ status: 200, description: 'Phlebotomy stats' })
+  async getPhlebotomyStats(
+    @CurrentTenant() tenantId: string,
+    @Query('date') date?: string,
+  ) {
+    return this.lisService.getPhlebotomyStats(tenantId, date);
   }
 }

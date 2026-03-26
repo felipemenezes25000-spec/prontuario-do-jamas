@@ -199,6 +199,44 @@ export class ImportFhirHistoryDto {
 }
 
 // ============================================================================
+// Obstetric History — Detailed GPAC with Previous Pregnancies
+// ============================================================================
+
+export enum DeliveryType {
+  VAGINAL = 'VAGINAL',
+  CESAREAN = 'CESAREAN',
+  FORCEPS = 'FORCEPS',
+}
+
+export enum PregnancyOutcome {
+  LIVE_BIRTH = 'LIVE_BIRTH',
+  STILLBIRTH = 'STILLBIRTH',
+  ABORTION = 'ABORTION',
+  ECTOPIC = 'ECTOPIC',
+}
+
+export class PreviousPregnancyDto {
+  @ApiProperty({ description: 'Year of pregnancy' }) @IsNumber() year!: number;
+  @ApiProperty({ description: 'Gestational age in weeks' }) @IsNumber() gestationalWeeks!: number;
+  @ApiProperty({ enum: DeliveryType }) @IsEnum(DeliveryType) deliveryType!: DeliveryType;
+  @ApiPropertyOptional({ description: 'Birth weight in grams' }) @IsOptional() @IsNumber() birthWeight?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() complications?: string;
+  @ApiProperty({ enum: PregnancyOutcome }) @IsEnum(PregnancyOutcome) outcome!: PregnancyOutcome;
+}
+
+export class CreateObstetricHistoryDto {
+  @ApiProperty() @IsUUID() patientId!: string;
+  @ApiProperty({ description: 'Total pregnancies (gravida)' }) @IsNumber() gravida!: number;
+  @ApiProperty({ description: 'Term deliveries (para)' }) @IsNumber() para!: number;
+  @ApiProperty({ description: 'Number of abortions' }) @IsNumber() abortions!: number;
+  @ApiProperty({ description: 'Number of cesarean sections' }) @IsNumber() cesareans!: number;
+  @ApiProperty({ description: 'Number of living children' }) @IsNumber() livingChildren!: number;
+  @ApiProperty({ type: [PreviousPregnancyDto], description: 'Previous pregnancy details' })
+  @IsArray() @ValidateNested({ each: true }) @Type(() => PreviousPregnancyDto)
+  previousPregnancies!: PreviousPregnancyDto[];
+}
+
+// ============================================================================
 // AI Feature DTOs
 // ============================================================================
 

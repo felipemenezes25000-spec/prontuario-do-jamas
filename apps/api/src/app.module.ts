@@ -81,6 +81,7 @@ import { LisModule } from './modules/lis/lis.module';
 import { RisPacsModule } from './modules/ris-pacs/ris-pacs.module';
 import { GenomicsModule } from './modules/genomics/genomics.module';
 import { PathologyModule } from './modules/pathology/pathology.module';
+import { MicrobiologyModule } from './modules/microbiology/microbiology.module';
 import { BloodBankModule } from './modules/blood-bank/blood-bank.module';
 import { CardiologyModule } from './modules/cardiology/cardiology.module';
 // Interoperability Modules
@@ -108,6 +109,7 @@ import { ClinicalDocumentationModule } from './modules/clinical-documentation/cl
 import { AnamnesisModule } from './modules/anamnesis/anamnesis.module';
 // ICU & Discharge Modules
 import { IcuModule } from './modules/icu/icu.module';
+import { IcuMonitoringModule } from './modules/icu-monitoring/icu-monitoring.module';
 import { DischargePlanningModule } from './modules/discharge-planning/discharge-planning.module';
 // Enhanced Modules
 import { TelemedicineEnhancedModule } from './modules/telemedicine-enhanced/telemedicine-enhanced.module';
@@ -115,11 +117,22 @@ import { SchedulingEnhancedModule } from './modules/scheduling-enhanced/scheduli
 import { InteropBrazilModule } from './modules/interop-brazil/interop-brazil.module';
 // Clinical Pathways & Protocols
 import { ClinicalPathwaysModule } from './modules/clinical-pathways/clinical-pathways.module';
+// Backup & Disaster Recovery
+import { BackupRecoveryModule } from './modules/backup-recovery/backup-recovery.module';
 // New Modules (Supply Chain, Hospital Services, Governance, Specialties)
 import { SupplyChainModule } from './modules/supply-chain/supply-chain.module';
 import { HospitalServicesModule } from './modules/hospital-services/hospital-services.module';
 import { GovernanceModule } from './modules/governance/governance.module';
 import { SpecialtiesEnhancedModule } from './modules/specialties-enhanced/specialties-enhanced.module';
+// Hospital Management Modules
+import { WasteManagementModule } from './modules/waste-management/waste-management.module';
+import { OmbudsmanModule } from './modules/ombudsman/ombudsman.module';
+import { ProcurementModule } from './modules/procurement/procurement.module';
+import { ContractsModule } from './modules/contracts/contracts.module';
+// Medical Records, Calculators, Food Service
+import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
+import { MedicalCalculatorsModule } from './modules/medical-calculators/medical-calculators.module';
+import { FoodServiceModule } from './modules/food-service/food-service.module';
 
 @Module({
   imports: [
@@ -201,6 +214,7 @@ import { SpecialtiesEnhancedModule } from './modules/specialties-enhanced/specia
     RisPacsModule,
     GenomicsModule,
     PathologyModule,
+    MicrobiologyModule,
     BloodBankModule,
     CardiologyModule,
     // Interoperability Modules
@@ -228,6 +242,7 @@ import { SpecialtiesEnhancedModule } from './modules/specialties-enhanced/specia
     AnamnesisModule,
     // ICU & Discharge Planning
     IcuModule,
+    IcuMonitoringModule,
     DischargePlanningModule,
     // Enhanced Modules
     TelemedicineEnhancedModule,
@@ -235,11 +250,22 @@ import { SpecialtiesEnhancedModule } from './modules/specialties-enhanced/specia
     InteropBrazilModule,
     // Clinical Pathways & Protocols
     ClinicalPathwaysModule,
+    // Backup & Disaster Recovery
+    BackupRecoveryModule,
     // New Modules
     SupplyChainModule,
     HospitalServicesModule,
     GovernanceModule,
     SpecialtiesEnhancedModule,
+    // Hospital Management
+    WasteManagementModule,
+    OmbudsmanModule,
+    ProcurementModule,
+    ContractsModule,
+    // Medical Records, Calculators, Food Service
+    MedicalRecordsModule,
+    MedicalCalculatorsModule,
+    FoodServiceModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

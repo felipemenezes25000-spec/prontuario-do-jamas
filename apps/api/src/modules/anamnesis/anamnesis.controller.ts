@@ -21,6 +21,7 @@ import {
   UpdateProblemDto,
   CreateHomeMedicationDto,
   UpsertObstetricHistoryDto,
+  CreateObstetricHistoryDto,
   CreateTransfusionHistoryDto,
   CreateImplantedDeviceDto,
   UpsertGenogramDto,
@@ -124,6 +125,19 @@ export class AnamnesisController {
     @Param('patientId', ParseUUIDPipe) patientId: string,
   ) {
     return this.service.getObstetricHistory(tenantId, patientId);
+  }
+
+  // --- Obstetric History — Detailed GPAC with Previous Pregnancies ---
+
+  @Post('obstetric-history/detailed')
+  @ApiOperation({ summary: 'Create detailed obstetric history with previous pregnancies (GPAC)' })
+  @ApiResponse({ status: 201, description: 'Obstetric history created' })
+  async createObstetricHistory(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateObstetricHistoryDto,
+  ) {
+    return this.service.createObstetricHistory(tenantId, user.sub, dto);
   }
 
   // --- Transfusion History ---

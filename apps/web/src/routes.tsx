@@ -69,6 +69,7 @@ const AntimicrobialStewardshipPage = lazy(() => import('@/pages/antimicrobial-st
 const RisPacsPage = lazy(() => import('@/pages/ris-pacs'));
 const GenomicsPage = lazy(() => import('@/pages/genomics'));
 const PathologyPage = lazy(() => import('@/pages/pathology'));
+const MicrobiologyPage = lazy(() => import('@/pages/microbiology'));
 const BloodBankPage = lazy(() => import('@/pages/blood-bank'));
 const CardiologyPage = lazy(() => import('@/pages/cardiology'));
 const BillingCodingPage = lazy(() => import('@/pages/billing/coding'));
@@ -113,6 +114,36 @@ const RegulatoryPage = lazy(() => import('@/pages/regulatory'));
 const AiImagingAnalysisPage = lazy(() => import('@/pages/ai/imaging-analysis'));
 const AiAdvancedPage = lazy(() => import('@/pages/ai/advanced'));
 const NursingEnhancedPage = lazy(() => import('@/pages/nursing-enhanced'));
+const SelfServiceAnalyticsPage = lazy(() => import('@/pages/self-service-analytics'));
+const BulkFhirPage = lazy(() => import('@/pages/bulk-fhir'));
+const ClinicalPathwaysPage = lazy(() => import('@/pages/clinical-pathways'));
+const TelemedicineEnhancedFullPage = lazy(() => import('@/pages/telemedicine-enhanced'));
+const DigitalSignaturePage = lazy(() => import('@/pages/digital-signature'));
+const NotificationsPage = lazy(() => import('@/pages/notifications'));
+const AlertsPage = lazy(() => import('@/pages/alerts'));
+const AuditPage = lazy(() => import('@/pages/audit'));
+const CDSHooksPage = lazy(() => import('@/pages/cds-hooks'));
+const RNDSPage = lazy(() => import('@/pages/rnds'));
+const DocumentsPage = lazy(() => import('@/pages/documents'));
+const IntegrationsPage = lazy(() => import('@/pages/integrations'));
+const InteropBrazilDashPage = lazy(() => import('@/pages/interop-brazil'));
+const EquipmentMaintenancePage = lazy(() => import('@/pages/equipment-maintenance'));
+const IHEProfilesPage = lazy(() => import('@/pages/ihe-profiles'));
+const SBISCompliancePage = lazy(() => import('@/pages/sbis-compliance'));
+const SMARTOnFHIRPage = lazy(() => import('@/pages/smart-on-fhir'));
+const DrugsPage = lazy(() => import('@/pages/drugs'));
+const ClinicalNotesPage = lazy(() => import('@/pages/clinical-notes'));
+const QueuesPage = lazy(() => import('@/pages/queues'));
+const GlobalSearchPage = lazy(() => import('@/pages/search'));
+const UsersManagementPage = lazy(() => import('@/pages/users'));
+const TenantsPage = lazy(() => import('@/pages/tenants'));
+const MedicalRecordsPage = lazy(() => import('@/pages/medical-records'));
+const MedicalCalculatorsPage = lazy(() => import('@/pages/medical-calculators'));
+const FoodServicePage = lazy(() => import('@/pages/food-service'));
+const WasteManagementPage = lazy(() => import('@/pages/waste-management'));
+const OmbudsmanPage = lazy(() => import('@/pages/ombudsman'));
+const ProcurementPage = lazy(() => import('@/pages/procurement'));
+const ContractsPage = lazy(() => import('@/pages/contracts'));
 
 function PageLoader() {
   return (
@@ -243,6 +274,7 @@ export function AppRoutes() {
         <Route path="ris-pacs" element={<SuspenseWrap><RisPacsPage /></SuspenseWrap>} />
         <Route path="genomica" element={<SuspenseWrap><GenomicsPage /></SuspenseWrap>} />
         <Route path="patologia" element={<SuspenseWrap><PathologyPage /></SuspenseWrap>} />
+        <Route path="microbiologia" element={<SuspenseWrap><MicrobiologyPage /></SuspenseWrap>} />
         <Route path="banco-sangue" element={<SuspenseWrap><BloodBankPage /></SuspenseWrap>} />
         <Route path="cardiologia" element={<SuspenseWrap><CardiologyPage /></SuspenseWrap>} />
         <Route path="faturamento/codificacao" element={<SuspenseWrap><BillingCodingPage /></SuspenseWrap>} />
@@ -287,6 +319,43 @@ export function AppRoutes() {
         <Route path="ia/imagem" element={<SuspenseWrap><AiImagingAnalysisPage /></SuspenseWrap>} />
         <Route path="seguranca-paciente" element={<SuspenseWrap><SafetyPage /></SuspenseWrap>} />
         <Route path="enfermagem-avancado" element={<SuspenseWrap><NursingEnhancedPage /></SuspenseWrap>} />
+        <Route path="alertas" element={<SuspenseWrap><AlertsPage /></SuspenseWrap>} />
+        <Route path="auditoria" element={<SuspenseWrap><AuditPage /></SuspenseWrap>} />
+        <Route path="cds-hooks" element={<SuspenseWrap><CDSHooksPage /></SuspenseWrap>} />
+        <Route path="rnds" element={<SuspenseWrap><RNDSPage /></SuspenseWrap>} />
+        <Route path="documentos" element={<SuspenseWrap><DocumentsPage /></SuspenseWrap>} />
+        <Route path="integracoes" element={<SuspenseWrap><IntegrationsPage /></SuspenseWrap>} />
+        <Route path="interop-brasil" element={<SuspenseWrap><InteropBrazilDashPage /></SuspenseWrap>} />
+        <Route path="manutencao-equipamentos" element={<SuspenseWrap><EquipmentMaintenancePage /></SuspenseWrap>} />
+        <Route path="ihe-profiles" element={<SuspenseWrap><IHEProfilesPage /></SuspenseWrap>} />
+        <Route path="sbis-compliance" element={<SuspenseWrap><SBISCompliancePage /></SuspenseWrap>} />
+        <Route path="smart-on-fhir" element={<SuspenseWrap><SMARTOnFHIRPage /></SuspenseWrap>} />
+        <Route path="analytics-self-service" element={<SuspenseWrap><SelfServiceAnalyticsPage /></SuspenseWrap>} />
+        <Route path="bulk-fhir" element={<SuspenseWrap><BulkFhirPage /></SuspenseWrap>} />
+        <Route path="protocolos-clinicos" element={<SuspenseWrap><ClinicalPathwaysPage /></SuspenseWrap>} />
+        <Route path="telemedicina-completa" element={<SuspenseWrap><TelemedicineEnhancedFullPage /></SuspenseWrap>} />
+        <Route path="assinatura-digital" element={<SuspenseWrap><DigitalSignaturePage /></SuspenseWrap>} />
+        <Route path="notificacoes" element={<SuspenseWrap><NotificationsPage /></SuspenseWrap>} />
+        <Route path="medicamentos" element={<SuspenseWrap><DrugsPage /></SuspenseWrap>} />
+        <Route path="notas-clinicas" element={<SuspenseWrap><ClinicalNotesPage /></SuspenseWrap>} />
+        <Route path="filas" element={<SuspenseWrap><QueuesPage /></SuspenseWrap>} />
+        <Route path="busca" element={<SuspenseWrap><GlobalSearchPage /></SuspenseWrap>} />
+        <Route path="usuarios" element={<SuspenseWrap><UsersManagementPage /></SuspenseWrap>} />
+        <Route path="arquivo-medico" element={<SuspenseWrap><MedicalRecordsPage /></SuspenseWrap>} />
+        <Route path="calculadoras-medicas" element={<SuspenseWrap><MedicalCalculatorsPage /></SuspenseWrap>} />
+        <Route path="servico-nutricao" element={<SuspenseWrap><FoodServicePage /></SuspenseWrap>} />
+        <Route path="residuos" element={<SuspenseWrap><WasteManagementPage /></SuspenseWrap>} />
+        <Route path="ouvidoria" element={<SuspenseWrap><OmbudsmanPage /></SuspenseWrap>} />
+        <Route path="compras" element={<SuspenseWrap><ProcurementPage /></SuspenseWrap>} />
+        <Route path="contratos" element={<SuspenseWrap><ContractsPage /></SuspenseWrap>} />
+        <Route
+          path="tenants"
+          element={
+            <AdminRoute>
+              <SuspenseWrap><TenantsPage /></SuspenseWrap>
+            </AdminRoute>
+          }
+        />
         <Route
           path="admin"
           element={
