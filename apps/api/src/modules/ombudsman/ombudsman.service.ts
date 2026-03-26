@@ -12,7 +12,7 @@ import {
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
-interface OmbudsmanTicket {
+export interface OmbudsmanTicket {
   id: string;
   ticketNumber: string;
   type: string;
@@ -29,7 +29,7 @@ interface OmbudsmanTicket {
   createdAt: Date;
 }
 
-interface OmbudsmanDashboard {
+export interface OmbudsmanDashboard {
   totalTickets: number;
   openTickets: number;
   resolvedTickets: number;

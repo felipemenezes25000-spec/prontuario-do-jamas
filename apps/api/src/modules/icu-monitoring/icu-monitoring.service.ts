@@ -8,7 +8,7 @@ import {
 
 // ─── Interfaces ────────────────────────────────────────────────────────────
 
-interface HemodynamicAlert {
+export interface HemodynamicAlert {
   parameter: string;
   value: number;
   threshold: string;
@@ -16,7 +16,7 @@ interface HemodynamicAlert {
   message: string;
 }
 
-interface VentilationAlert {
+export interface VentilationAlert {
   parameter: string;
   value: number;
   threshold: string;
@@ -24,7 +24,7 @@ interface VentilationAlert {
   message: string;
 }
 
-interface ArdsClassification {
+export interface ArdsClassification {
   classification: 'NONE' | 'MILD' | 'MODERATE' | 'SEVERE';
   pfRatio: number;
   description: string;
@@ -37,7 +37,7 @@ interface WeaningCriterion {
   target: string;
 }
 
-interface WeaningReadiness {
+export interface WeaningReadiness {
   patientId: string;
   ready: boolean;
   criteria: WeaningCriterion[];
@@ -46,7 +46,7 @@ interface WeaningReadiness {
   assessedAt: string;
 }
 
-interface HemodynamicInterpretation {
+export interface HemodynamicInterpretation {
   parameter: string;
   value: number;
   unit: string;

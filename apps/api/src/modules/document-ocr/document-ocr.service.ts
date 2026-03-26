@@ -13,7 +13,7 @@ interface OcrExtractedField {
   confidence: number;
 }
 
-interface OcrResult {
+export interface OcrResult {
   id: string;
   patientId: string;
   documentType: OcrDocumentType;

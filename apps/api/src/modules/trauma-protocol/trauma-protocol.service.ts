@@ -7,7 +7,7 @@ import {
   RecordTraumaScoresDto,
 } from './dto/trauma-protocol.dto';
 
-interface TimelineEvent {
+export interface TimelineEvent {
   event: string;
   at: string;
   by: string;

@@ -15,7 +15,7 @@ import {
   BackupFilterDto,
 } from './backup-recovery.dto';
 
-interface BackupRecord {
+export interface BackupRecord {
   id: string;
   tenantId: string;
   type: BackupType;
@@ -29,7 +29,7 @@ interface BackupRecord {
   error: string | null;
 }
 
-interface BackupConfig {
+export interface BackupConfig {
   tenantId: string;
   type: BackupType;
   schedule: string;

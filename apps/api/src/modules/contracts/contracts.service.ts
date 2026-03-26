@@ -11,7 +11,7 @@ import {
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
-interface Contract {
+export interface Contract {
   id: string;
   contractNumber: string;
   type: string;
@@ -28,7 +28,7 @@ interface Contract {
   createdAt: Date;
 }
 
-interface ContractsDashboard {
+export interface ContractsDashboard {
   activeContracts: number;
   totalCommittedValue: number;
   expiringSoon30: number;

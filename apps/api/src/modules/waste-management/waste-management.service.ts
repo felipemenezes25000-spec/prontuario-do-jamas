@@ -10,7 +10,7 @@ import {
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
-interface WasteRecord {
+export interface WasteRecord {
   id: string;
   wasteGroup: string;
   source: string;
@@ -21,7 +21,7 @@ interface WasteRecord {
   createdAt: Date;
 }
 
-interface WeighingRecord {
+export interface WeighingRecord {
   id: string;
   containerId: string;
   grossWeight: number;
@@ -30,7 +30,7 @@ interface WeighingRecord {
   createdAt: Date;
 }
 
-interface DisposalRecord {
+export interface DisposalRecord {
   id: string;
   manifestId: string;
   transportCompany: string;
@@ -42,7 +42,7 @@ interface DisposalRecord {
   createdAt: Date;
 }
 
-interface WasteDashboard {
+export interface WasteDashboard {
   totalKgByGroup: Array<{ group: string; kg: number }>;
   monthlyTrend: Array<{ month: string; kg: number }>;
   estimatedMonthlyCost: number;

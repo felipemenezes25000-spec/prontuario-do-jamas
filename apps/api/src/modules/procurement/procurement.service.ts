@@ -15,7 +15,7 @@ import {
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
-interface Requisition {
+export interface Requisition {
   id: string;
   requisitionNumber: string;
   items: Array<{ itemName: string; quantity: number; unit: string; specification: string; urgency: string }>;
@@ -26,7 +26,7 @@ interface Requisition {
   createdAt: Date;
 }
 
-interface Quotation {
+export interface Quotation {
   id: string;
   requisitionId: string;
   supplierName: string;
@@ -39,7 +39,7 @@ interface Quotation {
   createdAt: Date;
 }
 
-interface PurchaseOrder {
+export interface PurchaseOrder {
   id: string;
   poNumber: string;
   quotationId: string;
@@ -49,7 +49,7 @@ interface PurchaseOrder {
   createdAt: Date;
 }
 
-interface ProcurementDashboard {
+export interface ProcurementDashboard {
   openRequisitions: number;
   pendingApprovals: number;
   totalSpendThisMonth: number;
