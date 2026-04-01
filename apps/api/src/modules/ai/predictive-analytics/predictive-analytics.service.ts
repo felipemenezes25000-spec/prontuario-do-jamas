@@ -462,11 +462,109 @@ export class PredictiveAnalyticsService {
 
   // ─── Sepsis Risk ──────────────────────────────────────────────────────────
 
-  async getSepsisRisk(tenantId: string, patientId: string): Promise<RiskPredictionResponseDto> {
+  async getSepsisRisk(
+    tenantId: string,
+    patientId: string,
+    vitals?: {
+      heartRate?: number;
+      systolicBP?: number;
+      respiratoryRate?: number;
+      temperature?: number;
+      oxygenSaturation?: number;
+      glasgow?: number;
+    },
+    labs?: {
+      lactate?: number;
+      wbc?: number;
+      platelets?: number;
+      creatinine?: number;
+      bilirubin?: number;
+      pcr?: number;
+      procalcitonin?: number;
+    },
+  ): Promise<RiskPredictionResponseDto> {
     this.logger.log(`[${tenantId}] Calculating sepsis risk for patient ${patientId}`);
 
-    const riskScore = randomBetween(55, 85);
-    const margin = randomBetween(5, 12);
+    // Calculate qSOFA-based risk if vitals provided
+    let riskScore: number;
+    const features: ContributingFeatureDto[] = [];
+    const actions: RecommendedActionDto[] = [];
+
+    if (vitals || labs) {
+      let qsofaScore = 0;
+      const v = vitals ?? {};
+      const l = labs ?? {};
+
+      // qSOFA components
+      if (v.respiratoryRate !== undefined && v.respiratoryRate >= 22) {
+        qsofaScore++;
+        features.push({ featureName: 'Frequencia respiratoria', importanceWeight: 0.20, currentValue: `${v.respiratoryRate} irpm`, normalRange: '12-20 irpm', direction: 'positive' });
+      }
+      if (v.systolicBP !== undefined && v.systolicBP <= 100) {
+        qsofaScore++;
+        features.push({ featureName: 'PA sistolica', importanceWeight: 0.20, currentValue: `${v.systolicBP} mmHg`, normalRange: '100-140 mmHg', direction: 'negative' });
+      }
+      if (v.glasgow !== undefined && v.glasgow < 15) {
+        qsofaScore++;
+        features.push({ featureName: 'Glasgow', importanceWeight: 0.18, currentValue: `${v.glasgow}`, normalRange: '15', direction: 'negative' });
+      }
+
+      // SIRS components (supplementary)
+      let sirsScore = 0;
+      if (v.heartRate !== undefined && v.heartRate > 90) sirsScore++;
+      if (v.respiratoryRate !== undefined && v.respiratoryRate > 20) sirsScore++;
+      if (v.temperature !== undefined && (v.temperature > 38 || v.temperature < 36)) sirsScore++;
+      if (l.wbc !== undefined && (l.wbc > 12 || l.wbc < 4)) sirsScore++;
+
+      // Lab-based risk factors
+      if (l.lactate !== undefined) {
+        const lactateWeight = l.lactate > 4 ? 0.25 : l.lactate > 2 ? 0.15 : 0.05;
+        features.push({ featureName: 'Lactato serico', importanceWeight: lactateWeight, currentValue: `${l.lactate} mmol/L`, normalRange: '< 2.0 mmol/L', direction: l.lactate > 2 ? 'positive' : 'neutral' });
+      }
+      if (l.pcr !== undefined && l.pcr > 50) {
+        features.push({ featureName: 'PCR', importanceWeight: 0.10, currentValue: `${l.pcr} mg/L`, normalRange: '< 5 mg/L', direction: 'positive' });
+      }
+      if (l.procalcitonin !== undefined && l.procalcitonin > 0.5) {
+        features.push({ featureName: 'Procalcitonina', importanceWeight: 0.15, currentValue: `${l.procalcitonin} ng/mL`, normalRange: '< 0.5 ng/mL', direction: 'positive' });
+      }
+      if (l.platelets !== undefined && l.platelets < 150) {
+        features.push({ featureName: 'Plaquetas', importanceWeight: 0.08, currentValue: `${l.platelets}.000 /mm³`, normalRange: '150.000-400.000 /mm³', direction: 'negative' });
+      }
+      if (l.creatinine !== undefined && l.creatinine > 1.5) {
+        features.push({ featureName: 'Creatinina', importanceWeight: 0.10, currentValue: `${l.creatinine} mg/dL`, normalRange: '0.7-1.3 mg/dL', direction: 'positive' });
+      }
+      if (v.temperature !== undefined) {
+        features.push({ featureName: 'Temperatura', importanceWeight: 0.12, currentValue: `${v.temperature} °C`, normalRange: '36.0-37.5 °C', direction: v.temperature > 38 || v.temperature < 36 ? 'positive' : 'neutral' });
+      }
+
+      // Composite risk calculation
+      riskScore = 0;
+      riskScore += qsofaScore * 20; // qSOFA 0-3 maps to 0-60
+      riskScore += sirsScore * 5;   // SIRS adds 0-20
+      if (l.lactate !== undefined && l.lactate > 2) riskScore += Math.min(20, (l.lactate - 2) * 5);
+      if (l.procalcitonin !== undefined && l.procalcitonin > 2) riskScore += 10;
+      riskScore = Math.min(99, Math.max(1, Math.round(riskScore)));
+
+      // Generate actions based on risk
+      if (riskScore >= 60) {
+        actions.push({ action: 'Colher hemoculturas (2 pares) e iniciar ATB empirico de amplo espectro', priority: 'CRITICAL', rationale: 'qSOFA positivo — Protocolo SSC hora de ouro', timeWindowMinutes: 60 });
+        actions.push({ action: 'Ressuscitacao com 30 mL/kg de cristaloide', priority: 'CRITICAL', rationale: 'Hipoperfusao provavel', timeWindowMinutes: 30 });
+      }
+      if (l.lactate !== undefined && l.lactate > 2) {
+        actions.push({ action: 'Lactato seriado a cada 2h — alvo clearance > 10%', priority: 'HIGH', rationale: 'Lactato elevado como guia de ressuscitacao', timeWindowMinutes: 120 });
+      }
+      if (riskScore >= 40) {
+        actions.push({ action: 'Avaliar necessidade de DVA se PAM < 65 apos volume', priority: 'HIGH', rationale: 'Meta PAM >= 65 mmHg', timeWindowMinutes: 60 });
+        actions.push({ action: 'Gasometria arterial e eletrólitos', priority: 'MEDIUM', rationale: 'Avaliar perfusao e disturbios acido-base' });
+      }
+    } else {
+      // Fallback to static mock if no data provided
+      riskScore = randomBetween(55, 85);
+      features.push(...buildSepsisFeatures());
+      actions.push(...buildSepsisActions());
+    }
+
+    const margin = Math.round(riskScore * 0.12);
 
     return {
       predictionId: randomUUID(),
@@ -477,22 +575,133 @@ export class PredictiveAnalyticsService {
       confidenceLower: Math.max(0, riskScore - margin),
       confidenceUpper: Math.min(100, riskScore + margin),
       timeHorizon: '4-6 horas',
-      contributingFeatures: buildSepsisFeatures(),
-      recommendedActions: buildSepsisActions(),
+      contributingFeatures: features.length > 0 ? features : buildSepsisFeatures(),
+      recommendedActions: actions.length > 0 ? actions : buildSepsisActions(),
       modelMetadata: buildModelMetadata(PredictionType.SEPSIS),
       calculatedAt: nowIso(),
-      previousScore: randomBetween(40, 65),
-      trend: 'worsening',
+      trend: riskScore >= 60 ? 'worsening' : riskScore >= 35 ? 'stable' : 'improving',
     };
   }
 
   // ─── Cardiac Arrest Risk ──────────────────────────────────────────────────
 
-  async getCardiacArrestRisk(tenantId: string, patientId: string): Promise<RiskPredictionResponseDto> {
+  async getCardiacArrestRisk(
+    tenantId: string,
+    patientId: string,
+    vitals?: {
+      heartRate?: number;
+      systolicBP?: number;
+      diastolicBP?: number;
+      oxygenSaturation?: number;
+      respiratoryRate?: number;
+    },
+    labs?: {
+      troponin?: number;
+      potassium?: number;
+      magnesium?: number;
+      bnp?: number;
+      qtcInterval?: number;
+      ejectionFraction?: number;
+    },
+    history?: {
+      priorArrhythmia?: boolean;
+      priorCardiacArrest?: boolean;
+      qtProlongingMeds?: number;
+    },
+  ): Promise<RiskPredictionResponseDto> {
     this.logger.log(`[${tenantId}] Calculating cardiac arrest risk for patient ${patientId}`);
 
-    const riskScore = randomBetween(40, 75);
-    const margin = randomBetween(7, 15);
+    let riskScore: number;
+    const features: ContributingFeatureDto[] = [];
+    const actions: RecommendedActionDto[] = [];
+
+    if (vitals || labs || history) {
+      const v = vitals ?? {};
+      const l = labs ?? {};
+      const h = history ?? {};
+      riskScore = 0;
+
+      // Troponin elevation (major factor)
+      if (l.troponin !== undefined) {
+        if (l.troponin > 1.0) { riskScore += 25; features.push({ featureName: 'Troponina I', importanceWeight: 0.25, currentValue: `${l.troponin} ng/mL`, normalRange: '< 0.04 ng/mL', direction: 'positive' }); }
+        else if (l.troponin > 0.1) { riskScore += 12; features.push({ featureName: 'Troponina I', importanceWeight: 0.15, currentValue: `${l.troponin} ng/mL`, normalRange: '< 0.04 ng/mL', direction: 'positive' }); }
+        else if (l.troponin > 0.04) { riskScore += 5; features.push({ featureName: 'Troponina I', importanceWeight: 0.08, currentValue: `${l.troponin} ng/mL`, normalRange: '< 0.04 ng/mL', direction: 'positive' }); }
+      }
+
+      // Potassium (hyper/hypokalemia)
+      if (l.potassium !== undefined) {
+        if (l.potassium > 6.0) { riskScore += 20; features.push({ featureName: 'Potassio serico', importanceWeight: 0.19, currentValue: `${l.potassium} mEq/L`, normalRange: '3.5-5.0 mEq/L', direction: 'positive' }); }
+        else if (l.potassium > 5.5) { riskScore += 12; features.push({ featureName: 'Potassio serico', importanceWeight: 0.14, currentValue: `${l.potassium} mEq/L`, normalRange: '3.5-5.0 mEq/L', direction: 'positive' }); }
+        else if (l.potassium < 3.0) { riskScore += 15; features.push({ featureName: 'Potassio serico', importanceWeight: 0.16, currentValue: `${l.potassium} mEq/L`, normalRange: '3.5-5.0 mEq/L', direction: 'negative' }); }
+        else if (l.potassium < 3.5) { riskScore += 8; features.push({ featureName: 'Potassio serico', importanceWeight: 0.10, currentValue: `${l.potassium} mEq/L`, normalRange: '3.5-5.0 mEq/L', direction: 'negative' }); }
+      }
+
+      // QTc prolongation
+      if (l.qtcInterval !== undefined) {
+        if (l.qtcInterval > 500) { riskScore += 18; features.push({ featureName: 'Intervalo QTc', importanceWeight: 0.16, currentValue: `${l.qtcInterval} ms`, normalRange: '< 440 ms', direction: 'positive' }); }
+        else if (l.qtcInterval > 470) { riskScore += 10; features.push({ featureName: 'Intervalo QTc', importanceWeight: 0.10, currentValue: `${l.qtcInterval} ms`, normalRange: '< 440 ms', direction: 'positive' }); }
+      }
+
+      // SpO2
+      if (v.oxygenSaturation !== undefined && v.oxygenSaturation < 90) {
+        riskScore += 10;
+        features.push({ featureName: 'SpO2', importanceWeight: 0.14, currentValue: `${v.oxygenSaturation}%`, normalRange: '> 94%', direction: 'negative' });
+      }
+
+      // BNP (heart failure marker)
+      if (l.bnp !== undefined && l.bnp > 400) {
+        riskScore += Math.min(12, Math.round((l.bnp - 400) / 100));
+        features.push({ featureName: 'BNP', importanceWeight: 0.11, currentValue: `${l.bnp} pg/mL`, normalRange: '< 100 pg/mL', direction: 'positive' });
+      }
+
+      // Heart rate (extreme tachy or brady)
+      if (v.heartRate !== undefined) {
+        if (v.heartRate > 130) { riskScore += 10; features.push({ featureName: 'Frequencia cardiaca', importanceWeight: 0.08, currentValue: `${v.heartRate} bpm`, normalRange: '60-100 bpm', direction: 'positive' }); }
+        else if (v.heartRate < 45) { riskScore += 12; features.push({ featureName: 'Frequencia cardiaca', importanceWeight: 0.10, currentValue: `${v.heartRate} bpm`, normalRange: '60-100 bpm', direction: 'negative' }); }
+      }
+
+      // Magnesium
+      if (l.magnesium !== undefined && l.magnesium < 1.5) {
+        riskScore += 8;
+        features.push({ featureName: 'Magnesio', importanceWeight: 0.07, currentValue: `${l.magnesium} mg/dL`, normalRange: '1.7-2.2 mg/dL', direction: 'negative' });
+      }
+
+      // Ejection fraction
+      if (l.ejectionFraction !== undefined && l.ejectionFraction < 35) {
+        riskScore += 10;
+        features.push({ featureName: 'Fracao de ejecao', importanceWeight: 0.05, currentValue: `${l.ejectionFraction}%`, normalRange: '> 55%', direction: 'negative' });
+      }
+
+      // History
+      if (h.priorCardiacArrest) { riskScore += 15; }
+      if (h.priorArrhythmia) { riskScore += 8; }
+      if (h.qtProlongingMeds !== undefined && h.qtProlongingMeds > 1) { riskScore += h.qtProlongingMeds * 3; }
+
+      riskScore = Math.min(99, Math.max(1, Math.round(riskScore)));
+
+      // Actions based on risk
+      if (l.potassium !== undefined && l.potassium > 6.0) {
+        actions.push({ action: 'Gluconato de calcio 10% IV lento + insulina regular + glicose para hipercalemia', priority: 'CRITICAL', rationale: `K+ ${l.potassium} — estabilizacao de membrana urgente`, timeWindowMinutes: 30 });
+      }
+      if (l.qtcInterval !== undefined && l.qtcInterval > 500) {
+        actions.push({ action: 'Monitorização continua com telemetria e revisao de medicacoes QT-prolongadoras', priority: 'CRITICAL', rationale: `QTc ${l.qtcInterval}ms — alto risco de torsades de pointes`, timeWindowMinutes: 15 });
+      }
+      if (l.magnesium !== undefined && l.magnesium < 1.5) {
+        actions.push({ action: 'Sulfato de magnesio 2g IV', priority: 'HIGH', rationale: 'Hipomagnesemia contribui para instabilidade eletrica', timeWindowMinutes: 60 });
+      }
+      if (l.troponin !== undefined && l.troponin > 0.1) {
+        actions.push({ action: 'Avaliacao cardiologica para ecocardiograma de urgencia', priority: 'HIGH', rationale: 'Troponina elevada — descartar IAM', timeWindowMinutes: 120 });
+      }
+      if (riskScore >= 60) {
+        actions.push({ action: 'Transferir para leito com monitorização continua (UTI/UCO)', priority: 'HIGH', rationale: 'Risco elevado de arritmia fatal', timeWindowMinutes: 60 });
+      }
+    } else {
+      riskScore = randomBetween(40, 75);
+      features.push(...buildCardiacArrestFeatures());
+      actions.push(...buildCardiacArrestActions());
+    }
+
+    const margin = Math.round(riskScore * 0.12);
 
     return {
       predictionId: randomUUID(),
@@ -503,22 +712,112 @@ export class PredictiveAnalyticsService {
       confidenceLower: Math.max(0, riskScore - margin),
       confidenceUpper: Math.min(100, riskScore + margin),
       timeHorizon: '2-4 horas',
-      contributingFeatures: buildCardiacArrestFeatures(),
-      recommendedActions: buildCardiacArrestActions(),
+      contributingFeatures: features.length > 0 ? features : buildCardiacArrestFeatures(),
+      recommendedActions: actions.length > 0 ? actions : buildCardiacArrestActions(),
       modelMetadata: buildModelMetadata(PredictionType.CARDIAC_ARREST),
       calculatedAt: nowIso(),
-      previousScore: randomBetween(30, 55),
-      trend: 'worsening',
+      trend: riskScore >= 60 ? 'worsening' : riskScore >= 35 ? 'stable' : 'improving',
     };
   }
 
   // ─── Readmission Risk ─────────────────────────────────────────────────────
 
-  async getReadmissionRisk(tenantId: string, patientId: string): Promise<RiskPredictionResponseDto> {
+  async getReadmissionRisk(
+    tenantId: string,
+    patientId: string,
+    data?: {
+      lengthOfStay?: number;
+      admittedViaEmergency?: boolean;
+      charlsonIndex?: number;
+      priorAdmissions6Months?: number;
+      age?: number;
+      hba1c?: number;
+      medicationAdherence?: number; // 0-100%
+      socialSupport?: 'high' | 'medium' | 'low';
+      priorAMA?: boolean; // alta contra indicacao medica
+    },
+  ): Promise<RiskPredictionResponseDto> {
     this.logger.log(`[${tenantId}] Calculating 30-day readmission risk for patient ${patientId}`);
 
-    const riskScore = randomBetween(25, 65);
-    const margin = randomBetween(8, 14);
+    let riskScore: number;
+    const features: ContributingFeatureDto[] = [];
+    const actions: RecommendedActionDto[] = [];
+
+    if (data) {
+      // LACE Index-inspired calculation
+      riskScore = 0;
+
+      // L - Length of stay (days)
+      if (data.lengthOfStay !== undefined) {
+        const losPoints = data.lengthOfStay >= 14 ? 7 : data.lengthOfStay >= 7 ? 5 : data.lengthOfStay >= 4 ? 4 : data.lengthOfStay >= 3 ? 3 : data.lengthOfStay >= 2 ? 2 : 1;
+        riskScore += losPoints * 3;
+        features.push({ featureName: 'Tempo de internacao', importanceWeight: 0.12, currentValue: `${data.lengthOfStay} dias`, normalRange: '< 5 dias', direction: data.lengthOfStay >= 5 ? 'positive' : 'neutral' });
+      }
+
+      // A - Acuity of admission
+      if (data.admittedViaEmergency) {
+        riskScore += 9;
+        features.push({ featureName: 'Via de admissao', importanceWeight: 0.08, currentValue: 'Pronto-Socorro', normalRange: 'Eletiva', direction: 'positive' });
+      }
+
+      // C - Comorbidities (Charlson)
+      if (data.charlsonIndex !== undefined) {
+        const charlsonPoints = data.charlsonIndex >= 4 ? 5 : data.charlsonIndex >= 2 ? 3 : data.charlsonIndex >= 1 ? 1 : 0;
+        riskScore += charlsonPoints * 3;
+        features.push({ featureName: 'Comorbidades (Charlson)', importanceWeight: 0.12, currentValue: `${data.charlsonIndex}`, normalRange: '0-1', direction: data.charlsonIndex >= 2 ? 'positive' : 'neutral' });
+      }
+
+      // E - Emergency department visits in past 6 months (using prior admissions as proxy)
+      if (data.priorAdmissions6Months !== undefined) {
+        const edPoints = data.priorAdmissions6Months >= 4 ? 4 : data.priorAdmissions6Months;
+        riskScore += edPoints * 5;
+        features.push({ featureName: 'Internacoes ultimos 6 meses', importanceWeight: 0.21, currentValue: `${data.priorAdmissions6Months}`, normalRange: '0', direction: data.priorAdmissions6Months >= 1 ? 'positive' : 'neutral' });
+      }
+
+      // Additional clinical factors
+      if (data.age !== undefined && data.age >= 65) {
+        riskScore += Math.min(8, Math.round((data.age - 65) / 5) * 2);
+        features.push({ featureName: 'Idade', importanceWeight: 0.11, currentValue: `${data.age} anos`, normalRange: 'N/A', direction: 'positive' });
+      }
+
+      if (data.hba1c !== undefined && data.hba1c > 7.0) {
+        riskScore += Math.min(10, Math.round((data.hba1c - 7.0) * 3));
+        features.push({ featureName: 'Hemoglobina glicada', importanceWeight: 0.17, currentValue: `${data.hba1c}%`, normalRange: '< 7.0%', direction: 'positive' });
+      }
+
+      if (data.medicationAdherence !== undefined && data.medicationAdherence < 80) {
+        riskScore += Math.min(10, Math.round((80 - data.medicationAdherence) / 5));
+        features.push({ featureName: 'Adesao medicamentosa', importanceWeight: 0.15, currentValue: `${data.medicationAdherence}%`, normalRange: '> 80%', direction: 'negative' });
+      }
+
+      if (data.socialSupport === 'low') { riskScore += 8; features.push({ featureName: 'Suporte social', importanceWeight: 0.13, currentValue: 'Baixo', normalRange: 'Adequado', direction: 'negative' }); }
+      else if (data.socialSupport === 'medium') { riskScore += 4; }
+
+      if (data.priorAMA) { riskScore += 6; features.push({ featureName: 'Alta contra indicacao medica previa', importanceWeight: 0.05, currentValue: 'Sim', normalRange: 'Nao', direction: 'positive' }); }
+
+      riskScore = Math.min(99, Math.max(1, Math.round(riskScore)));
+
+      // Recommended actions based on risk
+      if (riskScore >= 40) {
+        actions.push({ action: 'Agendar consulta ambulatorial em 7 dias pos-alta com equipe multidisciplinar', priority: 'HIGH', rationale: 'Seguimento precoce reduz reinternacoes em 30%' });
+        actions.push({ action: 'Reconciliacao medicamentosa com farmaceutico clinico antes da alta', priority: 'HIGH', rationale: 'Paciente com risco elevado de reinternacao' });
+      }
+      if (data.socialSupport === 'low') {
+        actions.push({ action: 'Contato telefonico em 48h pelo servico social', priority: 'MEDIUM', rationale: 'Suporte social baixo — verificar condicoes domiciliares' });
+      }
+      if (data.hba1c !== undefined && data.hba1c > 8.0) {
+        actions.push({ action: 'Encaminhar para programa de educacao em diabetes', priority: 'MEDIUM', rationale: `HbA1c ${data.hba1c}% — controle glicemico inadequado` });
+      }
+      if (data.medicationAdherence !== undefined && data.medicationAdherence < 60) {
+        actions.push({ action: 'Avaliar simplificacao do esquema terapeutico e uso de pill organizers', priority: 'MEDIUM', rationale: 'Adesao medicamentosa muito baixa' });
+      }
+    } else {
+      riskScore = randomBetween(25, 65);
+      features.push(...buildReadmissionFeatures());
+      actions.push(...buildReadmissionActions());
+    }
+
+    const margin = Math.round(riskScore * 0.12);
 
     return {
       predictionId: randomUUID(),
@@ -528,23 +827,117 @@ export class PredictiveAnalyticsService {
       riskLevel: pickRiskLevel(riskScore),
       confidenceLower: Math.max(0, riskScore - margin),
       confidenceUpper: Math.min(100, riskScore + margin),
-      timeHorizon: '30 dias pós-alta',
-      contributingFeatures: buildReadmissionFeatures(),
-      recommendedActions: buildReadmissionActions(),
+      timeHorizon: '30 dias pos-alta',
+      contributingFeatures: features.length > 0 ? features : buildReadmissionFeatures(),
+      recommendedActions: actions.length > 0 ? actions : buildReadmissionActions(),
       modelMetadata: buildModelMetadata(PredictionType.READMISSION),
       calculatedAt: nowIso(),
-      previousScore: randomBetween(20, 45),
-      trend: 'stable',
+      trend: riskScore >= 50 ? 'worsening' : riskScore >= 30 ? 'stable' : 'improving',
     };
   }
 
   // ─── Length of Stay ───────────────────────────────────────────────────────
 
-  async getLengthOfStayPrediction(tenantId: string, patientId: string): Promise<LosPredictionResponseDto> {
+  async getLengthOfStayPrediction(
+    tenantId: string,
+    patientId: string,
+    data?: {
+      primaryDiagnosisCID?: string;
+      age?: number;
+      charlsonIndex?: number;
+      admittedViaEmergency?: boolean;
+      requiresO2?: boolean;
+      requiresSurgery?: boolean;
+      albumin?: number;
+      functionalStatus?: 'independent' | 'partial' | 'dependent';
+    },
+  ): Promise<LosPredictionResponseDto> {
     this.logger.log(`[${tenantId}] Predicting length of stay for patient ${patientId}`);
 
-    const predictedDays = randomBetween(4, 14);
-    const margin = randomBetween(1.5, 3.5);
+    let predictedDays: number;
+    const features: ContributingFeatureDto[] = [];
+    const actions: RecommendedActionDto[] = [];
+
+    if (data) {
+      // Base LOS by diagnosis category
+      const cid = (data.primaryDiagnosisCID ?? '').toUpperCase();
+      let baseDays = 5; // default
+      if (cid.startsWith('J')) baseDays = 6; // respiratory
+      else if (cid.startsWith('I')) baseDays = 7; // cardiovascular
+      else if (cid.startsWith('K')) baseDays = 5; // GI
+      else if (cid.startsWith('N')) baseDays = 4; // renal/urinary
+      else if (cid.startsWith('S') || cid.startsWith('T')) baseDays = 8; // trauma
+      else if (cid.startsWith('C')) baseDays = 10; // oncology
+      else if (cid.startsWith('A') || cid.startsWith('B')) baseDays = 7; // infectious
+
+      if (cid) features.push({ featureName: 'Diagnostico principal (CID)', importanceWeight: 0.20, currentValue: cid, normalRange: 'N/A', direction: 'positive' });
+
+      // Age modifier
+      if (data.age !== undefined) {
+        if (data.age >= 80) baseDays += 4;
+        else if (data.age >= 70) baseDays += 2;
+        else if (data.age >= 60) baseDays += 1;
+        features.push({ featureName: 'Idade', importanceWeight: 0.16, currentValue: `${data.age} anos`, normalRange: 'N/A', direction: data.age >= 65 ? 'positive' : 'neutral' });
+      }
+
+      // Charlson
+      if (data.charlsonIndex !== undefined) {
+        baseDays += Math.min(4, Math.round(data.charlsonIndex * 0.7));
+        features.push({ featureName: 'Comorbidades (Charlson)', importanceWeight: 0.14, currentValue: `${data.charlsonIndex}`, normalRange: '0-1', direction: data.charlsonIndex >= 2 ? 'positive' : 'neutral' });
+      }
+
+      // O2 requirement
+      if (data.requiresO2) {
+        baseDays += 2;
+        features.push({ featureName: 'Necessidade de O2 suplementar', importanceWeight: 0.13, currentValue: 'Sim', normalRange: 'Nao', direction: 'positive' });
+      }
+
+      // Surgery
+      if (data.requiresSurgery) {
+        baseDays += 3;
+        features.push({ featureName: 'Procedimento cirurgico', importanceWeight: 0.07, currentValue: 'Sim', normalRange: 'N/A', direction: 'positive' });
+      }
+
+      // Albumin
+      if (data.albumin !== undefined && data.albumin < 3.5) {
+        baseDays += data.albumin < 2.5 ? 3 : 1;
+        features.push({ featureName: 'Albumina serica', importanceWeight: 0.10, currentValue: `${data.albumin} g/dL`, normalRange: '3.5-5.5 g/dL', direction: 'negative' });
+      }
+
+      // Admission route
+      if (data.admittedViaEmergency) {
+        baseDays += 1;
+        features.push({ featureName: 'Via de admissao', importanceWeight: 0.08, currentValue: 'Pronto-Socorro', normalRange: 'N/A', direction: 'positive' });
+      }
+
+      // Functional status
+      if (data.functionalStatus === 'dependent') { baseDays += 3; features.push({ featureName: 'Estado funcional', importanceWeight: 0.06, currentValue: 'Dependente', normalRange: 'Independente', direction: 'positive' }); }
+      else if (data.functionalStatus === 'partial') { baseDays += 1; }
+
+      predictedDays = Math.max(1, baseDays);
+
+      // Actions
+      actions.push({ action: 'Iniciar fisioterapia respiratoria e mobilizacao precoce', priority: 'HIGH', rationale: 'Mobilizacao precoce reduz tempo de internacao em 1.5 dias' });
+      if (predictedDays > 7) {
+        actions.push({ action: 'Acionar assistencia social para planejamento de alta domiciliar', priority: 'MEDIUM', rationale: 'Internacao prolongada prevista — planejar alta com antecedencia' });
+      }
+      if (data.requiresO2) {
+        actions.push({ action: 'Avaliar transicao de ATB IV para VO em 48-72h se criterios atendidos', priority: 'MEDIUM', rationale: 'Switch terapeutico precoce permite planejamento de alta mais cedo' });
+      }
+    } else {
+      predictedDays = randomBetween(4, 14);
+      features.push(
+        { featureName: 'Diagnostico principal (CID)', importanceWeight: 0.20, currentValue: 'J18.9 — Pneumonia nao especificada', normalRange: 'N/A', direction: 'positive' },
+        { featureName: 'Idade', importanceWeight: 0.16, currentValue: '72 anos', normalRange: 'N/A', direction: 'positive' },
+        { featureName: 'Comorbidades (Charlson)', importanceWeight: 0.14, currentValue: '4', normalRange: '0-1', direction: 'positive' },
+      );
+      actions.push(
+        { action: 'Iniciar fisioterapia respiratoria e mobilizacao precoce', priority: 'HIGH', rationale: 'Mobilizacao precoce reduz tempo de internacao em pneumonia em 1.5 dias' },
+        { action: 'Avaliar transicao de antibiotico IV para VO em 48-72h se criterios atendidos', priority: 'MEDIUM', rationale: 'Switch terapeutico precoce permite planejamento de alta mais cedo' },
+      );
+    }
+
+    const margin = Math.max(1, Math.round(predictedDays * 0.25));
 
     return {
       predictionId: randomUUID(),
@@ -554,67 +947,8 @@ export class PredictiveAnalyticsService {
       confidenceLowerDays: Math.max(1, predictedDays - margin),
       confidenceUpperDays: predictedDays + margin,
       expectedDischargeDate: futureDateIso(Math.round(predictedDays)),
-      contributingFeatures: [
-        {
-          featureName: 'Diagnóstico principal (CID)',
-          importanceWeight: 0.20,
-          currentValue: 'J18.9 — Pneumonia não especificada',
-          normalRange: 'N/A',
-          direction: 'positive',
-        },
-        {
-          featureName: 'Idade',
-          importanceWeight: 0.16,
-          currentValue: '72 anos',
-          normalRange: 'N/A',
-          direction: 'positive',
-        },
-        {
-          featureName: 'Comorbidades (Charlson)',
-          importanceWeight: 0.14,
-          currentValue: '4',
-          normalRange: '0-1',
-          direction: 'positive',
-        },
-        {
-          featureName: 'Necessidade de O2 suplementar',
-          importanceWeight: 0.13,
-          currentValue: 'Sim — cateter nasal 3L/min',
-          normalRange: 'Não',
-          direction: 'positive',
-        },
-        {
-          featureName: 'Albumina sérica',
-          importanceWeight: 0.10,
-          currentValue: '2.8 g/dL',
-          normalRange: '3.5-5.5 g/dL',
-          direction: 'negative',
-        },
-        {
-          featureName: 'Via de admissão',
-          importanceWeight: 0.08,
-          currentValue: 'Pronto-Socorro',
-          normalRange: 'N/A',
-          direction: 'positive',
-        },
-      ],
-      recommendedActions: [
-        {
-          action: 'Iniciar fisioterapia respiratória e mobilização precoce',
-          priority: 'HIGH',
-          rationale: 'Mobilização precoce reduz tempo de internação em pneumonia em 1.5 dias (meta-análise)',
-        },
-        {
-          action: 'Avaliar transição de antibiótico IV para VO em 48-72h se critérios atendidos',
-          priority: 'MEDIUM',
-          rationale: 'Switch terapêutico precoce permite planejamento de alta mais cedo',
-        },
-        {
-          action: 'Acionar assistência social para planejamento de alta domiciliar',
-          priority: 'MEDIUM',
-          rationale: 'Paciente idoso com comorbidades — avaliar rede de apoio e home care',
-        },
-      ],
+      contributingFeatures: features,
+      recommendedActions: actions,
       modelMetadata: buildModelMetadata(PredictionType.LENGTH_OF_STAY),
       calculatedAt: nowIso(),
     };
@@ -622,11 +956,119 @@ export class PredictiveAnalyticsService {
 
   // ─── Mortality Risk ───────────────────────────────────────────────────────
 
-  async getMortalityRisk(tenantId: string, patientId: string): Promise<RiskPredictionResponseDto> {
+  async getMortalityRisk(
+    tenantId: string,
+    patientId: string,
+    data?: {
+      apacheIIScore?: number;
+      sofaScore?: number;
+      glasgow?: number;
+      age?: number;
+      onMechanicalVentilation?: boolean;
+      ventilationDays?: number;
+      onVasopressors?: boolean;
+      vasopressorDose?: number; // norepinephrine mcg/kg/min equivalent
+      albumin?: number;
+      urineOutput24h?: number; // mL
+      icuDays?: number;
+      charlsonIndex?: number;
+    },
+  ): Promise<RiskPredictionResponseDto> {
     this.logger.log(`[${tenantId}] Calculating inpatient mortality risk for patient ${patientId}`);
 
-    const riskScore = randomBetween(20, 70);
-    const margin = randomBetween(6, 13);
+    let riskScore: number;
+    const features: ContributingFeatureDto[] = [];
+    const actions: RecommendedActionDto[] = [];
+
+    if (data) {
+      riskScore = 0;
+
+      // APACHE II contribution (major factor)
+      if (data.apacheIIScore !== undefined) {
+        // APACHE II mortality approximation
+        if (data.apacheIIScore >= 30) riskScore += 30;
+        else if (data.apacheIIScore >= 25) riskScore += 22;
+        else if (data.apacheIIScore >= 20) riskScore += 15;
+        else if (data.apacheIIScore >= 15) riskScore += 10;
+        else if (data.apacheIIScore >= 10) riskScore += 5;
+        features.push({ featureName: 'APACHE II score', importanceWeight: 0.22, currentValue: `${data.apacheIIScore}`, normalRange: '< 10', direction: data.apacheIIScore >= 15 ? 'positive' : 'neutral' });
+      }
+
+      // SOFA contribution
+      if (data.sofaScore !== undefined) {
+        if (data.sofaScore >= 11) riskScore += 20;
+        else if (data.sofaScore >= 7) riskScore += 12;
+        else if (data.sofaScore >= 4) riskScore += 6;
+        features.push({ featureName: 'SOFA score', importanceWeight: 0.18, currentValue: `${data.sofaScore}`, normalRange: '< 4', direction: data.sofaScore >= 4 ? 'positive' : 'neutral' });
+      }
+
+      // Mechanical ventilation
+      if (data.onMechanicalVentilation) {
+        const ventDays = data.ventilationDays ?? 1;
+        riskScore += Math.min(15, 5 + ventDays);
+        features.push({ featureName: 'Ventilacao mecanica', importanceWeight: 0.18, currentValue: `Sim — ${ventDays} dias`, normalRange: 'Nao', direction: 'positive' });
+      }
+
+      // Vasopressors
+      if (data.onVasopressors) {
+        const dose = data.vasopressorDose ?? 0.1;
+        riskScore += dose > 0.3 ? 15 : dose > 0.1 ? 10 : 5;
+        features.push({ featureName: 'Vasopressores', importanceWeight: 0.15, currentValue: `Norepinefrina ${dose} mcg/kg/min`, normalRange: 'Nao', direction: 'positive' });
+      }
+
+      // Albumin
+      if (data.albumin !== undefined && data.albumin < 3.0) {
+        riskScore += Math.min(10, Math.round((3.0 - data.albumin) * 7));
+        features.push({ featureName: 'Albumina serica', importanceWeight: 0.12, currentValue: `${data.albumin} g/dL`, normalRange: '3.5-5.5 g/dL', direction: 'negative' });
+      }
+
+      // Urine output (oliguria)
+      if (data.urineOutput24h !== undefined && data.urineOutput24h < 500) {
+        riskScore += data.urineOutput24h < 200 ? 12 : 7;
+        features.push({ featureName: 'Diurese 24h', importanceWeight: 0.11, currentValue: `${data.urineOutput24h} mL`, normalRange: '> 800 mL', direction: 'negative' });
+      }
+
+      // GCS
+      if (data.glasgow !== undefined && data.glasgow < 12) {
+        riskScore += data.glasgow <= 8 ? 12 : 6;
+        features.push({ featureName: 'GCS', importanceWeight: 0.10, currentValue: `${data.glasgow}`, normalRange: '15', direction: 'negative' });
+      }
+
+      // Age
+      if (data.age !== undefined && data.age >= 65) {
+        riskScore += Math.min(8, Math.round((data.age - 65) / 5) * 2);
+        features.push({ featureName: 'Idade', importanceWeight: 0.07, currentValue: `${data.age} anos`, normalRange: 'N/A', direction: 'positive' });
+      }
+
+      // ICU days
+      if (data.icuDays !== undefined && data.icuDays > 7) {
+        riskScore += Math.min(6, Math.round((data.icuDays - 7) / 2));
+        features.push({ featureName: 'Dias em UTI', importanceWeight: 0.05, currentValue: `${data.icuDays}`, normalRange: '< 3', direction: 'positive' });
+      }
+
+      riskScore = Math.min(99, Math.max(1, Math.round(riskScore)));
+
+      // Actions based on findings
+      if (riskScore >= 60) {
+        actions.push({ action: 'Discussao de caso multidisciplinar com equipe de cuidados paliativos', priority: 'HIGH', rationale: 'Risco de mortalidade elevado — definir metas de cuidado' });
+        actions.push({ action: 'Comunicacao com familia sobre prognostico e diretivas antecipadas de vontade', priority: 'HIGH', rationale: 'Bioetica e autonomia do paciente' });
+      }
+      if (data.onVasopressors || data.onMechanicalVentilation) {
+        actions.push({ action: 'Otimizar suporte hemodinamico e ventilatorio com reavaliacao diaria', priority: 'HIGH', rationale: 'Suporte intensivo ativo — reavaliar escalonamento' });
+      }
+      if (data.albumin !== undefined && data.albumin < 2.5) {
+        actions.push({ action: 'Suporte nutricional enteral precoce e correcao de hipoalbuminemia', priority: 'MEDIUM', rationale: `Albumina ${data.albumin} — desnutricao proteico-calorica grave piora desfecho` });
+      }
+      if (data.urineOutput24h !== undefined && data.urineOutput24h < 400) {
+        actions.push({ action: 'Avaliar necessidade de terapia renal substitutiva', priority: 'HIGH', rationale: `Diurese ${data.urineOutput24h} mL/24h — oliguria/anuria` });
+      }
+    } else {
+      riskScore = randomBetween(20, 70);
+      features.push(...buildMortalityFeatures());
+      actions.push(...buildMortalityActions());
+    }
+
+    const margin = Math.round(riskScore * 0.12);
 
     return {
       predictionId: randomUUID(),
@@ -636,13 +1078,12 @@ export class PredictiveAnalyticsService {
       riskLevel: pickRiskLevel(riskScore),
       confidenceLower: Math.max(0, riskScore - margin),
       confidenceUpper: Math.min(100, riskScore + margin),
-      timeHorizon: 'Internação atual',
-      contributingFeatures: buildMortalityFeatures(),
-      recommendedActions: buildMortalityActions(),
+      timeHorizon: 'Internacao atual',
+      contributingFeatures: features.length > 0 ? features : buildMortalityFeatures(),
+      recommendedActions: actions.length > 0 ? actions : buildMortalityActions(),
       modelMetadata: buildModelMetadata(PredictionType.MORTALITY),
       calculatedAt: nowIso(),
-      previousScore: randomBetween(15, 50),
-      trend: 'worsening',
+      trend: riskScore >= 50 ? 'worsening' : riskScore >= 30 ? 'stable' : 'improving',
     };
   }
 

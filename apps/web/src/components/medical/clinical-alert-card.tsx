@@ -25,6 +25,8 @@ const severityConfig = {
     icon: <ShieldAlert className="h-5 w-5 text-red-400" />,
     titleColor: 'text-red-400',
     pulse: true,
+    glowClass: 'shadow-red-500/10',
+    stripColor: 'bg-red-500',
   },
   WARNING: {
     bg: 'bg-amber-500/10',
@@ -32,6 +34,8 @@ const severityConfig = {
     icon: <AlertTriangle className="h-5 w-5 text-amber-400" />,
     titleColor: 'text-amber-400',
     pulse: false,
+    glowClass: 'shadow-amber-500/5',
+    stripColor: 'bg-amber-500',
   },
   INFO: {
     bg: 'bg-blue-500/10',
@@ -39,6 +43,8 @@ const severityConfig = {
     icon: <Info className="h-5 w-5 text-blue-400" />,
     titleColor: 'text-blue-400',
     pulse: false,
+    glowClass: '',
+    stripColor: 'bg-blue-500',
   },
 };
 
@@ -47,11 +53,11 @@ function getTimeSince(dateStr: string): string {
   const then = new Date(dateStr).getTime();
   const diffMin = Math.floor((now - then) / 60000);
   if (diffMin < 1) return 'agora';
-  if (diffMin < 60) return `há ${diffMin}min`;
+  if (diffMin < 60) return `ha ${diffMin}min`;
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `há ${diffH}h`;
+  if (diffH < 24) return `ha ${diffH}h`;
   const diffD = Math.floor(diffH / 24);
-  return `há ${diffD}d`;
+  return `ha ${diffD}d`;
 }
 
 export function ClinicalAlertCard({
@@ -65,25 +71,33 @@ export function ClinicalAlertCard({
   return (
     <Card
       className={cn(
-        'border p-4 transition-colors',
+        'relative overflow-hidden border p-4 transition-all duration-200',
         config.bg,
         config.border,
+        config.glowClass && `shadow-lg ${config.glowClass}`,
         config.pulse && 'clinical-alert-pulse',
         className,
       )}
     >
       <style>{alertStyles}</style>
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 shrink-0">{config.icon}</div>
+
+      {/* Severity color strip on left */}
+      <div className={cn('absolute inset-y-0 left-0 w-1', config.stripColor)} />
+
+      <div className="flex items-start gap-3 pl-2">
+        <div className={cn('mt-0.5 shrink-0', config.pulse && 'animate-bounce')} style={config.pulse ? { animationDuration: '2s' } : undefined}>
+          {config.icon}
+        </div>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center justify-between gap-2">
             <h4
               className={cn(
                 'text-sm font-semibold',
                 config.titleColor,
-                alert.severity === 'CRITICAL' && 'font-bold',
+                alert.severity === 'CRITICAL' && 'font-bold uppercase tracking-wide',
               )}
             >
+              {alert.severity === 'CRITICAL' && '!! '}
               {alert.title}
             </h4>
             <span className="shrink-0 text-[10px] text-muted-foreground">
@@ -133,7 +147,7 @@ const alertStyles = `
     }
     50% {
       border-color: rgba(239, 68, 68, 0.8);
-      box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.15);
+      box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.15);
     }
   }
 

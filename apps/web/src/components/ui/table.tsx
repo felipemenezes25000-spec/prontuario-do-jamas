@@ -1,18 +1,44 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  /** Enable striped rows */
+  striped?: boolean;
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, striped, ...props }, ref) => (
     <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
+      <table
+        ref={ref}
+        className={cn(
+          'w-full caption-bottom text-sm',
+          striped && '[&_tbody_tr:nth-child(even)]:bg-muted/30',
+          className,
+        )}
+        {...props}
+      />
     </div>
   ),
 );
 Table.displayName = 'Table';
 
-const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <thead ref={ref} className={cn('[&_tr]:border-b', className)} {...props} />
+export interface TableHeaderProps extends React.HTMLAttributes<HTMLTableSectionElement> {
+  /** Make header sticky on scroll */
+  sticky?: boolean;
+}
+
+const TableHeader = React.forwardRef<HTMLTableSectionElement, TableHeaderProps>(
+  ({ className, sticky, ...props }, ref) => (
+    <thead
+      ref={ref}
+      className={cn(
+        '[&_tr]:border-b',
+        sticky && 'sticky top-0 z-10 bg-background/95 backdrop-blur-sm',
+        className,
+      )}
+      {...props}
+    />
   ),
 );
 TableHeader.displayName = 'TableHeader';

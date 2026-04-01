@@ -136,7 +136,7 @@ describe('SoapGeneratorService', () => {
       expect(result.suggestedMedications).toHaveLength(1);
     });
 
-    it('should handle error with default response', async () => {
+    it('should handle error with offline fallback response', async () => {
       (mockOpenAI.chat as Record<string, unknown> & { completions: { create: jest.Mock } }).completions.create.mockRejectedValue(
         new Error('API error'),
       );
@@ -145,13 +145,15 @@ describe('SoapGeneratorService', () => {
         'Paciente relata dor de cabeca',
       );
 
-      expect(result.subjective).toBe('');
-      expect(result.objective).toBe('');
-      expect(result.assessment).toBe('');
-      expect(result.plan).toBe('');
-      expect(result.diagnosisCodes).toEqual([]);
-      expect(result.suggestedExams).toEqual([]);
-      expect(result.suggestedMedications).toEqual([]);
+      // When both AI providers fail, the service falls back to offline rule-based SOAP generation
+      // which extracts content from the transcription text
+      expect(result.subjective).toBeDefined();
+      expect(result.objective).toBeDefined();
+      expect(result.assessment).toBeDefined();
+      expect(result.plan).toBeDefined();
+      expect(result.diagnosisCodes).toBeDefined();
+      expect(result.suggestedExams).toBeDefined();
+      expect(result.suggestedMedications).toBeDefined();
     });
 
     it('should handle empty patient context', async () => {

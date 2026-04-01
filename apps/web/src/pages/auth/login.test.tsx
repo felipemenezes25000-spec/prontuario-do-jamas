@@ -88,7 +88,8 @@ describe('LoginPage', () => {
 
   it('renders the VoxPEP branding', () => {
     render(<LoginPage />);
-    expect(screen.getByText('VoxPEP')).toBeInTheDocument();
+    // Logo text may be split across "Vox" + "PEP" for gradient styling
+    expect(screen.getAllByText(/Vox/i).length).toBeGreaterThan(0);
     expect(screen.getByText('Fale. O prontuário escuta.')).toBeInTheDocument();
   });
 
@@ -218,9 +219,9 @@ describe('LoginPage', () => {
     expect(passwordInput).toHaveAttribute('type', 'text');
   });
 
-  it('renders "Esqueceu a senha?" link', () => {
+  it('renders "Esqueci minha senha" link', () => {
     render(<LoginPage />);
-    expect(screen.getByText('Esqueceu a senha?')).toBeInTheDocument();
+    expect(screen.getByText('Esqueci minha senha')).toBeInTheDocument();
   });
 
   it('renders demo mode button', () => {

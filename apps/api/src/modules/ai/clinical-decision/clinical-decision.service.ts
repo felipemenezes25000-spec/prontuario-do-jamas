@@ -304,21 +304,142 @@ const CALCULATORS: Record<ClinicalCalculatorType, ScoreCalculator> = {
     };
   },
 
-  [ClinicalCalculatorType.APACHE_II]: (_params) => {
-    const score = 18;
+  [ClinicalCalculatorType.APACHE_II]: (params) => {
+    let apsScore = 0;
+    const components: Array<{ name: string; value: number; description: string }> = [];
+
+    // Temperature
+    const temp = Number(params['temperature'] ?? 37);
+    if (temp >= 41) { apsScore += 4; components.push({ name: 'Temperatura', value: 4, description: `${temp}°C (>= 41)` }); }
+    else if (temp >= 39) { apsScore += 3; components.push({ name: 'Temperatura', value: 3, description: `${temp}°C (39-40.9)` }); }
+    else if (temp >= 38.5) { apsScore += 1; components.push({ name: 'Temperatura', value: 1, description: `${temp}°C (38.5-38.9)` }); }
+    else if (temp >= 36) { apsScore += 0; components.push({ name: 'Temperatura', value: 0, description: `${temp}°C (36-38.4)` }); }
+    else if (temp >= 34) { apsScore += 1; components.push({ name: 'Temperatura', value: 1, description: `${temp}°C (34-35.9)` }); }
+    else if (temp >= 32) { apsScore += 2; components.push({ name: 'Temperatura', value: 2, description: `${temp}°C (32-33.9)` }); }
+    else if (temp >= 30) { apsScore += 3; components.push({ name: 'Temperatura', value: 3, description: `${temp}°C (30-31.9)` }); }
+    else { apsScore += 4; components.push({ name: 'Temperatura', value: 4, description: `${temp}°C (< 30)` }); }
+
+    // Mean arterial pressure
+    const map = Number(params['meanArterialPressure'] ?? params['map'] ?? 85);
+    if (map >= 160) { apsScore += 4; } else if (map >= 130) { apsScore += 3; } else if (map >= 110) { apsScore += 2; }
+    else if (map >= 70) { apsScore += 0; } else if (map >= 50) { apsScore += 2; } else { apsScore += 4; }
+    components.push({ name: 'PAM', value: map, description: `${map} mmHg` });
+
+    // Heart rate
+    const hr = Number(params['heartRate'] ?? params['hr'] ?? 80);
+    if (hr >= 180) { apsScore += 4; } else if (hr >= 140) { apsScore += 3; } else if (hr >= 110) { apsScore += 2; }
+    else if (hr >= 70) { apsScore += 0; } else if (hr >= 55) { apsScore += 2; } else if (hr >= 40) { apsScore += 3; }
+    else { apsScore += 4; }
+    components.push({ name: 'FC', value: hr, description: `${hr} bpm` });
+
+    // Respiratory rate
+    const rr = Number(params['respiratoryRate'] ?? params['rr'] ?? 16);
+    if (rr >= 50) { apsScore += 4; } else if (rr >= 35) { apsScore += 3; } else if (rr >= 25) { apsScore += 1; }
+    else if (rr >= 12) { apsScore += 0; } else if (rr >= 10) { apsScore += 1; } else if (rr >= 6) { apsScore += 2; }
+    else { apsScore += 4; }
+    components.push({ name: 'FR', value: rr, description: `${rr} irpm` });
+
+    // Oxygenation: if FiO2 >= 0.5 use A-a gradient, else use PaO2
+    const fio2 = Number(params['fio2'] ?? 0.21);
+    const pao2 = Number(params['pao2'] ?? 80);
+    if (fio2 >= 0.5) {
+      const aaGradient = Number(params['aaGradient'] ?? ((fio2 * 713) - (Number(params['paco2'] ?? 40) / 0.8) - pao2));
+      if (aaGradient >= 500) { apsScore += 4; } else if (aaGradient >= 350) { apsScore += 3; } else if (aaGradient >= 200) { apsScore += 2; }
+      else { apsScore += 0; }
+      components.push({ name: 'A-a gradiente', value: Math.round(aaGradient), description: `${Math.round(aaGradient)} (FiO2 ${(fio2 * 100).toFixed(0)}%)` });
+    } else {
+      if (pao2 > 70) { apsScore += 0; } else if (pao2 >= 61) { apsScore += 1; } else if (pao2 >= 55) { apsScore += 3; }
+      else { apsScore += 4; }
+      components.push({ name: 'PaO2', value: pao2, description: `${pao2} mmHg (FiO2 ${(fio2 * 100).toFixed(0)}%)` });
+    }
+
+    // pH arterial
+    const ph = Number(params['ph'] ?? 7.4);
+    if (ph >= 7.7) { apsScore += 4; } else if (ph >= 7.6) { apsScore += 3; } else if (ph >= 7.5) { apsScore += 1; }
+    else if (ph >= 7.33) { apsScore += 0; } else if (ph >= 7.25) { apsScore += 2; } else if (ph >= 7.15) { apsScore += 3; }
+    else { apsScore += 4; }
+    components.push({ name: 'pH arterial', value: ph, description: `${ph}` });
+
+    // Sodium
+    const na = Number(params['sodium'] ?? params['na'] ?? 140);
+    if (na >= 180) { apsScore += 4; } else if (na >= 160) { apsScore += 3; } else if (na >= 155) { apsScore += 2; }
+    else if (na >= 150) { apsScore += 1; } else if (na >= 130) { apsScore += 0; } else if (na >= 120) { apsScore += 2; }
+    else { apsScore += 3; }
+
+    // Potassium
+    const k = Number(params['potassium'] ?? params['k'] ?? 4.0);
+    if (k >= 7) { apsScore += 4; } else if (k >= 6) { apsScore += 3; } else if (k >= 5.5) { apsScore += 1; }
+    else if (k >= 3.5) { apsScore += 0; } else if (k >= 3.0) { apsScore += 1; } else if (k >= 2.5) { apsScore += 2; }
+    else { apsScore += 4; }
+
+    // Creatinine
+    const cr = Number(params['creatinine'] ?? params['cr'] ?? 1.0);
+    const arf = params['acuteRenalFailure'] === true || params['acuteRenalFailure'] === 'true';
+    const crMult = arf ? 2 : 1;
+    if (cr >= 3.5) { apsScore += 4 * crMult; } else if (cr >= 2.0) { apsScore += 3 * crMult; } else if (cr >= 1.5) { apsScore += 2 * crMult; }
+    else if (cr >= 0.6) { apsScore += 0; } else { apsScore += 2 * crMult; }
+
+    // Hematocrit
+    const hct = Number(params['hematocrit'] ?? params['hct'] ?? 40);
+    if (hct >= 60) { apsScore += 4; } else if (hct >= 50) { apsScore += 2; } else if (hct >= 46) { apsScore += 1; }
+    else if (hct >= 30) { apsScore += 0; } else if (hct >= 20) { apsScore += 2; } else { apsScore += 4; }
+
+    // WBC
+    const wbc = Number(params['wbc'] ?? params['leukocytes'] ?? 10);
+    if (wbc >= 40) { apsScore += 4; } else if (wbc >= 20) { apsScore += 2; } else if (wbc >= 15) { apsScore += 1; }
+    else if (wbc >= 3) { apsScore += 0; } else if (wbc >= 1) { apsScore += 2; } else { apsScore += 4; }
+
+    // GCS (15 - GCS)
+    const gcs = Number(params['gcs'] ?? params['glasgow'] ?? 15);
+    const gcsScore = 15 - gcs;
+    apsScore += gcsScore;
+    components.push({ name: 'Glasgow', value: gcs, description: `GCS ${gcs} (pontos: ${gcsScore})` });
+
+    // Age points
+    const age = Number(params['age'] ?? 50);
+    let ageScore = 0;
+    if (age >= 75) ageScore = 6;
+    else if (age >= 65) ageScore = 5;
+    else if (age >= 55) ageScore = 3;
+    else if (age >= 45) ageScore = 2;
+    components.push({ name: 'Idade', value: ageScore, description: `${age} anos` });
+
+    // Chronic health points
+    let chronicScore = 0;
+    const immunocompromised = params['immunocompromised'] === true || params['immunocompromised'] === 'true';
+    const severeOrganInsuff = params['severeOrganInsufficiency'] === true || params['severeOrganInsufficiency'] === 'true';
+    const isElective = params['electiveSurgery'] === true || params['electiveSurgery'] === 'true';
+    if (immunocompromised || severeOrganInsuff) {
+      chronicScore = isElective ? 2 : 5;
+    }
+    components.push({ name: 'Doenca cronica', value: chronicScore, description: immunocompromised || severeOrganInsuff ? (isElective ? 'Cirurgia eletiva com comorbidade grave' : 'Emergencia/clinico com comorbidade grave') : 'Sem comorbidade cronica grave' });
+
+    const totalScore = apsScore + ageScore + chronicScore;
+
+    // Mortality estimation table (APACHE II)
+    const mortalityTable: Record<number, string> = {
+      0: '~4%', 5: '~8%', 10: '~15%', 15: '~25%', 20: '~40%', 25: '~55%', 30: '~73%', 35: '~85%',
+    };
+    const mortalityBracket = Math.min(35, Math.floor(totalScore / 5) * 5);
+    const mortalityEst = mortalityTable[mortalityBracket] ?? '>85%';
+
+    const riskLevel = totalScore < 10 ? RiskLevel.LOW : totalScore < 20 ? RiskLevel.MODERATE : totalScore < 30 ? RiskLevel.HIGH : RiskLevel.CRITICAL;
+
     return {
       calculatorType: ClinicalCalculatorType.APACHE_II,
       calculatorName: 'APACHE II (Gravidade em UTI)',
-      score,
+      score: totalScore,
       maxScore: 71,
-      interpretation: 'APACHE II 18 — mortalidade estimada: ~25%',
-      riskLevel: RiskLevel.HIGH,
-      recommendation: 'Paciente de alto risco em UTI. Monitoramento intensivo e reavaliacao em 24h',
-      components: [
-        { name: 'Pontuacao fisiologica aguda', value: 10, description: 'APS (Acute Physiology Score)' },
-        { name: 'Idade', value: 4, description: 'Pontuacao por faixa etaria' },
-        { name: 'Doenca cronica', value: 4, description: 'Pontuacao por comorbidades cronicas' },
-      ],
+      interpretation: `APACHE II ${totalScore} (APS: ${apsScore}, Idade: ${ageScore}, Cronico: ${chronicScore}) — mortalidade estimada: ${mortalityEst}`,
+      riskLevel,
+      recommendation: totalScore < 10
+        ? 'Baixa gravidade em UTI. Monitoramento padrao'
+        : totalScore < 20
+          ? 'Gravidade moderada. Monitoramento intensivo, reavaliacao em 24h'
+          : totalScore < 30
+            ? 'Alta gravidade. Considerar medidas agressivas, monitoramento continuo'
+            : 'Gravidade critica. Prognostico reservado. Discutir metas de cuidado com familia',
+      components,
       references: ['Knaus WA et al. Crit Care Med 1985;13:818-29'],
     };
   },
@@ -352,27 +473,490 @@ const CALCULATORS: Record<ClinicalCalculatorType, ScoreCalculator> = {
     };
   },
 
-  [ClinicalCalculatorType.NIHSS]: (_params) => {
-    const score = 12;
+  [ClinicalCalculatorType.NIHSS]: (params) => {
+    const components: Array<{ name: string; value: number; description: string }> = [];
+    const descriptions: Record<string, Record<number, string>> = {
+      consciousness: { 0: 'Alerta', 1: 'Nao alerta, despertavel com estimulo minimo', 2: 'Nao alerta, requer estimulo repetido', 3: 'Coma/irresponsivo' },
+      consciousnessQuestions: { 0: 'Responde ambas corretamente', 1: 'Responde uma corretamente', 2: 'Nao responde nenhuma' },
+      consciousnessCommands: { 0: 'Executa ambos corretamente', 1: 'Executa um corretamente', 2: 'Nao executa nenhum' },
+      gaze: { 0: 'Normal', 1: 'Paralisia parcial do olhar', 2: 'Desvio forcado do olhar' },
+      visual: { 0: 'Sem perda visual', 1: 'Hemianopsia parcial', 2: 'Hemianopsia completa', 3: 'Cegueira bilateral' },
+      facialPalsy: { 0: 'Normal', 1: 'Paralisia leve', 2: 'Paralisia parcial', 3: 'Paralisia completa (uni ou bilateral)' },
+      motorArm: { 0: 'Sem queda', 1: 'Queda antes de 10s', 2: 'Algum esforco contra gravidade', 3: 'Sem esforco contra gravidade', 4: 'Sem movimento' },
+      motorLeg: { 0: 'Sem queda', 1: 'Queda antes de 5s', 2: 'Algum esforco contra gravidade', 3: 'Sem esforco contra gravidade', 4: 'Sem movimento' },
+      limb: { 0: 'Sem ataxia', 1: 'Ataxia em 1 membro', 2: 'Ataxia em 2 membros' },
+      sensory: { 0: 'Normal', 1: 'Perda leve a moderada', 2: 'Perda grave ou total' },
+      language: { 0: 'Normal', 1: 'Afasia leve a moderada', 2: 'Afasia grave', 3: 'Mutismo/afasia global' },
+      dysarthria: { 0: 'Normal', 1: 'Disartria leve a moderada', 2: 'Disartria grave/ininteligivel' },
+      neglect: { 0: 'Sem negligencia', 1: 'Negligencia parcial', 2: 'Negligencia profunda' },
+    };
+
+    const fields = [
+      { key: 'consciousness', name: '1a. Nivel de consciencia', max: 3 },
+      { key: 'consciousnessQuestions', name: '1b. Perguntas de orientacao', max: 2 },
+      { key: 'consciousnessCommands', name: '1c. Comandos', max: 2 },
+      { key: 'gaze', name: '2. Melhor olhar conjugado', max: 2 },
+      { key: 'visual', name: '3. Campo visual', max: 3 },
+      { key: 'facialPalsy', name: '4. Paralisia facial', max: 3 },
+      { key: 'motorArmLeft', name: '5a. Motor MSE', max: 4 },
+      { key: 'motorArmRight', name: '5b. Motor MSD', max: 4 },
+      { key: 'motorLegLeft', name: '6a. Motor MIE', max: 4 },
+      { key: 'motorLegRight', name: '6b. Motor MID', max: 4 },
+      { key: 'limb', name: '7. Ataxia de membros', max: 2 },
+      { key: 'sensory', name: '8. Sensibilidade', max: 2 },
+      { key: 'language', name: '9. Linguagem', max: 3 },
+      { key: 'dysarthria', name: '10. Disartria', max: 2 },
+      { key: 'neglect', name: '11. Extincao/negligencia', max: 2 },
+    ];
+
+    let score = 0;
+    for (const field of fields) {
+      const baseKey = field.key.replace(/Left|Right/, '');
+      const val = Math.min(field.max, Math.max(0, Number(params[field.key] ?? 0)));
+      score += val;
+      const descKey = baseKey === 'motorArmLeft' || baseKey === 'motorArmRight' ? 'motorArm'
+        : baseKey === 'motorLegLeft' || baseKey === 'motorLegRight' ? 'motorLeg'
+        : baseKey;
+      const descMap = descriptions[descKey];
+      const desc = descMap ? (descMap[val] ?? `${val}`) : `${val}`;
+      components.push({ name: field.name, value: val, description: desc });
+    }
+
+    const severity = score === 0 ? 'Sem deficit' : score <= 4 ? 'AVC leve (minor stroke)' : score <= 15 ? 'AVC moderado' : score <= 24 ? 'AVC moderado-grave' : 'AVC grave';
+    const riskLevel = score <= 4 ? RiskLevel.LOW : score <= 15 ? RiskLevel.MODERATE : score <= 24 ? RiskLevel.HIGH : RiskLevel.CRITICAL;
+
     return {
       calculatorType: ClinicalCalculatorType.NIHSS,
       calculatorName: 'NIHSS (Escala de AVC do NIH)',
       score,
       maxScore: 42,
-      interpretation: 'NIHSS 12 — AVC moderado a grave',
-      riskLevel: RiskLevel.HIGH,
-      recommendation: 'Candidato a trombolise (se dentro da janela terapeutica <4.5h). Considerar trombectomia mecanica se oclusao de grande vaso',
-      components: [
-        { name: 'Nivel de consciencia', value: 1, description: 'Parcialmente alerta' },
-        { name: 'Olhar conjugado', value: 1, description: 'Paralisia parcial do olhar' },
-        { name: 'Campo visual', value: 1, description: 'Hemianopsia parcial' },
-        { name: 'Paralisia facial', value: 2, description: 'Paralisia parcial' },
-        { name: 'Motor MSD', value: 3, description: 'Queda em 5 segundos' },
-        { name: 'Motor MID', value: 2, description: 'Queda em 5 segundos, algum esforco' },
-        { name: 'Linguagem', value: 1, description: 'Afasia leve' },
-        { name: 'Disartria', value: 1, description: 'Leve a moderada' },
-      ],
-      references: ['Brott T et al. Stroke 1989;20:864-70'],
+      interpretation: `NIHSS ${score}/42 — ${severity}`,
+      riskLevel,
+      recommendation: score <= 4
+        ? 'AVC leve — avaliar trombolise IV se dentro da janela e deficits incapacitantes. Monitorar de perto'
+        : score <= 15
+          ? 'AVC moderado — candidato a trombolise IV (alteplase 0.9 mg/kg, max 90mg, 10% em bolus, resto em 1h) se < 4.5h do inicio. Considerar trombectomia se oclusao de grande vaso e < 24h'
+          : score <= 24
+            ? 'AVC moderado-grave — trombolise IV se elegivel. Trombectomia mecanica se LVO. Monitorar em UTI neurologica'
+            : 'AVC grave — prognostico reservado. Trombolise/trombectomia se elegivel. UTI. Discutir prognostico com familia',
+      components,
+      references: ['Brott T et al. Stroke 1989;20:864-70', 'AHA/ASA Guidelines 2019'],
+    };
+  },
+
+  [ClinicalCalculatorType.NEWS2]: (params) => {
+    let score = 0;
+    const components: Array<{ name: string; value: number; description: string }> = [];
+
+    // Respiratory rate
+    const rr = Number(params['respiratoryRate'] ?? params['rr'] ?? 16);
+    let rrScore = 0;
+    if (rr <= 8) rrScore = 3;
+    else if (rr <= 11) rrScore = 1;
+    else if (rr <= 20) rrScore = 0;
+    else if (rr <= 24) rrScore = 2;
+    else rrScore = 3;
+    score += rrScore;
+    components.push({ name: 'Frequencia respiratoria', value: rrScore, description: `${rr} irpm` });
+
+    // SpO2 Scale 1 (default) or Scale 2 (DPOC com hipercapnia cronica)
+    const spo2 = Number(params['oxygenSaturation'] ?? params['spo2'] ?? 96);
+    const useScale2 = params['scale2'] === true || params['scale2'] === 'true';
+    let spo2Score = 0;
+    if (!useScale2) {
+      if (spo2 <= 91) spo2Score = 3;
+      else if (spo2 <= 93) spo2Score = 2;
+      else if (spo2 <= 95) spo2Score = 1;
+      else spo2Score = 0;
+    } else {
+      if (spo2 <= 83) spo2Score = 3;
+      else if (spo2 <= 85) spo2Score = 2;
+      else if (spo2 <= 87) spo2Score = 1;
+      else if (spo2 <= 92) spo2Score = 0;
+      else if (spo2 <= 94) spo2Score = 1;
+      else if (spo2 <= 96) spo2Score = 2;
+      else spo2Score = 3;
+    }
+    score += spo2Score;
+    components.push({ name: `SpO2 (Escala ${useScale2 ? '2' : '1'})`, value: spo2Score, description: `${spo2}%` });
+
+    // Supplemental O2
+    const onO2 = params['supplementalO2'] === true || params['supplementalO2'] === 'true';
+    const o2Score = onO2 ? 2 : 0;
+    score += o2Score;
+    components.push({ name: 'O2 suplementar', value: o2Score, description: onO2 ? 'Sim' : 'Nao' });
+
+    // Systolic BP
+    const sbp = Number(params['systolicBP'] ?? params['sbp'] ?? 120);
+    let sbpScore = 0;
+    if (sbp <= 90) sbpScore = 3;
+    else if (sbp <= 100) sbpScore = 2;
+    else if (sbp <= 110) sbpScore = 1;
+    else if (sbp <= 219) sbpScore = 0;
+    else sbpScore = 3;
+    score += sbpScore;
+    components.push({ name: 'PA sistolica', value: sbpScore, description: `${sbp} mmHg` });
+
+    // Heart rate
+    const hr = Number(params['heartRate'] ?? params['hr'] ?? 80);
+    let hrScore = 0;
+    if (hr <= 40) hrScore = 3;
+    else if (hr <= 50) hrScore = 1;
+    else if (hr <= 90) hrScore = 0;
+    else if (hr <= 110) hrScore = 1;
+    else if (hr <= 130) hrScore = 2;
+    else hrScore = 3;
+    score += hrScore;
+    components.push({ name: 'Frequencia cardiaca', value: hrScore, description: `${hr} bpm` });
+
+    // Consciousness (AVPU)
+    const avpu = String(params['consciousness'] ?? params['avpu'] ?? 'A').toUpperCase();
+    let avpuScore = 0;
+    if (avpu === 'A' || avpu === 'ALERT') avpuScore = 0;
+    else if (avpu === 'C' || avpu === 'CONFUSION') avpuScore = 3; // NEW confusion in NEWS2
+    else if (avpu === 'V' || avpu === 'VOICE') avpuScore = 3;
+    else if (avpu === 'P' || avpu === 'PAIN') avpuScore = 3;
+    else if (avpu === 'U' || avpu === 'UNRESPONSIVE') avpuScore = 3;
+    score += avpuScore;
+    components.push({ name: 'Consciencia (ACVPU)', value: avpuScore, description: avpu });
+
+    // Temperature
+    const temp = Number(params['temperature'] ?? params['temp'] ?? 37);
+    let tempScore = 0;
+    if (temp <= 35.0) tempScore = 3;
+    else if (temp <= 36.0) tempScore = 1;
+    else if (temp <= 38.0) tempScore = 0;
+    else if (temp <= 39.0) tempScore = 1;
+    else tempScore = 2;
+    score += tempScore;
+    components.push({ name: 'Temperatura', value: tempScore, description: `${temp}°C` });
+
+    const riskLevel = score === 0 ? RiskLevel.LOW
+      : score <= 4 ? RiskLevel.LOW
+        : score <= 6 ? RiskLevel.MODERATE
+          : RiskLevel.HIGH;
+
+    const hasAnySingle3 = [rrScore, spo2Score, sbpScore, hrScore, avpuScore, tempScore].some(s => s === 3);
+    const clinicalResponse = score >= 7
+      ? 'URGENTE — Monitoramento continuo. Avaliar necessidade de UTI. Acionar time de resposta rapida'
+      : hasAnySingle3
+        ? 'Parametro individual em 3 — avaliacao clinica urgente mesmo com score total baixo'
+        : score >= 5
+          ? 'CUIDADO — Aumentar frequencia de monitorizacao para no minimo 1/1h. Avaliacao por enfermeiro senior'
+          : score >= 1
+            ? 'BAIXO RISCO — Monitorizacao a cada 4-6h. Avaliacao de enfermagem'
+            : 'Score 0 — Monitorizacao de rotina a cada 12h';
+
+    return {
+      calculatorType: ClinicalCalculatorType.NEWS2,
+      calculatorName: 'NEWS2 (National Early Warning Score 2)',
+      score,
+      maxScore: 20,
+      interpretation: `NEWS2 = ${score} — ${score >= 7 ? 'ALTO risco' : score >= 5 ? 'MEDIO risco' : 'BAIXO risco'} de deterioracao clinica`,
+      riskLevel,
+      recommendation: clinicalResponse,
+      components,
+      references: ['Royal College of Physicians. NEWS2 2017', 'Adaptacao brasileira — COREN 2020'],
+    };
+  },
+
+  [ClinicalCalculatorType.SOFA]: (params) => {
+    let score = 0;
+    const components: Array<{ name: string; value: number; description: string }> = [];
+
+    // Respiratory: PaO2/FiO2
+    const pf = Number(params['pao2FiO2'] ?? params['pfRatio'] ?? 400);
+    const onVent = params['mechanicalVentilation'] === true || params['mechanicalVentilation'] === 'true';
+    let respScore = 0;
+    if (pf >= 400) respScore = 0;
+    else if (pf >= 300) respScore = 1;
+    else if (pf >= 200) respScore = 2;
+    else if (pf >= 100 && onVent) respScore = 3;
+    else if (pf >= 100) respScore = 2;
+    else respScore = onVent ? 4 : 3;
+    score += respScore;
+    components.push({ name: 'Respiratorio (PaO2/FiO2)', value: respScore, description: `P/F = ${pf}${onVent ? ' (VM)' : ''}` });
+
+    // Coagulation: Platelets
+    const platelets = Number(params['platelets'] ?? params['plaquetas'] ?? 200);
+    let coagScore = 0;
+    if (platelets >= 150) coagScore = 0;
+    else if (platelets >= 100) coagScore = 1;
+    else if (platelets >= 50) coagScore = 2;
+    else if (platelets >= 20) coagScore = 3;
+    else coagScore = 4;
+    score += coagScore;
+    components.push({ name: 'Coagulacao (Plaquetas)', value: coagScore, description: `${platelets}.000/mm³` });
+
+    // Liver: Bilirubin
+    const bilirubin = Number(params['bilirubin'] ?? params['bilirrubina'] ?? 1.0);
+    let liverScore = 0;
+    if (bilirubin < 1.2) liverScore = 0;
+    else if (bilirubin < 2.0) liverScore = 1;
+    else if (bilirubin < 6.0) liverScore = 2;
+    else if (bilirubin < 12.0) liverScore = 3;
+    else liverScore = 4;
+    score += liverScore;
+    components.push({ name: 'Hepatico (Bilirrubina)', value: liverScore, description: `${bilirubin} mg/dL` });
+
+    // Cardiovascular: MAP and vasopressors
+    const mapVal = Number(params['meanArterialPressure'] ?? params['map'] ?? 75);
+    const dopamine = Number(params['dopamine'] ?? 0);
+    const dobutamine = Number(params['dobutamine'] ?? 0);
+    const norepinephrine = Number(params['norepinephrine'] ?? params['noradrenalina'] ?? 0);
+    const epinephrine = Number(params['epinephrine'] ?? params['adrenalina'] ?? 0);
+    let cvScore = 0;
+    if (epinephrine > 0.1 || norepinephrine > 0.1) cvScore = 4;
+    else if (epinephrine > 0 || norepinephrine > 0) cvScore = 3;
+    else if (dopamine > 5 || dobutamine > 0) cvScore = 2;
+    else if (dopamine > 0 || mapVal < 70) cvScore = 1;
+    else cvScore = 0;
+    score += cvScore;
+    components.push({ name: 'Cardiovascular', value: cvScore, description: cvScore === 0 ? `PAM ${mapVal} mmHg, sem DVA` : `PAM ${mapVal} mmHg, com DVA` });
+
+    // CNS: Glasgow
+    const gcs = Number(params['glasgow'] ?? params['gcs'] ?? 15);
+    let cnsScore = 0;
+    if (gcs === 15) cnsScore = 0;
+    else if (gcs >= 13) cnsScore = 1;
+    else if (gcs >= 10) cnsScore = 2;
+    else if (gcs >= 6) cnsScore = 3;
+    else cnsScore = 4;
+    score += cnsScore;
+    components.push({ name: 'Neurologico (Glasgow)', value: cnsScore, description: `GCS ${gcs}` });
+
+    // Renal: Creatinine or urine output
+    const creatinine = Number(params['creatinine'] ?? params['creatinina'] ?? 1.0);
+    const urineOutput = params['urineOutput24h'] ? Number(params['urineOutput24h']) : undefined;
+    let renalScore = 0;
+    if (creatinine < 1.2) renalScore = 0;
+    else if (creatinine < 2.0) renalScore = 1;
+    else if (creatinine < 3.5) renalScore = 2;
+    else if (creatinine < 5.0 || (urineOutput !== undefined && urineOutput < 500)) renalScore = 3;
+    else renalScore = 4;
+    if (urineOutput !== undefined && urineOutput < 200) renalScore = 4;
+    score += renalScore;
+    components.push({ name: 'Renal (Creatinina)', value: renalScore, description: `${creatinine} mg/dL${urineOutput !== undefined ? `, DU ${urineOutput} mL/24h` : ''}` });
+
+    const mortalityEst = score <= 1 ? '<3%' : score <= 3 ? '~5%' : score <= 6 ? '~10%' : score <= 9 ? '~20%' : score <= 12 ? '~40%' : score <= 15 ? '~55%' : '>80%';
+    const riskLevel = score <= 3 ? RiskLevel.LOW : score <= 6 ? RiskLevel.MODERATE : score <= 11 ? RiskLevel.HIGH : RiskLevel.CRITICAL;
+
+    return {
+      calculatorType: ClinicalCalculatorType.SOFA,
+      calculatorName: 'SOFA (Sequential Organ Failure Assessment)',
+      score,
+      maxScore: 24,
+      interpretation: `SOFA ${score}/24 — mortalidade estimada: ${mortalityEst}. ${score >= 2 ? 'Disfuncao organica presente (criterio Sepsis-3 se suspeita de infeccao)' : 'Sem disfuncao organica significativa'}`,
+      riskLevel,
+      recommendation: score <= 3
+        ? 'Baixa disfuncao organica. Monitoramento padrao de UTI'
+        : score <= 6
+          ? 'Disfuncao organica moderada. Se infeccao suspeita: SEPSE (Sepsis-3). Ressuscitacao conforme SSC guidelines'
+          : score <= 11
+            ? 'Disfuncao organica grave. Reavaliar terapia. Considerar escalonamento de cuidados'
+            : 'Falencia multiorganica. Prognostico reservado. Discutir metas de cuidado',
+      components,
+      references: ['Vincent JL et al. Crit Care Med 1996;24:707-11', 'Singer M et al. JAMA 2016;315:801-10 (Sepsis-3)'],
+    };
+  },
+
+  [ClinicalCalculatorType.QSOFA]: (params) => {
+    let score = 0;
+    const components: Array<{ name: string; value: number; description: string }> = [];
+
+    const rr = Number(params['respiratoryRate'] ?? params['rr'] ?? 16);
+    const rrPoint = rr >= 22 ? 1 : 0;
+    score += rrPoint;
+    components.push({ name: 'FR >= 22 irpm', value: rrPoint, description: `FR = ${rr} irpm` });
+
+    const sbp = Number(params['systolicBP'] ?? params['sbp'] ?? 120);
+    const sbpPoint = sbp <= 100 ? 1 : 0;
+    score += sbpPoint;
+    components.push({ name: 'PAS <= 100 mmHg', value: sbpPoint, description: `PAS = ${sbp} mmHg` });
+
+    const gcs = Number(params['glasgow'] ?? params['gcs'] ?? 15);
+    const gcsPoint = gcs < 15 ? 1 : 0;
+    score += gcsPoint;
+    components.push({ name: 'Glasgow < 15', value: gcsPoint, description: `GCS = ${gcs}` });
+
+    const riskLevel = score >= 2 ? RiskLevel.HIGH : score === 1 ? RiskLevel.MODERATE : RiskLevel.LOW;
+
+    return {
+      calculatorType: ClinicalCalculatorType.QSOFA,
+      calculatorName: 'qSOFA (Quick SOFA)',
+      score,
+      maxScore: 3,
+      interpretation: `qSOFA ${score}/3 — ${score >= 2 ? 'POSITIVO para risco de desfecho adverso em sepse' : 'Negativo, mas NAO exclui sepse'}`,
+      riskLevel,
+      recommendation: score >= 2
+        ? 'qSOFA >= 2: alto risco de mortalidade. Investigar sepse agressivamente. Hemoculturas + lactato + SOFA completo. Iniciar ATB empirico em 1h se sepse provavel. Ressuscitacao com 30 mL/kg de cristaloide'
+        : score === 1
+          ? 'qSOFA = 1: monitorar de perto. Reavaliar frequentemente. qSOFA negativo NAO exclui sepse — se suspeita clinica, calcular SOFA completo'
+          : 'qSOFA = 0: baixa probabilidade de desfecho adverso, mas manter vigilancia clinica',
+      components,
+      references: ['Seymour CW et al. JAMA 2016;315:762-74', 'Surviving Sepsis Campaign 2021'],
+    };
+  },
+
+  [ClinicalCalculatorType.HEART_SCORE]: (params) => {
+    let score = 0;
+    const components: Array<{ name: string; value: number; description: string }> = [];
+
+    // History
+    const history = String(params['history'] ?? 'moderate').toLowerCase();
+    let hScore = 0;
+    if (history === 'highly_suspicious' || history === 'tipica') hScore = 2;
+    else if (history === 'moderately_suspicious' || history === 'moderada') hScore = 1;
+    else hScore = 0;
+    score += hScore;
+    components.push({ name: 'Historia', value: hScore, description: hScore === 2 ? 'Altamente suspeita' : hScore === 1 ? 'Moderadamente suspeita' : 'Levemente suspeita' });
+
+    // ECG
+    const ecg = String(params['ecg'] ?? 'normal').toLowerCase();
+    let ecgScore = 0;
+    if (ecg === 'significant_deviation' || ecg === 'supra') ecgScore = 2;
+    else if (ecg === 'nonspecific' || ecg === 'inespecifico') ecgScore = 1;
+    else ecgScore = 0;
+    score += ecgScore;
+    components.push({ name: 'ECG', value: ecgScore, description: ecgScore === 2 ? 'Desvio significativo do ST' : ecgScore === 1 ? 'Alteracao inespecifica' : 'Normal' });
+
+    // Age
+    const age = Number(params['age'] ?? 50);
+    let ageScore = 0;
+    if (age >= 65) ageScore = 2;
+    else if (age >= 45) ageScore = 1;
+    else ageScore = 0;
+    score += ageScore;
+    components.push({ name: 'Idade', value: ageScore, description: `${age} anos` });
+
+    // Risk factors (DM, HAS, dislipidemia, tabagismo, obesidade, historico familiar)
+    const riskFactors = Number(params['riskFactors'] ?? params['riskFactorCount'] ?? 1);
+    let rfScore = 0;
+    if (riskFactors >= 3) rfScore = 2;
+    else if (riskFactors >= 1) rfScore = 1;
+    else rfScore = 0;
+    score += rfScore;
+    components.push({ name: 'Fatores de risco', value: rfScore, description: `${riskFactors} fator(es)` });
+
+    // Troponin
+    const troponin = String(params['troponin'] ?? params['troponina'] ?? 'normal').toLowerCase();
+    let tropScore = 0;
+    if (troponin === 'elevated_3x' || troponin === 'elevada') tropScore = 2;
+    else if (troponin === 'elevated_1_3x' || troponin === 'borderline' || troponin === 'limite') tropScore = 1;
+    else tropScore = 0;
+    score += tropScore;
+    components.push({ name: 'Troponina', value: tropScore, description: tropScore === 2 ? '> 3x LSN' : tropScore === 1 ? '1-3x LSN' : 'Normal' });
+
+    const riskLevel = score <= 3 ? RiskLevel.LOW : score <= 6 ? RiskLevel.MODERATE : RiskLevel.HIGH;
+    const maceRisk = score <= 3 ? '0.9-1.7%' : score <= 6 ? '12-16.6%' : '50-65%';
+
+    return {
+      calculatorType: ClinicalCalculatorType.HEART_SCORE,
+      calculatorName: 'HEART Score (Dor Toracica no PS)',
+      score,
+      maxScore: 10,
+      interpretation: `HEART Score ${score}/10 — risco de MACE em 6 semanas: ${maceRisk}`,
+      riskLevel,
+      recommendation: score <= 3
+        ? 'Baixo risco — alta precoce possivel apos observacao breve e troponina seriada negativa. Acompanhamento ambulatorial'
+        : score <= 6
+          ? 'Risco intermediario — observacao, troponina seriada, teste provocativo de isquemia (ergometria/cintilografia). Considerar internacao'
+          : 'Alto risco — internacao. Estratificacao invasiva (cineangiocoronariografia). Dupla antiagregacao. Heparina',
+      components,
+      references: ['Six AJ et al. Neth Heart J 2008;16:191-6', 'Backus BE et al. Int J Cardiol 2013;168:2153-8'],
+    };
+  },
+
+  [ClinicalCalculatorType.HAS_BLED]: (params) => {
+    let score = 0;
+    const components: Array<{ name: string; value: number; description: string }> = [];
+
+    if (params['hypertension'] || params['has']) { score += 1; components.push({ name: 'Hipertensao (PAS > 160)', value: 1, description: 'HAS nao controlada' }); }
+    if (params['renalDisease']) { score += 1; components.push({ name: 'Doenca renal', value: 1, description: 'Dialise, transplante, Cr > 2.26' }); }
+    if (params['liverDisease']) { score += 1; components.push({ name: 'Doenca hepatica', value: 1, description: 'Cirrose ou bilirrubina > 2x + TGO/TGP > 3x' }); }
+    if (params['stroke']) { score += 1; components.push({ name: 'AVC previo', value: 1, description: 'Historia de AVC' }); }
+    if (params['bleeding']) { score += 1; components.push({ name: 'Sangramento', value: 1, description: 'Historia de sangramento ou predisposicao' }); }
+    if (params['labileINR']) { score += 1; components.push({ name: 'INR labil', value: 1, description: 'TTR < 60%' }); }
+    const age = Number(params['age'] ?? 60);
+    if (age > 65) { score += 1; components.push({ name: 'Idade > 65', value: 1, description: `${age} anos` }); }
+    if (params['drugs']) { score += 1; components.push({ name: 'Drogas/alcool', value: 1, description: 'AINEs, antiplaquetuarios, ou alcoolismo' }); }
+
+    const riskLevel = score <= 1 ? RiskLevel.LOW : score === 2 ? RiskLevel.MODERATE : RiskLevel.HIGH;
+
+    return {
+      calculatorType: ClinicalCalculatorType.HAS_BLED,
+      calculatorName: 'HAS-BLED (Risco de Sangramento em Anticoagulacao)',
+      score,
+      maxScore: 9,
+      interpretation: `HAS-BLED ${score}/9 — risco de sangramento: ${score <= 1 ? 'baixo (~1%/ano)' : score === 2 ? 'intermediario (~1.9%/ano)' : `alto (~${Math.min(12, score * 1.5).toFixed(1)}%/ano)`}`,
+      riskLevel,
+      recommendation: score <= 2
+        ? 'Risco aceitavel para anticoagulacao. Monitorar fatores de risco modificaveis'
+        : 'Risco elevado de sangramento. NAO contraindica anticoagulacao se CHA2DS2-VASc alto, mas requer: corrigir fatores modificaveis (controlar PA, suspender AINEs, tratar alcoolismo), monitoramento mais frequente',
+      components,
+      references: ['Pisters R et al. Chest 2010;138:1093-100'],
+    };
+  },
+
+  [ClinicalCalculatorType.LACE_INDEX]: (params) => {
+    let score = 0;
+    const components: Array<{ name: string; value: number; description: string }> = [];
+
+    // Length of stay
+    const los = Number(params['lengthOfStay'] ?? params['los'] ?? 3);
+    let losScore = 0;
+    if (los >= 14) losScore = 7;
+    else if (los >= 7) losScore = 5;
+    else if (los >= 4) losScore = 4;
+    else if (los >= 3) losScore = 3;
+    else if (los >= 2) losScore = 2;
+    else if (los >= 1) losScore = 1;
+    score += losScore;
+    components.push({ name: 'L: Tempo de internacao', value: losScore, description: `${los} dias` });
+
+    // Acuity of admission
+    const emergencyAdmission = params['emergencyAdmission'] === true || params['emergencyAdmission'] === 'true';
+    const acuityScore = emergencyAdmission ? 3 : 0;
+    score += acuityScore;
+    components.push({ name: 'A: Admissao urgente', value: acuityScore, description: emergencyAdmission ? 'Sim (emergencia)' : 'Nao (eletiva)' });
+
+    // Comorbidities (Charlson simplified)
+    const charlson = Number(params['charlsonIndex'] ?? params['comorbidityScore'] ?? 0);
+    let comorbScore = 0;
+    if (charlson >= 4) comorbScore = 5;
+    else if (charlson >= 3) comorbScore = 3;
+    else if (charlson >= 2) comorbScore = 2;
+    else if (charlson >= 1) comorbScore = 1;
+    score += comorbScore;
+    components.push({ name: 'C: Comorbidades (Charlson)', value: comorbScore, description: `Charlson ${charlson}` });
+
+    // ED visits in previous 6 months
+    const edVisits = Number(params['edVisits6m'] ?? params['emergencyVisits'] ?? 0);
+    let edScore = 0;
+    if (edVisits >= 4) edScore = 4;
+    else if (edVisits >= 3) edScore = 3;
+    else if (edVisits >= 2) edScore = 2;
+    else if (edVisits >= 1) edScore = 1;
+    score += edScore;
+    components.push({ name: 'E: Visitas ao PS (6 meses)', value: edScore, description: `${edVisits} visita(s)` });
+
+    const riskLevel = score < 5 ? RiskLevel.LOW : score <= 9 ? RiskLevel.MODERATE : RiskLevel.HIGH;
+    const readmissionRisk = score < 5 ? '~5%' : score <= 9 ? '~10-15%' : `~${Math.min(50, score * 3)}%`;
+
+    return {
+      calculatorType: ClinicalCalculatorType.LACE_INDEX,
+      calculatorName: 'LACE Index (Risco de Readmissao em 30 dias)',
+      score,
+      maxScore: 19,
+      interpretation: `LACE ${score}/19 — risco de readmissao em 30 dias: ${readmissionRisk}`,
+      riskLevel,
+      recommendation: score < 5
+        ? 'Baixo risco de readmissao. Alta com orientacoes padrao'
+        : score <= 9
+          ? 'Risco moderado. Plano de alta estruturado: reconciliacao medicamentosa, agendamento de retorno precoce, orientacao detalhada'
+          : 'Alto risco de readmissao. Ativar programa de transicao de cuidados: contato telefonico em 48h, visita domiciliar, seguimento intensivo, coordenacao com atencao primaria',
+      components,
+      references: ['van Walraven C et al. CMAJ 2010;182:551-7'],
     };
   },
 };
@@ -617,6 +1201,174 @@ const DDX_RULES: DdxRule[] = [
       },
     ],
   },
+  {
+    triggerSymptoms: ['cefaleia', 'dor de cabeca', 'cabeca'],
+    diagnoses: [
+      {
+        cidCode: 'G43.9', name: 'Enxaqueca nao especificada', probability: 0.30,
+        reasoning: 'Causa mais comum de cefaleia recorrente. Pulsatil, unilateral, com nausea/fono/fotofobia',
+        supportingEvidence: ['Cefaleia recorrente', 'Unilateral', 'Nausea associada'],
+        recommendedWorkup: ['Exame neurologico', 'Diario de cefaleia', 'TC/RNM se red flags'], urgency: 'BAIXA',
+      },
+      {
+        cidCode: 'G44.1', name: 'Cefaleia vascular nao classificada', probability: 0.20,
+        reasoning: 'Cefaleia tensional e a cefaleia primaria mais prevalente',
+        supportingEvidence: ['Bilateral', 'Em aperto', 'Sem nausea significativa'],
+        recommendedWorkup: ['Exame fisico', 'Avaliar fatores psicossociais'], urgency: 'BAIXA',
+      },
+      {
+        cidCode: 'I60.9', name: 'Hemorragia subaracnoidea', probability: 0.05,
+        reasoning: 'Cefaleia subita e intensa (a pior da vida) — HSA ate prova em contrario',
+        supportingEvidence: ['Inicio subito', 'Intensidade maxima', 'Rigidez de nuca'],
+        recommendedWorkup: ['TC de cranio sem contraste URGENTE', 'Se TC normal: punção lombar', 'Angiotomografia'], urgency: 'CRITICA',
+      },
+      {
+        cidCode: 'G03.9', name: 'Meningite', probability: 0.04,
+        reasoning: 'Cefaleia + febre + rigidez de nuca = triade classica de meningite',
+        supportingEvidence: ['Febre associada', 'Rigidez de nuca', 'Sinais de Kernig/Brudzinski'],
+        recommendedWorkup: ['Punção lombar', 'Hemoculturas', 'TC cranio pre-PL se indicado', 'ATB empirico se suspeita alta'], urgency: 'CRITICA',
+      },
+    ],
+  },
+  {
+    triggerSymptoms: ['dor abdominal', 'abdome', 'barriga'],
+    diagnoses: [
+      {
+        cidCode: 'K35.8', name: 'Apendicite aguda', probability: 0.20,
+        reasoning: 'Dor periumbilical que migra para FID, com anorexia e nausea',
+        supportingEvidence: ['Dor em FID', 'Blumberg positivo', 'Anorexia'],
+        recommendedWorkup: ['Hemograma', 'PCR', 'USG abdome ou TC se duvida', 'Avaliacao cirurgica'], urgency: 'ALTA',
+      },
+      {
+        cidCode: 'K81.0', name: 'Colecistite aguda', probability: 0.15,
+        reasoning: 'Dor em HCD, pos-prandial, com Murphy positivo',
+        supportingEvidence: ['Dor em hipocondrio direito', 'Sinal de Murphy', 'Febre'],
+        recommendedWorkup: ['USG de vias biliares', 'Hemograma', 'PCR', 'Bilirrubinas e TGO/TGP'], urgency: 'ALTA',
+      },
+      {
+        cidCode: 'K85.9', name: 'Pancreatite aguda', probability: 0.10,
+        reasoning: 'Dor epigastrica intensa irradiando para dorso, em faixa',
+        supportingEvidence: ['Dor em faixa', 'Nausea e vomitos', 'Etilismo'],
+        recommendedWorkup: ['Lipase serica (3x LSN)', 'TC abdome com contraste se duvida', 'PCR', 'Hemograma'], urgency: 'ALTA',
+      },
+      {
+        cidCode: 'N20.0', name: 'Nefrolitiase (colica renal)', probability: 0.12,
+        reasoning: 'Dor lombar intensa, em colica, irradiando para regiao inguinal',
+        supportingEvidence: ['Dor em flanco', 'Hematuria', 'Nausea'],
+        recommendedWorkup: ['TC abdome sem contraste', 'EAS', 'Creatinina'], urgency: 'MODERADA',
+      },
+      {
+        cidCode: 'K25.9', name: 'Ulcera gastrica', probability: 0.10,
+        reasoning: 'Dor epigastrica em queimacao, piora com alimentacao ou em jejum',
+        supportingEvidence: ['Dor epigastrica', 'Pirose', 'Uso de AINEs'],
+        recommendedWorkup: ['EDA', 'Pesquisa de H. pylori', 'Hemograma'], urgency: 'MODERADA',
+      },
+    ],
+  },
+  {
+    triggerSymptoms: ['edema', 'inchaço', 'perna inchada'],
+    diagnoses: [
+      {
+        cidCode: 'I50.9', name: 'Insuficiencia cardiaca', probability: 0.30,
+        reasoning: 'Edema bilateral de MMII, pior ao final do dia, com dispneia',
+        supportingEvidence: ['Edema bilateral', 'Dispneia', 'Ortopneia', 'Turgencia jugular'],
+        recommendedWorkup: ['BNP/NT-proBNP', 'Ecocardiograma', 'RX torax', 'ECG', 'Funcao renal'], urgency: 'ALTA',
+      },
+      {
+        cidCode: 'I80.2', name: 'Trombose venosa profunda (TVP)', probability: 0.25,
+        reasoning: 'Edema unilateral com dor em panturrilha — TVP ate exclusao',
+        supportingEvidence: ['Edema unilateral', 'Dor em panturrilha', 'Sinal de Homans'],
+        recommendedWorkup: ['Wells Score TVP', 'D-dimero', 'USG Doppler venoso de MMII'], urgency: 'ALTA',
+      },
+      {
+        cidCode: 'N04.9', name: 'Sindrome nefrotica', probability: 0.10,
+        reasoning: 'Edema generalizado, proteico (anasarca), com proteinuria macica',
+        supportingEvidence: ['Edema facial matinal', 'Anasarca', 'Espumuria'],
+        recommendedWorkup: ['Proteinuria 24h ou relacao P/C', 'Albumina serica', 'Perfil lipidico', 'Funcao renal', 'Biopsia renal se indicado'], urgency: 'MODERADA',
+      },
+    ],
+  },
+  {
+    triggerSymptoms: ['dispneia', 'falta de ar', 'cansaco'],
+    diagnoses: [
+      {
+        cidCode: 'I50.9', name: 'Insuficiencia cardiaca descompensada', probability: 0.25,
+        reasoning: 'IC e a causa mais comum de dispneia em idosos',
+        supportingEvidence: ['Ortopneia', 'DPN', 'Edema de MMII', 'Turgencia jugular'],
+        recommendedWorkup: ['BNP/NT-proBNP', 'Ecocardiograma', 'RX torax', 'ECG'], urgency: 'ALTA',
+      },
+      {
+        cidCode: 'J44.1', name: 'DPOC exacerbada', probability: 0.20,
+        reasoning: 'Dispneia progressiva em paciente tabagista com historico de DPOC',
+        supportingEvidence: ['Tabagismo', 'Tosse cronica', 'Sibilos'],
+        recommendedWorkup: ['Gasometria arterial', 'RX torax', 'Espirometria (pos-agudizacao)'], urgency: 'ALTA',
+      },
+      {
+        cidCode: 'J45.9', name: 'Crise de asma', probability: 0.15,
+        reasoning: 'Dispneia episodica com sibilancia, especialmente se jovem e atopico',
+        supportingEvidence: ['Sibilos difusos', 'Historico de atopia', 'Melhora com broncodilatador'],
+        recommendedWorkup: ['Peak flow', 'Oximetria', 'Gasometria se grave', 'RX torax'], urgency: 'MODERADA',
+      },
+      {
+        cidCode: 'I26.9', name: 'Embolia pulmonar', probability: 0.10,
+        reasoning: 'Dispneia subita com dor pleuritica — TEP deve ser excluido',
+        supportingEvidence: ['Dispneia subita', 'Taquicardia', 'Dor pleuritica'],
+        recommendedWorkup: ['Wells Score TEP', 'D-dimero', 'AngioTC torax', 'Gasometria'], urgency: 'CRITICA',
+      },
+    ],
+  },
+  {
+    triggerSymptoms: ['disuria', 'ardencia', 'urinario', 'urina'],
+    diagnoses: [
+      {
+        cidCode: 'N39.0', name: 'Infeccao do trato urinario', probability: 0.50,
+        reasoning: 'Disuria + polaciuria + urgencia = triade classica de ITU baixa',
+        supportingEvidence: ['Disuria', 'Polaciuria', 'Dor suprapubica'],
+        recommendedWorkup: ['EAS com urocultura', 'Hemograma se sinais sistemicos'], urgency: 'MODERADA',
+      },
+      {
+        cidCode: 'N10', name: 'Pielonefrite aguda', probability: 0.20,
+        reasoning: 'ITU alta com febre, dor lombar e Giordano positivo',
+        supportingEvidence: ['Febre alta', 'Dor lombar', 'Giordano positivo', 'Calafrios'],
+        recommendedWorkup: ['Urocultura com antibiograma', 'Hemograma', 'PCR', 'Hemoculturas', 'USG renal'], urgency: 'ALTA',
+      },
+      {
+        cidCode: 'N20.0', name: 'Litiase renal', probability: 0.15,
+        reasoning: 'Hematuria + dor em colica pode indicar calculo em transito',
+        supportingEvidence: ['Hematuria', 'Dor em colica', 'Historia de litiase'],
+        recommendedWorkup: ['TC abdome sem contraste', 'EAS', 'Creatinina'], urgency: 'MODERADA',
+      },
+    ],
+  },
+  {
+    triggerSymptoms: ['confusao', 'desorientacao', 'rebaixamento', 'sonolencia'],
+    diagnoses: [
+      {
+        cidCode: 'F05', name: 'Delirium', probability: 0.35,
+        reasoning: 'Confusao aguda flutuante, especialmente em idosos hospitalizados',
+        supportingEvidence: ['Alteracao aguda da atencao', 'Flutuacao', 'Pensamento desorganizado'],
+        recommendedWorkup: ['CAM (Confusion Assessment Method)', 'Hemograma', 'Eletrólitos', 'Funcao renal', 'Glicemia', 'Funcao hepatica', 'EAS', 'TSH', 'RX torax'], urgency: 'ALTA',
+      },
+      {
+        cidCode: 'I63.9', name: 'AVC isquemico', probability: 0.20,
+        reasoning: 'Deficit neurologico agudo de inicio subito — AVC ate prova em contrario',
+        supportingEvidence: ['Inicio subito', 'Deficit focal', 'Hemiparesia'],
+        recommendedWorkup: ['TC cranio sem contraste URGENTE', 'NIHSS', 'Glicemia capilar', 'ECG'], urgency: 'CRITICA',
+      },
+      {
+        cidCode: 'E10-E14', name: 'Hipoglicemia', probability: 0.15,
+        reasoning: 'Causa reversivel e potencialmente fatal de rebaixamento',
+        supportingEvidence: ['Uso de insulina/sulfoniluréias', 'Sudorese', 'Tremor'],
+        recommendedWorkup: ['Glicemia capilar IMEDIATA', 'Glicose IV se < 70 mg/dL'], urgency: 'CRITICA',
+      },
+      {
+        cidCode: 'A41.9', name: 'Sepse', probability: 0.15,
+        reasoning: 'Alteracao de consciencia pode ser sinal de sepse (qSOFA)',
+        supportingEvidence: ['Febre', 'Taquicardia', 'Hipotensao'],
+        recommendedWorkup: ['qSOFA/SOFA', 'Hemoculturas', 'Lactato', 'Hemograma', 'PCR'], urgency: 'CRITICA',
+      },
+    ],
+  },
 ];
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -747,6 +1499,24 @@ export class ClinicalDecisionService {
       }
       if (parameters['eye'] !== undefined || parameters['verbal'] !== undefined) {
         detected.push(ClinicalCalculatorType.GLASGOW);
+      }
+
+      // Auto-detect new calculators
+      if (parameters['oxygenSaturation'] !== undefined || parameters['spo2'] !== undefined || parameters['avpu'] !== undefined) {
+        detected.push(ClinicalCalculatorType.NEWS2);
+      }
+      if (parameters['pao2FiO2'] !== undefined || parameters['pfRatio'] !== undefined || parameters['mechanicalVentilation'] !== undefined) {
+        detected.push(ClinicalCalculatorType.SOFA);
+      }
+      if (diagnosisCid?.startsWith('A41') || diagnosisCid?.startsWith('R65') || parameters['sepsisQuery'] !== undefined) {
+        if (!detected.includes(ClinicalCalculatorType.QSOFA)) detected.push(ClinicalCalculatorType.QSOFA);
+        if (!detected.includes(ClinicalCalculatorType.SOFA)) detected.push(ClinicalCalculatorType.SOFA);
+      }
+      if (diagnosisCid?.startsWith('R07') || parameters['chestPain'] !== undefined) {
+        detected.push(ClinicalCalculatorType.HEART_SCORE);
+      }
+      if (parameters['lengthOfStay'] !== undefined || parameters['los'] !== undefined) {
+        detected.push(ClinicalCalculatorType.LACE_INDEX);
       }
 
       if (detected.length === 0) {

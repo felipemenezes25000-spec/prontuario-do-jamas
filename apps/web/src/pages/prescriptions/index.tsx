@@ -1524,45 +1524,72 @@ export default function PrescriptionsPage() {
     }
   }, [confirmAction]);
 
+  // Status distribution for the mini bar
+  const statusDistribution = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of prescriptions) {
+      counts[p.status] = (counts[p.status] ?? 0) + 1;
+    }
+    return Object.entries(counts).map(([status, count]) => ({
+      status: status as PrescriptionStatus,
+      count,
+      pct: prescriptions.length > 0 ? (count / prescriptions.length) * 100 : 0,
+    }));
+  }, [prescriptions]);
+
   // Loading / Error states
   if (isLoading) return <PageLoading cards={4} showTable />;
   if (isError) return <PageError onRetry={() => refetch()} />;
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Prescrições</h1>
-        <div className="flex items-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  onClick={handleDuplicateLast}
-                  disabled={duplicatePrescription.isPending || prescriptions.length === 0}
-                  className="gap-2 border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
-                >
-                  {duplicatePrescription.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                  Copiar Última
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Duplica a última prescrição ativa como rascunho para edição</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <Button
-            onClick={() => setCreateDialogOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-500"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Nova Prescrição
-          </Button>
+    <div className="space-y-6 animate-fade-in">
+      {/* Header with gradient accent */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-emerald-500/5 via-card to-card p-6">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-emerald-500/5 blur-3xl" />
+        <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-blue-500/5 blur-3xl" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/20">
+              <Pill className="h-7 w-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Prescricoes</h1>
+              <p className="text-sm text-muted-foreground">
+                Gerenciamento de prescricoes medicas e farmaceuticas
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    onClick={handleDuplicateLast}
+                    disabled={duplicatePrescription.isPending || prescriptions.length === 0}
+                    className="gap-2 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400/50 transition-all"
+                  >
+                    {duplicatePrescription.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                    Copiar Ultima
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Duplica a ultima prescricao ativa como rascunho para edicao</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Button
+              onClick={() => setCreateDialogOpen(true)}
+              className="bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 shadow-lg shadow-emerald-500/20 transition-all"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Prescricao
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1570,112 +1597,183 @@ export default function PrescriptionsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           {
-            label: 'Total',
+            label: 'Total de Prescricoes',
             value: kpiValues.total,
             icon: FileText,
             color: 'text-blue-400',
-            bg: 'bg-blue-500/10',
+            bg: 'bg-gradient-to-br from-blue-500/20 to-blue-600/10',
+            borderColor: 'border-blue-500/20 hover:border-blue-500/40',
+            shadowColor: 'hover:shadow-blue-500/5',
           },
           {
-            label: 'Ativas',
+            label: 'Prescricoes Ativas',
             value: kpiValues.active,
             icon: CheckCircle2,
             color: 'text-emerald-400',
-            bg: 'bg-emerald-500/10',
+            bg: 'bg-gradient-to-br from-emerald-500/20 to-emerald-600/10',
+            borderColor: 'border-emerald-500/20 hover:border-emerald-500/40',
+            shadowColor: 'hover:shadow-emerald-500/5',
           },
           {
             label: 'Assinatura Pendente',
             value: kpiValues.pendingSign,
             icon: PenLine,
             color: 'text-amber-400',
-            bg: 'bg-amber-500/10',
+            bg: 'bg-gradient-to-br from-amber-500/20 to-amber-600/10',
+            borderColor: 'border-amber-500/20 hover:border-amber-500/40',
+            shadowColor: 'hover:shadow-amber-500/5',
+            pulse: kpiValues.pendingSign > 0,
           },
           {
-            label: 'Itens na Página',
+            label: 'Itens Prescritos',
             value: kpiValues.items,
             icon: Pill,
             color: 'text-purple-400',
-            bg: 'bg-purple-500/10',
+            bg: 'bg-gradient-to-br from-purple-500/20 to-purple-600/10',
+            borderColor: 'border-purple-500/20 hover:border-purple-500/40',
+            shadowColor: 'hover:shadow-purple-500/5',
           },
         ].map((kpi) => (
-          <Card key={kpi.label} className="border-border bg-card">
+          <Card
+            key={kpi.label}
+            className={cn(
+              'group relative overflow-hidden border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:shadow-lg',
+              kpi.borderColor,
+              kpi.shadowColor,
+            )}
+          >
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{kpi.label}</p>
-                  <p className="mt-1 text-2xl font-bold">{kpi.value}</p>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {kpi.label}
+                  </p>
+                  <p className="text-3xl font-bold tabular-nums tracking-tight">
+                    {kpi.value}
+                  </p>
                 </div>
                 <div
                   className={cn(
-                    'flex h-10 w-10 items-center justify-center rounded-lg',
+                    'flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110',
                     kpi.bg,
                   )}
                 >
-                  <kpi.icon className={cn('h-5 w-5', kpi.color)} />
+                  <kpi.icon className={cn('h-6 w-6', kpi.color)} />
                 </div>
               </div>
+              {'pulse' in kpi && kpi.pulse && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                  </span>
+                  <span className="text-[10px] font-medium text-amber-400">
+                    Requer atencao
+                  </span>
+                </div>
+              )}
             </CardContent>
+            {/* Decorative gradient line at bottom */}
+            <div className={cn('absolute bottom-0 left-0 right-0 h-0.5 opacity-0 transition-opacity group-hover:opacity-100', kpi.bg)} />
           </Card>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por ID do paciente..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="pl-10 bg-card border-border"
-          />
-        </div>
-        <Select
-          value={statusFilter}
-          onValueChange={(val) => {
-            setStatusFilter(val);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-48 bg-card border-border">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os status</SelectItem>
-            {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-              <SelectItem key={key} value={key}>
-                {config.label}
-              </SelectItem>
+      {/* Status Distribution Bar */}
+      {statusDistribution.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex h-2 overflow-hidden rounded-full bg-muted/30">
+            {statusDistribution.map((item) => {
+              const statusColors: Record<PrescriptionStatus, string> = {
+                DRAFT: 'bg-zinc-500',
+                ACTIVE: 'bg-emerald-500',
+                SUSPENDED: 'bg-amber-500',
+                COMPLETED: 'bg-blue-500',
+                CANCELLED: 'bg-red-500',
+                EXPIRED: 'bg-zinc-400',
+              };
+              return (
+                <div
+                  key={item.status}
+                  className={cn('transition-all duration-500', statusColors[item.status])}
+                  style={{ width: `${item.pct}%` }}
+                  title={`${STATUS_CONFIG[item.status]?.label}: ${item.count}`}
+                />
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {statusDistribution.map((item) => (
+              <div key={item.status} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <StatusBadge status={item.status} />
+                <span className="font-medium">{item.count}</span>
+              </div>
             ))}
-          </SelectContent>
-        </Select>
-      </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <Card className="border-border bg-card/50 backdrop-blur-sm">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por ID do paciente..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-10 bg-background/50 border-border focus:ring-emerald-500/20"
+              />
+            </div>
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                setStatusFilter(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-48 bg-background/50 border-border">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                  <SelectItem key={key} value={key}>
+                    {config.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Table */}
       {prescriptions.length === 0 ? (
         <PageEmpty
           icon={FileText}
-          title="Nenhuma prescrição encontrada"
-          description="Crie uma nova prescrição para começar."
-          actionLabel="Nova Prescrição"
+          title="Nenhuma prescricao encontrada"
+          description="Crie uma nova prescricao para comecar."
+          actionLabel="Nova Prescricao"
           onAction={() => setCreateDialogOpen(true)}
         />
       ) : (
-        <Card className="border-border bg-card">
+        <Card className="border-border bg-card/80 backdrop-blur-sm overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Paciente</TableHead>
-                  <TableHead>Médico</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-center">Itens</TableHead>
-                  <TableHead className="text-center">Assinada</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Paciente</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Medico</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Itens</TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assinada</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Data</TableHead>
+                  <TableHead className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Acoes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1714,7 +1812,7 @@ export default function PrescriptionsPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-border px-4 py-3">
               <p className="text-sm text-muted-foreground">
-                Página {page} de {totalPages} ({total} prescrições)
+                Pagina {page} de {totalPages} ({total} prescricoes)
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -1722,14 +1820,33 @@ export default function PrescriptionsPage() {
                   size="sm"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="hover:bg-emerald-500/10 hover:border-emerald-500/30"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  const pageNum = i + 1;
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={page === pageNum ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setPage(pageNum)}
+                      className={cn(
+                        'h-8 w-8 p-0',
+                        page === pageNum && 'bg-emerald-600 hover:bg-emerald-500',
+                      )}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
+                  className="hover:bg-emerald-500/10 hover:border-emerald-500/30"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>

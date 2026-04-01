@@ -37,7 +37,7 @@ export class PredictiveAnalyticsController {
   constructor(private readonly predictiveService: PredictiveAnalyticsService) {}
 
   @Get('sepsis-risk/:patientId')
-  @ApiOperation({ summary: 'Predict sepsis risk 4-6 hours ahead using vitals, labs, and clinical data' })
+  @ApiOperation({ summary: 'Predict sepsis risk (demo data). Use POST for real calculation with vitals/labs.' })
   @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiResponse({ status: 200, description: 'Sepsis risk prediction', type: RiskPredictionResponseDto })
   async getSepsisRisk(
@@ -47,8 +47,23 @@ export class PredictiveAnalyticsController {
     return this.predictiveService.getSepsisRisk(tenantId, patientId);
   }
 
+  @Post('sepsis-risk/:patientId')
+  @ApiOperation({ summary: 'Calculate sepsis risk with real vitals and labs (qSOFA + SIRS + lactate)' })
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiResponse({ status: 201, description: 'Sepsis risk prediction with real data', type: RiskPredictionResponseDto })
+  async calculateSepsisRisk(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @Body() body: {
+      vitals?: { heartRate?: number; systolicBP?: number; respiratoryRate?: number; temperature?: number; oxygenSaturation?: number; glasgow?: number };
+      labs?: { lactate?: number; wbc?: number; platelets?: number; creatinine?: number; bilirubin?: number; pcr?: number; procalcitonin?: number };
+    },
+  ): Promise<RiskPredictionResponseDto> {
+    return this.predictiveService.getSepsisRisk(tenantId, patientId, body.vitals, body.labs);
+  }
+
   @Get('cardiac-arrest-risk/:patientId')
-  @ApiOperation({ summary: 'Predict cardiac arrest risk using ECG, labs, and hemodynamic data' })
+  @ApiOperation({ summary: 'Predict cardiac arrest risk (demo data). Use POST for real calculation.' })
   @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiResponse({ status: 200, description: 'Cardiac arrest risk prediction', type: RiskPredictionResponseDto })
   async getCardiacArrestRisk(
@@ -58,8 +73,24 @@ export class PredictiveAnalyticsController {
     return this.predictiveService.getCardiacArrestRisk(tenantId, patientId);
   }
 
+  @Post('cardiac-arrest-risk/:patientId')
+  @ApiOperation({ summary: 'Calculate cardiac arrest risk with vitals, labs, ECG, and history' })
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiResponse({ status: 201, description: 'Cardiac arrest risk with real data', type: RiskPredictionResponseDto })
+  async calculateCardiacArrestRisk(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @Body() body: {
+      vitals?: { heartRate?: number; systolicBP?: number; diastolicBP?: number; oxygenSaturation?: number; respiratoryRate?: number };
+      labs?: { troponin?: number; potassium?: number; magnesium?: number; bnp?: number; qtcInterval?: number; ejectionFraction?: number };
+      history?: { priorArrhythmia?: boolean; priorCardiacArrest?: boolean; qtProlongingMeds?: number };
+    },
+  ): Promise<RiskPredictionResponseDto> {
+    return this.predictiveService.getCardiacArrestRisk(tenantId, patientId, body.vitals, body.labs, body.history);
+  }
+
   @Get('readmission-risk/:patientId')
-  @ApiOperation({ summary: 'Predict 30-day readmission risk based on clinical and social factors' })
+  @ApiOperation({ summary: 'Predict 30-day readmission risk (demo data). Use POST for real LACE calculation.' })
   @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiResponse({ status: 200, description: '30-day readmission risk prediction', type: RiskPredictionResponseDto })
   async getReadmissionRisk(
@@ -69,8 +100,24 @@ export class PredictiveAnalyticsController {
     return this.predictiveService.getReadmissionRisk(tenantId, patientId);
   }
 
+  @Post('readmission-risk/:patientId')
+  @ApiOperation({ summary: 'Calculate 30-day readmission risk with LACE Index and clinical/social factors' })
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiResponse({ status: 201, description: 'Readmission risk with real data', type: RiskPredictionResponseDto })
+  async calculateReadmissionRisk(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @Body() body: {
+      lengthOfStay?: number; admittedViaEmergency?: boolean; charlsonIndex?: number;
+      priorAdmissions6Months?: number; age?: number; hba1c?: number;
+      medicationAdherence?: number; socialSupport?: 'high' | 'medium' | 'low'; priorAMA?: boolean;
+    },
+  ): Promise<RiskPredictionResponseDto> {
+    return this.predictiveService.getReadmissionRisk(tenantId, patientId, body);
+  }
+
   @Get('los-prediction/:patientId')
-  @ApiOperation({ summary: 'Predict length of stay in days with confidence interval and discharge date' })
+  @ApiOperation({ summary: 'Predict length of stay (demo data). Use POST for diagnosis-based calculation.' })
   @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiResponse({ status: 200, description: 'Length of stay prediction', type: LosPredictionResponseDto })
   async getLengthOfStayPrediction(
@@ -80,8 +127,24 @@ export class PredictiveAnalyticsController {
     return this.predictiveService.getLengthOfStayPrediction(tenantId, patientId);
   }
 
+  @Post('los-prediction/:patientId')
+  @ApiOperation({ summary: 'Calculate length of stay based on diagnosis, age, comorbidities, and clinical factors' })
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiResponse({ status: 201, description: 'LOS prediction with real data', type: LosPredictionResponseDto })
+  async calculateLengthOfStay(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @Body() body: {
+      primaryDiagnosisCID?: string; age?: number; charlsonIndex?: number;
+      admittedViaEmergency?: boolean; requiresO2?: boolean; requiresSurgery?: boolean;
+      albumin?: number; functionalStatus?: 'independent' | 'partial' | 'dependent';
+    },
+  ): Promise<LosPredictionResponseDto> {
+    return this.predictiveService.getLengthOfStayPrediction(tenantId, patientId, body);
+  }
+
   @Get('mortality-risk/:patientId')
-  @ApiOperation({ summary: 'Predict inpatient mortality risk using severity scores and clinical data' })
+  @ApiOperation({ summary: 'Predict inpatient mortality risk (demo data). Use POST for real calculation.' })
   @ApiParam({ name: 'patientId', description: 'Patient UUID' })
   @ApiResponse({ status: 200, description: 'Inpatient mortality risk prediction', type: RiskPredictionResponseDto })
   async getMortalityRisk(
@@ -89,6 +152,23 @@ export class PredictiveAnalyticsController {
     @Param('patientId', ParseUUIDPipe) patientId: string,
   ): Promise<RiskPredictionResponseDto> {
     return this.predictiveService.getMortalityRisk(tenantId, patientId);
+  }
+
+  @Post('mortality-risk/:patientId')
+  @ApiOperation({ summary: 'Calculate mortality risk with APACHE II, SOFA, ventilation, vasopressors, and clinical data' })
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiResponse({ status: 201, description: 'Mortality risk with real data', type: RiskPredictionResponseDto })
+  async calculateMortalityRisk(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @Body() body: {
+      apacheIIScore?: number; sofaScore?: number; glasgow?: number; age?: number;
+      onMechanicalVentilation?: boolean; ventilationDays?: number;
+      onVasopressors?: boolean; vasopressorDose?: number;
+      albumin?: number; urineOutput24h?: number; icuDays?: number; charlsonIndex?: number;
+    },
+  ): Promise<RiskPredictionResponseDto> {
+    return this.predictiveService.getMortalityRisk(tenantId, patientId, body);
   }
 
   @Get('demand-forecast')

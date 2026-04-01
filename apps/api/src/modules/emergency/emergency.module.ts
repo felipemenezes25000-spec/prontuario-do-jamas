@@ -3,10 +3,12 @@ import { EmergencyController } from './emergency.controller';
 import { EmergencyService } from './emergency.service';
 import { EmergencyBoardService } from './emergency-board.service';
 import { EmergencyBoardController } from './emergency-board.controller';
+import { ClinicalProtocolsService } from './clinical-protocols.service';
+import { ClinicalProtocolsController } from './clinical-protocols.controller';
 
 @Module({
-  controllers: [EmergencyController, EmergencyBoardController],
-  providers: [EmergencyService, EmergencyBoardService],
-  exports: [EmergencyService, EmergencyBoardService],
+  controllers: [EmergencyController, EmergencyBoardController, ClinicalProtocolsController],
+  providers: [EmergencyService, EmergencyBoardService, ClinicalProtocolsService],
+  exports: [EmergencyService, EmergencyBoardService, ClinicalProtocolsService],
 })
 export class EmergencyModule {}

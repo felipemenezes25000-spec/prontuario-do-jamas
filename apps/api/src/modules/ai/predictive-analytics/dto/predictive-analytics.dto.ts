@@ -127,7 +127,7 @@ export class ContributingFeatureDto {
   @ApiProperty({ example: 0.23 }) importanceWeight!: number;
   @ApiProperty({ example: '4.2 mmol/L' }) currentValue!: string;
   @ApiProperty({ example: '< 2.0 mmol/L' }) normalRange!: string;
-  @ApiProperty({ example: 'positive' }) direction!: 'positive' | 'negative';
+  @ApiProperty({ example: 'positive' }) direction!: 'positive' | 'negative' | 'neutral';
 }
 
 export class RecommendedActionDto {

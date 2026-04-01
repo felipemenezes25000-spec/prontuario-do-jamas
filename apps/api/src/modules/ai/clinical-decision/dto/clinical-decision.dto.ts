@@ -23,6 +23,12 @@ export enum ClinicalCalculatorType {
   APACHE_II = 'APACHE_II',
   GLASGOW = 'GLASGOW',
   NIHSS = 'NIHSS',
+  NEWS2 = 'NEWS2',
+  SOFA = 'SOFA',
+  QSOFA = 'QSOFA',
+  HEART_SCORE = 'HEART_SCORE',
+  HAS_BLED = 'HAS_BLED',
+  LACE_INDEX = 'LACE_INDEX',
 }
 
 export enum InteractionSeverity {

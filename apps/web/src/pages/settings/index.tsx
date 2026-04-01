@@ -420,117 +420,141 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      <h1 className="text-2xl font-bold tracking-tight">Configurações</h1>
+    <div className="space-y-6 animate-fade-in">
+      {/* Header with gradient accent */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-teal-500/5 via-card to-card p-6">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-500/5 blur-3xl" />
+        <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-emerald-500/5 blur-3xl" />
+        <div className="relative flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-600 shadow-lg shadow-teal-500/20">
+            <User className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Configuracoes</h1>
+            <p className="text-sm text-muted-foreground">
+              Perfil, seguranca, preferencias e configuracoes clinicas
+            </p>
+          </div>
+        </div>
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-card border border-border">
-          <TabsTrigger value="perfil" className="text-xs data-[state=active]:bg-teal-600">
+        <TabsList className="bg-card/80 border border-border backdrop-blur-sm h-auto flex-wrap gap-0.5 p-1">
+          <TabsTrigger value="perfil" className="text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <User className="mr-1.5 h-3.5 w-3.5" /> Perfil
           </TabsTrigger>
-          <TabsTrigger value="seguranca" className="text-xs data-[state=active]:bg-teal-600">
-            <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Segurança
+          <TabsTrigger value="seguranca" className="text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+            <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Seguranca
           </TabsTrigger>
-          <TabsTrigger value="voz" className="text-xs data-[state=active]:bg-teal-600">
+          <TabsTrigger value="voz" className="text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <Mic className="mr-1.5 h-3.5 w-3.5" /> Voz
           </TabsTrigger>
-          <TabsTrigger value="notificacoes" className="text-xs data-[state=active]:bg-teal-600">
-            <Bell className="mr-1.5 h-3.5 w-3.5" /> Notificações
+          <TabsTrigger value="notificacoes" className="text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+            <Bell className="mr-1.5 h-3.5 w-3.5" /> Notificacoes
           </TabsTrigger>
-          <TabsTrigger value="aparencia" className="text-xs data-[state=active]:bg-teal-600">
-            <Palette className="mr-1.5 h-3.5 w-3.5" /> Aparência
+          <TabsTrigger value="aparencia" className="text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+            <Palette className="mr-1.5 h-3.5 w-3.5" /> Aparencia
           </TabsTrigger>
-          <TabsTrigger value="protocolos" className="text-xs data-[state=active]:bg-teal-600">
+          <TabsTrigger value="protocolos" className="text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <ClipboardList className="mr-1.5 h-3.5 w-3.5" /> Protocolos
           </TabsTrigger>
-          <TabsTrigger value="alertas" className="text-xs data-[state=active]:bg-teal-600">
-            <AlertTriangle className="mr-1.5 h-3.5 w-3.5" /> Alertas Clínicos
+          <TabsTrigger value="alertas" className="text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
+            <AlertTriangle className="mr-1.5 h-3.5 w-3.5" /> Alertas Clinicos
           </TabsTrigger>
         </TabsList>
 
         {/* Perfil */}
         <TabsContent value="perfil" className="mt-4">
-          <Card className="border-border bg-card">
+          <Card className="border-border bg-card/80 backdrop-blur-sm overflow-hidden">
             <CardContent className="space-y-6 pt-6">
               {/* Avatar */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-5">
                 <div className="relative">
-                  <Avatar className="h-20 w-20">
+                  <Avatar className="h-20 w-20 ring-2 ring-teal-500/20 ring-offset-2 ring-offset-background">
                     <AvatarImage src={user?.avatarUrl} />
-                    <AvatarFallback className="bg-teal-500/20 text-xl text-teal-600 dark:text-teal-400">
+                    <AvatarFallback className="bg-gradient-to-br from-teal-500/30 to-teal-600/20 text-xl text-teal-400">
                       {user ? getInitials(user.name) : '?'}
                     </AvatarFallback>
                   </Avatar>
-                  <button className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-secondary border border-border hover:bg-muted transition-colors">
-                    <Camera className="h-4 w-4" />
+                  <button className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-teal-600 border-2 border-background hover:from-teal-400 hover:to-teal-500 transition-all shadow-lg shadow-teal-500/20">
+                    <Camera className="h-3.5 w-3.5 text-white" />
                   </button>
                 </div>
                 <div>
-                  <p className="font-medium">{user?.name}</p>
+                  <p className="text-lg font-semibold">{user?.name}</p>
                   <p className="text-sm text-muted-foreground">{user?.specialty ?? user?.role}</p>
-                  {user?.crm && <p className="text-xs text-muted-foreground">{user.crm}</p>}
+                  {user?.crm && (
+                    <Badge variant="outline" className="mt-1 text-[10px] border-teal-500/30 text-teal-400">
+                      {user.crm}
+                    </Badge>
+                  )}
                 </div>
               </div>
 
-              <Separator className="bg-secondary" />
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Nome Completo</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-secondary/30 border-border" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Email</Label>
-                  <Input value={email} onChange={(e) => setEmail(e.target.value)} className="bg-secondary/30 border-border" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Telefone</Label>
-                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-secondary/30 border-border" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Especialidade</Label>
-                  <Input value={user?.specialty ?? ''} disabled className="bg-secondary/30 border-border opacity-60" />
-                </div>
-              </div>
-
-              <Separator className="bg-secondary" />
+              <Separator className="bg-border" />
 
               <div>
-                <h3 className="text-sm font-medium mb-3">Alterar Senha</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Dados Pessoais</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Nome Completo</Label>
+                    <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-background/50 border-border" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Email</Label>
+                    <Input value={email} onChange={(e) => setEmail(e.target.value)} className="bg-background/50 border-border" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Telefone</Label>
+                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-background/50 border-border" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Especialidade</Label>
+                    <Input value={user?.specialty ?? ''} disabled className="bg-background/50 border-border opacity-60" />
+                  </div>
+                </div>
+              </div>
+
+              <Separator className="bg-border" />
+
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Alterar Senha</h3>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Senha Atual</Label>
-                    <Input type="password" placeholder="••••••••" className="bg-secondary/30 border-border" />
+                    <Input type="password" placeholder="--------" className="bg-background/50 border-border" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Nova Senha</Label>
-                    <Input type="password" placeholder="••••••••" className="bg-secondary/30 border-border" />
+                    <Input type="password" placeholder="--------" className="bg-background/50 border-border" />
                   </div>
                 </div>
               </div>
 
-              <Button onClick={handleSave} className="bg-teal-600 hover:bg-teal-500">
-                <Save className="mr-2 h-4 w-4" /> Salvar Alterações
+              <Button onClick={handleSave} className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 shadow-lg shadow-teal-500/20 transition-all">
+                <Save className="mr-2 h-4 w-4" /> Salvar Alteracoes
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Segurança — MFA */}
+        {/* Seguranca -- MFA */}
         <TabsContent value="seguranca" className="mt-4">
-          <Card className="border-border bg-card">
+          <Card className="border-border bg-card/80 backdrop-blur-sm overflow-hidden">
             <CardContent className="space-y-6 pt-6">
-              <div>
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                  Autenticação em Duas Etapas (2FA)
-                </h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Adicione uma camada extra de segurança à sua conta usando um aplicativo autenticador (Google Authenticator, Authy, etc.)
-                </p>
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500/20 to-teal-600/10">
+                  <ShieldCheck className="h-5 w-5 text-teal-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold">Autenticacao em Duas Etapas (2FA)</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Adicione uma camada extra de seguranca a sua conta usando um aplicativo autenticador (Google Authenticator, Authy, etc.)
+                  </p>
+                </div>
               </div>
 
-              <Separator className="bg-secondary" />
+              <Separator className="bg-border" />
 
               {/* Status indicator */}
               <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 px-4 py-3">
@@ -810,7 +834,7 @@ export default function SettingsPage() {
           </Card>
 
           {/* WebAuthn / Biometric Authentication */}
-          <Card className="mt-4 border-border bg-card">
+          <Card className="mt-4 border-border bg-card/80 backdrop-blur-sm overflow-hidden">
             <CardContent className="pt-6">
               <WebAuthnSetup />
             </CardContent>
@@ -819,22 +843,34 @@ export default function SettingsPage() {
 
         {/* Voz */}
         <TabsContent value="voz" className="mt-4">
-          <Card className="border-border bg-card">
+          <Card className="border-border bg-card/80 backdrop-blur-sm overflow-hidden">
             <CardContent className="space-y-6 pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Transcrição Automática</p>
-                  <p className="text-xs text-muted-foreground">Iniciar transcrição automaticamente ao abrir atendimento</p>
+              <div className="flex items-start gap-3 mb-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/10">
+                  <Mic className="h-5 w-5 text-purple-400" />
                 </div>
-                <Switch checked={autoTranscribe} onCheckedChange={setAutoTranscribe} />
+                <div>
+                  <h3 className="text-sm font-semibold">Configuracoes de Voz</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Ajuste o comportamento da transcricao por voz
+                  </p>
+                </div>
               </div>
 
-              <Separator className="bg-secondary" />
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Transcricao Automatica</p>
+                    <p className="text-xs text-muted-foreground">Iniciar transcricao automaticamente ao abrir atendimento</p>
+                  </div>
+                  <Switch checked={autoTranscribe} onCheckedChange={setAutoTranscribe} />
+                </div>
+              </div>
 
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Tempo de Silêncio para Parar (segundos)</Label>
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tempo de Silencio para Parar</Label>
                 <Select value={silenceTimeout} onValueChange={setSilenceTimeout}>
-                  <SelectTrigger className="w-full sm:w-40 bg-secondary/30 border-border">
+                  <SelectTrigger className="w-full sm:w-48 bg-background/50 border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -848,87 +884,133 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Velocidade de Reprodução</Label>
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Velocidade de Reproducao</Label>
                 <Select value={voiceSpeed} onValueChange={setVoiceSpeed}>
-                  <SelectTrigger className="w-full sm:w-40 bg-secondary/30 border-border">
+                  <SelectTrigger className="w-full sm:w-48 bg-background/50 border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="slow">Lenta (0.75x)</SelectItem>
                     <SelectItem value="normal">Normal (1x)</SelectItem>
-                    <SelectItem value="fast">Rápida (1.25x)</SelectItem>
-                    <SelectItem value="faster">Muito Rápida (1.5x)</SelectItem>
+                    <SelectItem value="fast">Rapida (1.25x)</SelectItem>
+                    <SelectItem value="faster">Muito Rapida (1.5x)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <Button onClick={handleSave} className="bg-teal-600 hover:bg-teal-500">
+              <Button onClick={handleSave} className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 shadow-lg shadow-teal-500/20 transition-all">
                 <Save className="mr-2 h-4 w-4" /> Salvar
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Notificações */}
+        {/* Notificacoes */}
         <TabsContent value="notificacoes" className="mt-4">
-          <Card className="border-border bg-card">
-            <CardContent className="space-y-4 pt-6">
-              {[
-                { label: 'Alertas Críticos', description: 'Valores críticos de exames, alergias, interações', value: notifCriticalAlerts, onChange: setNotifCriticalAlerts },
-                { label: 'Resultados de Exames', description: 'Notificar quando resultados ficarem prontos', value: notifLabResults, onChange: setNotifLabResults },
-                { label: 'Agendamentos', description: 'Lembretes de consultas e procedimentos', value: notifAppointments, onChange: setNotifAppointments },
-                { label: 'Checagem de Medicamentos', description: 'Alertas de horário de medicação', value: notifMedChecks, onChange: setNotifMedChecks },
-                { label: 'Mensagens', description: 'Mensagens de outros profissionais', value: notifMessages, onChange: setNotifMessages },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.description}</p>
+          <Card className="border-border bg-card/80 backdrop-blur-sm overflow-hidden">
+            <CardContent className="space-y-5 pt-6">
+              <div className="flex items-start gap-3 mb-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10">
+                  <Bell className="h-5 w-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold">Notificacoes</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Controle quais alertas e notificacoes voce recebe
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                {[
+                  { label: 'Alertas Criticos', description: 'Valores criticos de exames, alergias, interacoes', value: notifCriticalAlerts, onChange: setNotifCriticalAlerts, important: true },
+                  { label: 'Resultados de Exames', description: 'Notificar quando resultados ficarem prontos', value: notifLabResults, onChange: setNotifLabResults, important: false },
+                  { label: 'Agendamentos', description: 'Lembretes de consultas e procedimentos', value: notifAppointments, onChange: setNotifAppointments, important: false },
+                  { label: 'Checagem de Medicamentos', description: 'Alertas de horario de medicacao', value: notifMedChecks, onChange: setNotifMedChecks, important: false },
+                  { label: 'Mensagens', description: 'Mensagens de outros profissionais', value: notifMessages, onChange: setNotifMessages, important: false },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className={cn(
+                      'flex items-center justify-between rounded-xl border border-transparent p-4 transition-all hover:bg-muted/30',
+                      item.important && item.value && 'border-amber-500/20 bg-amber-500/5',
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      {item.important && (
+                        <div className="flex h-2 w-2 items-center justify-center">
+                          <span className="relative flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                          </span>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm font-medium">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">{item.description}</p>
+                      </div>
                     </div>
                     <Switch checked={item.value} onCheckedChange={item.onChange} />
                   </div>
-                  <Separator className="mt-4 bg-secondary" />
-                </div>
-              ))}
+                ))}
+              </div>
 
-              <Button onClick={handleSave} className="bg-teal-600 hover:bg-teal-500">
+              <Button onClick={handleSave} className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 shadow-lg shadow-teal-500/20 transition-all">
                 <Save className="mr-2 h-4 w-4" /> Salvar
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Aparência */}
+        {/* Aparencia */}
         <TabsContent value="aparencia" className="mt-4">
-          <Card className="border-border bg-card">
+          <Card className="border-border bg-card/80 backdrop-blur-sm overflow-hidden">
             <CardContent className="space-y-6 pt-6">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Tema</Label>
-                <div className="flex gap-3">
+              <div className="flex items-start gap-3 mb-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500/20 to-pink-600/10">
+                  <Palette className="h-5 w-5 text-pink-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold">Aparencia</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Personalize a interface visual do sistema
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tema</Label>
+                <div className="flex gap-4">
                   {[
-                    { value: 'dark', label: 'Escuro', colors: 'bg-card border-border' },
-                    { value: 'light', label: 'Claro', colors: 'bg-white border-slate-300' },
+                    { value: 'dark', label: 'Escuro', colors: 'bg-zinc-900 border-zinc-700', preview: 'from-zinc-800 to-zinc-900' },
+                    { value: 'light', label: 'Claro', colors: 'bg-white border-slate-200', preview: 'from-slate-100 to-white' },
                   ].map((t) => (
                     <button
                       key={t.value}
                       onClick={() => setTheme(t.value)}
                       className={cn(
-                        'flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-colors',
-                        theme === t.value ? 'border-teal-500' : 'border-border',
+                        'group flex flex-col items-center gap-2.5 rounded-xl border-2 p-5 transition-all hover:shadow-md',
+                        theme === t.value
+                          ? 'border-teal-500 shadow-lg shadow-teal-500/10'
+                          : 'border-border hover:border-muted-foreground/30',
                       )}
                     >
-                      <div className={cn('h-12 w-20 rounded', t.colors)} />
-                      <span className="text-xs">{t.label}</span>
+                      <div className={cn('h-14 w-24 rounded-lg border', t.colors, 'transition-transform group-hover:scale-105')} />
+                      <span className="text-xs font-medium">{t.label}</span>
+                      {theme === t.value && (
+                        <Badge variant="outline" className="text-[9px] border-teal-500/30 text-teal-400">
+                          Ativo
+                        </Badge>
+                      )}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Tamanho da Fonte</Label>
+              <div className="space-y-3">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tamanho da Fonte</Label>
                 <Select value={fontSize} onValueChange={setFontSize}>
-                  <SelectTrigger className="w-full sm:w-40 bg-secondary/30 border-border">
+                  <SelectTrigger className="w-full sm:w-48 bg-background/50 border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -940,7 +1022,7 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              <Button onClick={handleSave} className="bg-teal-600 hover:bg-teal-500">
+              <Button onClick={handleSave} className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 shadow-lg shadow-teal-500/20 transition-all">
                 <Save className="mr-2 h-4 w-4" /> Salvar
               </Button>
             </CardContent>
@@ -949,24 +1031,26 @@ export default function SettingsPage() {
 
         {/* Protocolos Clinicos */}
         <TabsContent value="protocolos" className="mt-4">
-          <Card className="border-border bg-card">
+          <Card className="border-border bg-card/80 backdrop-blur-sm overflow-hidden">
             <CardContent className="space-y-4 pt-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-medium flex items-center gap-2">
-                    <ClipboardList className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                    Protocolos Clinicos
-                  </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Gerencie protocolos de alerta automatico para triagem e atendimentos.
-                  </p>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10">
+                    <ClipboardList className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold">Protocolos Clinicos</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Gerencie protocolos de alerta automatico para triagem e atendimentos.
+                    </p>
+                  </div>
                 </div>
-                <Button onClick={handleOpenCreateProtocol} className="bg-teal-600 hover:bg-teal-500" size="sm">
+                <Button onClick={handleOpenCreateProtocol} className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 shadow-lg shadow-teal-500/20" size="sm">
                   <Plus className="mr-1.5 h-3.5 w-3.5" /> Novo Protocolo
                 </Button>
               </div>
 
-              <Separator className="bg-secondary" />
+              <Separator className="bg-border" />
 
               {protocolsLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -1159,24 +1243,26 @@ export default function SettingsPage() {
 
         {/* Alertas Clinicos */}
         <TabsContent value="alertas" className="mt-4">
-          <Card className="border-border bg-card">
+          <Card className="border-border bg-card/80 backdrop-blur-sm overflow-hidden">
             <CardContent className="space-y-4 pt-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-medium flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-400" />
-                    Regras de Alertas Clínicos (CDS)
-                  </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Configure regras automáticas para alertas baseados em sinais vitais e valores laboratoriais.
-                  </p>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10">
+                    <AlertTriangle className="h-5 w-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold">Regras de Alertas Clinicos (CDS)</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Configure regras automaticas para alertas baseados em sinais vitais e valores laboratoriais.
+                    </p>
+                  </div>
                 </div>
-                <Button onClick={handleOpenCreateAlertRule} className="bg-teal-600 hover:bg-teal-500">
+                <Button onClick={handleOpenCreateAlertRule} className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 shadow-lg shadow-teal-500/20">
                   <Plus className="mr-2 h-4 w-4" /> Nova Regra
                 </Button>
               </div>
 
-              <Separator className="bg-secondary" />
+              <Separator className="bg-border" />
 
               {alertRulesLoading ? (
                 <div className="flex justify-center py-8">

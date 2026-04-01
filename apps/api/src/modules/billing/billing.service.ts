@@ -49,9 +49,9 @@ export class BillingService {
     });
   }
 
-  async findById(id: string) {
-    const entry = await this.prisma.billingEntry.findUnique({
-      where: { id },
+  async findById(tenantId: string, id: string) {
+    const entry = await this.prisma.billingEntry.findFirst({
+      where: { id, tenantId },
       include: {
         encounter: {
           select: { id: true, type: true, status: true, createdAt: true },
@@ -67,9 +67,9 @@ export class BillingService {
     return entry;
   }
 
-  async findByEncounter(encounterId: string) {
+  async findByEncounter(tenantId: string, encounterId: string) {
     return this.prisma.billingEntry.findMany({
-      where: { encounterId },
+      where: { encounterId, tenantId },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -126,8 +126,8 @@ export class BillingService {
     };
   }
 
-  async updateStatus(id: string, status: BillingStatus) {
-    await this.findById(id);
+  async updateStatus(tenantId: string, id: string, status: BillingStatus) {
+    await this.findById(tenantId, id);
 
     const data: Record<string, unknown> = { status };
 

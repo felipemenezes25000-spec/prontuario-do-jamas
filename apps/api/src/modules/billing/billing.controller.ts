@@ -95,9 +95,10 @@ export class BillingController {
   @ApiOperation({ summary: 'Get billing entries by encounter' })
   @ApiResponse({ status: 200, description: 'Encounter billing entries' })
   async findByEncounter(
+    @CurrentTenant() tenantId: string,
     @Param('encounterId', ParseUUIDPipe) encounterId: string,
   ) {
-    return this.billingService.findByEncounter(encounterId);
+    return this.billingService.findByEncounter(tenantId, encounterId);
   }
 
   @Get(':id')
@@ -105,8 +106,11 @@ export class BillingController {
   @ApiOperation({ summary: 'Get billing entry by ID' })
   @ApiResponse({ status: 200, description: 'Billing entry details' })
   @ApiResponse({ status: 404, description: 'Not found' })
-  async findById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.billingService.findById(id);
+  async findById(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.billingService.findById(tenantId, id);
   }
 
   @Patch(':id/status')
@@ -115,10 +119,11 @@ export class BillingController {
   @ApiBody({ schema: { type: 'object', properties: { status: { type: 'string', description: 'New billing status' } }, required: ['status'] } })
   @ApiResponse({ status: 200, description: 'Status updated' })
   async updateStatus(
+    @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body('status') status: BillingStatus,
   ) {
-    return this.billingService.updateStatus(id, status);
+    return this.billingService.updateStatus(tenantId, id, status);
   }
 
   @Post(':id/generate-tiss')

@@ -28,16 +28,75 @@ const ENTITY_PATTERNS: EntityPattern[] = [
   {
     type: 'SYMPTOM',
     patterns: [
-      { regex: /dor\s+(?:torácica|no\s+peito|precordial|abdominal|lombar|de\s+cabeça)/gi },
+      // Pain
+      { regex: /dor\s+(?:torácica|no\s+peito|precordial|abdominal|lombar|de\s+cabeça|cervical|em\s+(?:membro|braço|perna|joelho|ombro|costas))/gi },
+      { regex: /cefaleia|cefalalgia/gi },
+      { regex: /lombalgia/gi },
+      { regex: /precordialgia/gi },
+      { regex: /odinofagia/gi },
+      { regex: /artralgia/gi },
+      { regex: /mialgia/gi },
+      // General/Constitutional
       { regex: /febre/gi },
-      { regex: /tosse(?:\s+(?:seca|produtiva))?/gi },
+      { regex: /calafrios/gi },
+      { regex: /astenia|fraqueza|adinamia/gi },
+      { regex: /emagrecimento|perda\s+de\s+peso/gi },
+      { regex: /sudorese\s+(?:noturna|profusa)?/gi },
+      { regex: /mal[\s-]estar/gi },
+      { regex: /fadiga|cansaço/gi },
+      { regex: /inapetência|anorexia/gi },
+      // Respiratory
+      { regex: /tosse(?:\s+(?:seca|produtiva|com\s+expectoração))?/gi },
       { regex: /dispneia|falta\s+de\s+ar/gi },
-      { regex: /náuseas?|vômitos?/gi },
-      { regex: /cefaleia/gi },
+      { regex: /expectoração(?:\s+(?:purulenta|amarelada|esverdeada|hemoptoica))?/gi },
+      { regex: /hemoptise/gi },
+      { regex: /sibilância|chiado/gi },
+      { regex: /coriza|rinorreia/gi },
+      { regex: /congestão\s+nasal/gi },
+      { regex: /estridor/gi },
+      // Cardiovascular
       { regex: /palpitações?/gi },
-      { regex: /tontura|vertigem/gi },
-      { regex: /coriza/gi },
+      { regex: /síncope|desmaio/gi },
+      { regex: /edema(?:\s+(?:de\s+)?(?:membros\s+inferiores|MMII|periférico))?/gi },
+      { regex: /ortopneia/gi },
+      { regex: /DPN|dispneia\s+paroxística\s+noturna/gi },
+      { regex: /claudicação(?:\s+intermitente)?/gi },
+      // GI
+      { regex: /náuseas?/gi },
+      { regex: /vômitos?|êmese/gi },
       { regex: /diarreia/gi },
+      { regex: /constipação|obstipação/gi },
+      { regex: /distensão\s+abdominal/gi },
+      { regex: /pirose|azia|queimação/gi },
+      { regex: /hematêmese/gi },
+      { regex: /melena/gi },
+      { regex: /icterícia/gi },
+      { regex: /ascite/gi },
+      // Neuro
+      { regex: /tontura|vertigem/gi },
+      { regex: /parestesia|formigamento/gi },
+      { regex: /convulsão|crise\s+convulsiva/gi },
+      { regex: /afasia/gi },
+      { regex: /hemiparesia|hemiplegia/gi },
+      { regex: /amnésia|perda\s+de\s+memória/gi },
+      { regex: /confusão\s+mental|delirium/gi },
+      { regex: /tremor/gi },
+      { regex: /insônia/gi },
+      // GU
+      { regex: /disúria/gi },
+      { regex: /polaciúria|urgência\s+miccional/gi },
+      { regex: /hematúria/gi },
+      { regex: /oligúria|anúria/gi },
+      { regex: /retenção\s+urinária/gi },
+      // Skin
+      { regex: /prurido|coceira/gi },
+      { regex: /rash|exantema|erupção\s+cutânea/gi },
+      { regex: /urticária/gi },
+      { regex: /petéquias|equimoses/gi },
+      // Psych
+      { regex: /anedonia/gi },
+      { regex: /ansiedade/gi },
+      { regex: /ideação\s+suicida/gi },
     ],
   },
   {
@@ -53,31 +112,166 @@ const ENTITY_PATTERNS: EntityPattern[] = [
   {
     type: 'CONDITION',
     patterns: [
+      // Cardiovascular
       { regex: /hipertensão(?:\s+arterial)?(?:\s+sistêmica)?/gi, normalizer: () => 'I10' },
-      { regex: /diabetes(?:\s+mellitus)?(?:\s+tipo\s+2)?/gi, normalizer: () => 'E11.9' },
+      { regex: /insuficiência\s+cardíaca(?:\s+congestiva)?/gi, normalizer: () => 'I50.9' },
+      { regex: /fibrilação\s+atrial/gi, normalizer: () => 'I48.9' },
+      { regex: /infarto(?:\s+agudo)?(?:\s+do\s+miocárdio)?|IAM/gi, normalizer: () => 'I21.9' },
+      { regex: /angina(?:\s+(?:instável|estável|pectoris))?/gi, normalizer: () => 'I20.9' },
+      { regex: /AVC|acidente\s+vascular(?:\s+cerebral)?/gi, normalizer: () => 'I63.9' },
+      { regex: /trombose\s+venosa\s+profunda|TVP/gi, normalizer: () => 'I80.2' },
+      { regex: /embolia\s+pulmonar|TEP/gi, normalizer: () => 'I26.9' },
+      { regex: /doença\s+arterial\s+(?:coronariana|periférica)|DAC|DAP/gi, normalizer: () => 'I25.1' },
+      // Metabolic/Endocrine
+      { regex: /diabetes(?:\s+mellitus)?(?:\s+tipo\s+[12])?/gi, normalizer: () => 'E11.9' },
+      { regex: /hipotireoidismo/gi, normalizer: () => 'E03.9' },
+      { regex: /hipertireoidismo/gi, normalizer: () => 'E05.9' },
+      { regex: /dislipidemia|hiperlipidemia|colesterol\s+alto/gi, normalizer: () => 'E78.5' },
+      { regex: /obesidade/gi, normalizer: () => 'E66.9' },
+      { regex: /hiperuricemia|gota/gi, normalizer: () => 'M10.9' },
+      // Respiratory
       { regex: /pneumonia/gi, normalizer: () => 'J18.9' },
       { regex: /DPOC|doença\s+pulmonar\s+obstrutiva/gi, normalizer: () => 'J44.9' },
-      { regex: /fibrilação\s+atrial/gi, normalizer: () => 'I48.9' },
-      { regex: /insuficiência\s+(?:cardíaca|renal)/gi },
-      { regex: /dislipidemia|hiperlipidemia/gi, normalizer: () => 'E78.5' },
-      { regex: /AVC|acidente\s+vascular/gi, normalizer: () => 'I63.9' },
+      { regex: /asma/gi, normalizer: () => 'J45.9' },
+      { regex: /tuberculose/gi, normalizer: () => 'A15.0' },
+      { regex: /IVAS|infecção\s+(?:de\s+)?vias\s+aéreas\s+superiores/gi, normalizer: () => 'J06.9' },
+      { regex: /bronquite(?:\s+aguda)?/gi, normalizer: () => 'J20.9' },
+      { regex: /COVID(?:-19)?|SARS-CoV-2/gi, normalizer: () => 'U07.1' },
+      // Renal
+      { regex: /insuficiência\s+renal(?:\s+(?:aguda|crônica))?|DRC|IRA/gi, normalizer: () => 'N18.9' },
+      { regex: /infecção\s+(?:do\s+trato\s+)?urinári[oa]|ITU/gi, normalizer: () => 'N39.0' },
+      { regex: /litíase\s+renal|cálculo\s+renal|nefrolitíase/gi, normalizer: () => 'N20.0' },
+      // GI
+      { regex: /DRGE|refluxo\s+gastro?esofágico/gi, normalizer: () => 'K21.0' },
+      { regex: /úlcera(?:\s+(?:gástrica|duodenal|péptica))?/gi, normalizer: () => 'K27.9' },
+      { regex: /cirrose(?:\s+hepática)?/gi, normalizer: () => 'K74.6' },
+      { regex: /hepatite(?:\s+[ABC])?/gi, normalizer: () => 'K73.9' },
+      { regex: /pancreatite(?:\s+aguda)?/gi, normalizer: () => 'K85.9' },
+      { regex: /colecistite/gi, normalizer: () => 'K81.9' },
+      { regex: /colelitíase|cálculo\s+biliar/gi, normalizer: () => 'K80.2' },
+      { regex: /apendicite/gi, normalizer: () => 'K35.8' },
+      // Neuro/Psych
+      { regex: /depressão/gi, normalizer: () => 'F32.9' },
+      { regex: /ansiedade|TAG/gi, normalizer: () => 'F41.1' },
+      { regex: /epilepsia/gi, normalizer: () => 'G40.9' },
+      { regex: /Alzheimer|demência/gi, normalizer: () => 'G30.9' },
+      { regex: /Parkinson/gi, normalizer: () => 'G20' },
+      { regex: /enxaqueca|migrânea/gi, normalizer: () => 'G43.9' },
+      // Musculoskeletal
+      { regex: /lombalgia|dor\s+lombar/gi, normalizer: () => 'M54.5' },
+      { regex: /artrite\s+reumatoide/gi, normalizer: () => 'M06.9' },
+      { regex: /osteoporose/gi, normalizer: () => 'M81.0' },
+      { regex: /osteoartrose|artrose/gi, normalizer: () => 'M19.9' },
+      // Infectious
+      { regex: /sepse|septicemia/gi, normalizer: () => 'A41.9' },
+      { regex: /meningite/gi, normalizer: () => 'G03.9' },
+      { regex: /celulite|erisipela/gi, normalizer: () => 'L03.9' },
+      { regex: /dengue/gi, normalizer: () => 'A90' },
+      // Oncology
+      { regex: /neoplasia|câncer|carcinoma|tumor\s+maligno/gi, normalizer: () => 'C80.1' },
+      // Hematologic
+      { regex: /anemia/gi, normalizer: () => 'D64.9' },
+      { regex: /trombocitopenia/gi, normalizer: () => 'D69.6' },
     ],
   },
   {
     type: 'MEDICATION',
     patterns: [
+      // Cardiovascular
       { regex: /losartana\s*(?:\d+\s*mg)?/gi },
-      { regex: /metformina\s*(?:\d+\s*mg)?/gi },
-      { regex: /sinvastatina\s*(?:\d+\s*mg)?/gi },
+      { regex: /valsartana\s*(?:\d+\s*mg)?/gi },
+      { regex: /candesartana\s*(?:\d+\s*mg)?/gi },
       { regex: /enalapril\s*(?:\d+\s*mg)?/gi },
-      { regex: /omeprazol\s*(?:\d+\s*mg)?/gi },
-      { regex: /amoxicilina\s*(?:\d+\s*mg)?/gi },
-      { regex: /dipirona\s*(?:\d+\s*mg)?/gi },
+      { regex: /captopril\s*(?:\d+\s*mg)?/gi },
+      { regex: /ramipril\s*(?:\d+\s*mg)?/gi },
+      { regex: /anlodipino\s*(?:\d+\s*mg)?/gi },
+      { regex: /atenolol\s*(?:\d+\s*mg)?/gi },
+      { regex: /metoprolol\s*(?:\d+\s*mg)?/gi },
+      { regex: /propranolol\s*(?:\d+\s*mg)?/gi },
+      { regex: /carvedilol\s*(?:\d+\s*mg)?/gi },
+      { regex: /bisoprolol\s*(?:\d+\s*mg)?/gi },
+      { regex: /hidroclorotiazida\s*(?:\d+\s*mg)?/gi },
+      { regex: /espironolactona\s*(?:\d+\s*mg)?/gi },
+      { regex: /furosemida\s*(?:\d+\s*mg)?/gi },
       { regex: /AAS\s*(?:\d+\s*mg)?|ácido\s+acetilsalicílico/gi },
+      { regex: /clopidogrel\s*(?:\d+\s*mg)?/gi },
+      { regex: /varfarina\s*(?:\d+\s*mg)?/gi },
+      { regex: /rivaroxabana?\s*(?:\d+\s*mg)?/gi },
       { regex: /apixabana?\s*(?:\d+\s*mg)?/gi },
-      { regex: /insulina\s+(?:glargina|NPH|regular)/gi },
-      { regex: /ceftriaxona\s*(?:\d+\s*(?:mg|g))?/gi },
+      { regex: /enoxaparina\s*(?:\d+\s*mg)?/gi },
+      { regex: /heparina\s*(?:\d+\s*(?:UI|unidades))?/gi },
+      { regex: /sinvastatina\s*(?:\d+\s*mg)?/gi },
+      { regex: /atorvastatina\s*(?:\d+\s*mg)?/gi },
+      { regex: /rosuvastatina\s*(?:\d+\s*mg)?/gi },
+      { regex: /amiodarona\s*(?:\d+\s*mg)?/gi },
+      { regex: /digoxina\s*(?:\d+[.,]?\d*\s*mg)?/gi },
+      // Metabolic
+      { regex: /metformina\s*(?:\d+\s*mg)?/gi },
+      { regex: /glibenclamida\s*(?:\d+\s*mg)?/gi },
+      { regex: /glicazida\s*(?:\d+\s*mg)?/gi },
+      { regex: /insulina\s+(?:glargina|NPH|regular|lispro|asparte|detemir|degludeca)/gi },
+      { regex: /dapagliflozina\s*(?:\d+\s*mg)?/gi },
+      { regex: /empagliflozina\s*(?:\d+\s*mg)?/gi },
+      { regex: /sitagliptina\s*(?:\d+\s*mg)?/gi },
+      { regex: /levotiroxina\s*(?:\d+\s*(?:mcg|mg))?/gi },
+      // GI
+      { regex: /omeprazol\s*(?:\d+\s*mg)?/gi },
+      { regex: /pantoprazol\s*(?:\d+\s*mg)?/gi },
+      { regex: /lansoprazol\s*(?:\d+\s*mg)?/gi },
+      { regex: /domperidona\s*(?:\d+\s*mg)?/gi },
+      { regex: /ondansetrona\s*(?:\d+\s*mg)?/gi },
+      { regex: /metoclopramida\s*(?:\d+\s*mg)?/gi },
+      // Analgesics / Anti-inflammatory
+      { regex: /dipirona\s*(?:\d+\s*(?:mg|g|gotas))?/gi },
+      { regex: /paracetamol\s*(?:\d+\s*mg)?/gi },
+      { regex: /ibuprofeno\s*(?:\d+\s*mg)?/gi },
+      { regex: /diclofenaco\s*(?:\d+\s*mg)?/gi },
+      { regex: /cetoprofeno\s*(?:\d+\s*mg)?/gi },
+      { regex: /naproxeno\s*(?:\d+\s*mg)?/gi },
+      { regex: /tramadol\s*(?:\d+\s*mg)?/gi },
+      { regex: /morfina\s*(?:\d+\s*mg)?/gi },
+      { regex: /codeina\s*(?:\d+\s*mg)?/gi },
+      { regex: /prednisona\s*(?:\d+\s*mg)?/gi },
+      { regex: /prednisolona\s*(?:\d+\s*mg)?/gi },
+      { regex: /dexametasona\s*(?:\d+\s*mg)?/gi },
+      { regex: /hidrocortisona\s*(?:\d+\s*mg)?/gi },
+      // Antibiotics
+      { regex: /amoxicilina\s*(?:\d+\s*(?:mg|g))?/gi },
+      { regex: /amoxicilina\s*\+?\s*clavulanato\s*(?:\d+\s*mg)?/gi },
       { regex: /azitromicina\s*(?:\d+\s*mg)?/gi },
+      { regex: /claritromicina\s*(?:\d+\s*mg)?/gi },
+      { regex: /ceftriaxona\s*(?:\d+\s*(?:mg|g))?/gi },
+      { regex: /cefalexina\s*(?:\d+\s*mg)?/gi },
+      { regex: /ciprofloxacino\s*(?:\d+\s*mg)?/gi },
+      { regex: /levofloxacino\s*(?:\d+\s*mg)?/gi },
+      { regex: /metronidazol\s*(?:\d+\s*mg)?/gi },
+      { regex: /sulfametoxazol\s*(?:\+?\s*trimetoprima)?\s*(?:\d+\s*mg)?/gi },
+      { regex: /vancomicina\s*(?:\d+\s*(?:mg|g))?/gi },
+      { regex: /piperacilina\s*(?:\+?\s*tazobactam)?\s*(?:\d+\s*(?:mg|g))?/gi },
+      { regex: /meropenem\s*(?:\d+\s*(?:mg|g))?/gi },
+      // CNS
+      { regex: /fluoxetina\s*(?:\d+\s*mg)?/gi },
+      { regex: /sertralina\s*(?:\d+\s*mg)?/gi },
+      { regex: /escitalopram\s*(?:\d+\s*mg)?/gi },
+      { regex: /paroxetina\s*(?:\d+\s*mg)?/gi },
+      { regex: /venlafaxina\s*(?:\d+\s*mg)?/gi },
+      { regex: /duloxetina\s*(?:\d+\s*mg)?/gi },
+      { regex: /amitriptilina\s*(?:\d+\s*mg)?/gi },
+      { regex: /clonazepam\s*(?:\d+[.,]?\d*\s*mg)?/gi },
+      { regex: /diazepam\s*(?:\d+\s*mg)?/gi },
+      { regex: /alprazolam\s*(?:\d+[.,]?\d*\s*mg)?/gi },
+      { regex: /risperidona\s*(?:\d+\s*mg)?/gi },
+      { regex: /quetiapina\s*(?:\d+\s*mg)?/gi },
+      { regex: /haloperidol\s*(?:\d+\s*mg)?/gi },
+      { regex: /carbamazepina\s*(?:\d+\s*mg)?/gi },
+      { regex: /valproato\s*(?:\d+\s*mg)?/gi },
+      { regex: /gabapentina\s*(?:\d+\s*mg)?/gi },
+      { regex: /pregabalina\s*(?:\d+\s*mg)?/gi },
+      // Respiratory
+      { regex: /salbutamol\s*(?:\d+\s*(?:mcg|puffs))?/gi },
+      { regex: /budesonida\s*(?:\d+\s*(?:mcg|mg))?/gi },
+      { regex: /formoterol\s*(?:\d+\s*mcg)?/gi },
+      { regex: /montelucaste?\s*(?:\d+\s*mg)?/gi },
     ],
   },
   {
@@ -610,13 +804,75 @@ export class NlpService {
   async extractRelationships(_tenantId: string, text: string): Promise<RelationshipExtractionResponseDto> {
     this.logger.log(`Extracting relationships from text (${text.length} chars)`);
 
+    const entities = await this.extractEntities(_tenantId, text);
+    const relationships: RelationshipExtractionResponseDto['relationships'] = [];
+
+    // Medication-Condition relationships (TREATS)
+    const TREATMENT_MAP: Array<{ medPattern: RegExp; condPattern: RegExp; condName: string }> = [
+      { medPattern: /losartana|valsartana|candesartana|enalapril|captopril|ramipril|anlodipino|atenolol|metoprolol|hidroclorotiazida/i, condPattern: /hipertensão|HAS/i, condName: 'hipertensão' },
+      { medPattern: /metformina|glibenclamida|glicazida|insulina|dapagliflozina|empagliflozina|sitagliptina/i, condPattern: /diabetes|DM/i, condName: 'diabetes' },
+      { medPattern: /sinvastatina|atorvastatina|rosuvastatina/i, condPattern: /dislipidemia|colesterol/i, condName: 'dislipidemia' },
+      { medPattern: /omeprazol|pantoprazol|lansoprazol/i, condPattern: /refluxo|DRGE|úlcera|gastrite/i, condName: 'DRGE' },
+      { medPattern: /levotiroxina/i, condPattern: /hipotireoidismo/i, condName: 'hipotireoidismo' },
+      { medPattern: /fluoxetina|sertralina|escitalopram|paroxetina|venlafaxina|duloxetina/i, condPattern: /depressão|ansiedade/i, condName: 'depressão/ansiedade' },
+      { medPattern: /salbutamol|budesonida|formoterol|montelucaste/i, condPattern: /asma|DPOC/i, condName: 'asma/DPOC' },
+      { medPattern: /varfarina|rivaroxabana|apixabana|enoxaparina/i, condPattern: /fibrilação|TVP|TEP|trombose/i, condName: 'tromboembolismo' },
+      { medPattern: /carvedilol|bisoprolol|espironolactona|sacubitril/i, condPattern: /insuficiência\s+cardíaca/i, condName: 'insuficiência cardíaca' },
+    ];
+
+    const medications = entities.entities.filter(e => e.type === 'MEDICATION');
+    const conditions = entities.entities.filter(e => e.type === 'CONDITION' && !e.negated);
+
+    for (const med of medications) {
+      for (const rule of TREATMENT_MAP) {
+        if (rule.medPattern.test(med.value)) {
+          const matchedCond = conditions.find(c => rule.condPattern.test(c.value));
+          if (matchedCond) {
+            relationships.push({
+              sourceEntity: med.value, sourceType: 'MEDICATION',
+              relationship: 'TREATS', targetEntity: matchedCond.value,
+              targetType: 'CONDITION', confidence: 0.90,
+            });
+          }
+        }
+      }
+    }
+
+    // Symptom-Duration relationships
+    const symptoms = entities.entities.filter(e => e.type === 'SYMPTOM' && !e.negated);
+    const temporals = entities.entities.filter(e => e.type === 'TEMPORAL');
+    for (const symptom of symptoms) {
+      // Find nearest temporal expression within 60 chars
+      for (const temp of temporals) {
+        const dist = Math.abs((symptom.startOffset ?? 0) - (temp.startOffset ?? 0));
+        if (dist < 60) {
+          relationships.push({
+            sourceEntity: symptom.value, sourceType: 'SYMPTOM',
+            relationship: 'HAS_DURATION', targetEntity: temp.value,
+            targetType: 'DURATION', confidence: 0.85,
+          });
+          break;
+        }
+      }
+    }
+
+    // Symptom-Location relationships via regex
+    const locationPattern = /(?:dor|desconforto)\s+(?:em|no|na|nos|nas|de)\s+(\w+(?:\s+\w+)?)/gi;
+    let locMatch: RegExpExecArray | null;
+    while ((locMatch = locationPattern.exec(text)) !== null) {
+      const location = locMatch[1];
+      relationships.push({
+        sourceEntity: locMatch[0].trim(), sourceType: 'SYMPTOM',
+        relationship: 'LOCATED_AT', targetEntity: location,
+        targetType: 'BODY_SITE', confidence: 0.82,
+      });
+    }
+
+    const uniqueEntities = new Set([...relationships.map(r => r.sourceEntity), ...relationships.map(r => r.targetEntity)]);
+
     return {
-      relationships: [
-        { sourceEntity: 'Losartana', sourceType: 'MEDICATION', relationship: 'TREATS', targetEntity: 'hipertensão', targetType: 'CONDITION', confidence: 0.91 },
-        { sourceEntity: 'Metformina', sourceType: 'MEDICATION', relationship: 'TREATS', targetEntity: 'diabetes', targetType: 'CONDITION', confidence: 0.93 },
-        { sourceEntity: 'dor torácica', sourceType: 'SYMPTOM', relationship: 'HAS_DURATION', targetEntity: '2 dias', targetType: 'DURATION', confidence: 0.90 },
-      ],
-      entityGraph: { nodes: 6, edges: 3 },
+      relationships,
+      entityGraph: { nodes: uniqueEntities.size, edges: relationships.length },
       aiModel: 'gpt-4o',
     };
   }

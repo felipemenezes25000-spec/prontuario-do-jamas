@@ -29,7 +29,7 @@ describe('BillingService', () => {
   const mockPrisma = {
     billingEntry: {
       create: jest.fn(),
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
@@ -92,14 +92,14 @@ describe('BillingService', () => {
 
   describe('updateStatus', () => {
     it('should change status and set submittedAt for SUBMITTED', async () => {
-      prisma.billingEntry.findUnique.mockResolvedValue(mockEntry);
+      prisma.billingEntry.findFirst.mockResolvedValue(mockEntry);
       prisma.billingEntry.update.mockResolvedValue({
         ...mockEntry,
         status: 'SUBMITTED',
         submittedAt: new Date(),
       });
 
-      await service.updateStatus('bill-1', 'SUBMITTED' as any);
+      await service.updateStatus('tenant-1', 'bill-1', 'SUBMITTED' as any);
 
       expect(prisma.billingEntry.update).toHaveBeenCalledWith({
         where: { id: 'bill-1' },
@@ -111,10 +111,10 @@ describe('BillingService', () => {
     });
 
     it('should set approvedAt for APPROVED status', async () => {
-      prisma.billingEntry.findUnique.mockResolvedValue(mockEntry);
+      prisma.billingEntry.findFirst.mockResolvedValue(mockEntry);
       prisma.billingEntry.update.mockResolvedValue({});
 
-      await service.updateStatus('bill-1', 'APPROVED' as any);
+      await service.updateStatus('tenant-1', 'bill-1', 'APPROVED' as any);
 
       expect(prisma.billingEntry.update).toHaveBeenCalledWith({
         where: { id: 'bill-1' },
@@ -126,10 +126,10 @@ describe('BillingService', () => {
     });
 
     it('should set paidAt for PAID status', async () => {
-      prisma.billingEntry.findUnique.mockResolvedValue(mockEntry);
+      prisma.billingEntry.findFirst.mockResolvedValue(mockEntry);
       prisma.billingEntry.update.mockResolvedValue({});
 
-      await service.updateStatus('bill-1', 'PAID' as any);
+      await service.updateStatus('tenant-1', 'bill-1', 'PAID' as any);
 
       expect(prisma.billingEntry.update).toHaveBeenCalledWith({
         where: { id: 'bill-1' },
@@ -141,10 +141,10 @@ describe('BillingService', () => {
     });
 
     it('should throw NotFoundException for non-existent entry', async () => {
-      prisma.billingEntry.findUnique.mockResolvedValue(null);
+      prisma.billingEntry.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.updateStatus('nonexistent', 'SUBMITTED' as any),
+        service.updateStatus('tenant-1', 'nonexistent', 'SUBMITTED' as any),
       ).rejects.toThrow(NotFoundException);
     });
   });

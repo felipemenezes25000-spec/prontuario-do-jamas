@@ -14,6 +14,15 @@ const badgeVariants = cva(
         warning: 'border-transparent bg-warning text-warning-foreground',
         success: 'border-transparent bg-teal-600 text-white',
         info: 'border-transparent bg-blue-600 text-white',
+        // Medical status variants
+        stable: 'border-transparent bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+        caution: 'border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400',
+        critical: 'border-transparent bg-red-500/15 text-red-600 dark:text-red-400',
+        // Pulse variant for urgent badges
+        pulse:
+          'border-transparent bg-red-500/15 text-red-600 dark:text-red-400 animate-pulse',
+        // Dot indicator variant
+        dot: 'border-transparent bg-secondary text-secondary-foreground pl-2',
       },
     },
     defaultVariants: {
@@ -22,12 +31,34 @@ const badgeVariants = cva(
   },
 );
 
+type DotColor = 'green' | 'amber' | 'red' | 'blue' | 'gray';
+
+const dotColorMap: Record<DotColor, string> = {
+  green: 'bg-emerald-500',
+  amber: 'bg-amber-500',
+  red: 'bg-red-500',
+  blue: 'bg-blue-500',
+  gray: 'bg-gray-400',
+};
+
 export interface BadgeProps
   extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+    VariantProps<typeof badgeVariants> {
+  /** Color of the dot indicator when variant="dot" */
+  dotColor?: DotColor;
+}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+function Badge({ className, variant, dotColor = 'green', children, ...props }: BadgeProps) {
+  return (
+    <div className={cn(badgeVariants({ variant }), className)} {...props}>
+      {variant === 'dot' && (
+        <span
+          className={cn('mr-1.5 inline-block h-1.5 w-1.5 rounded-full', dotColorMap[dotColor])}
+        />
+      )}
+      {children}
+    </div>
+  );
 }
 
 export { Badge, badgeVariants };

@@ -391,17 +391,25 @@ function InventoryTab() {
       {(stats.lowStock > 0 || stats.expired > 0) && (
         <div className="flex flex-wrap gap-2">
           {stats.lowStock > 0 && (
-            <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
+            <div className="flex items-center gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-2.5">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+              </span>
               <AlertTriangle className="h-4 w-4 text-amber-400" />
-              <span className="text-sm text-amber-300">
+              <span className="text-sm text-amber-300 font-medium">
                 {stats.lowStock} item(s) com estoque baixo
               </span>
             </div>
           )}
           {stats.expired > 0 && (
-            <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2">
+            <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-2.5">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+              </span>
               <AlertTriangle className="h-4 w-4 text-red-400" />
-              <span className="text-sm text-red-300">
+              <span className="text-sm text-red-300 font-medium">
                 {stats.expired} item(s) vencido(s)
               </span>
             </div>
@@ -412,104 +420,129 @@ function InventoryTab() {
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Total de Itens', value: String(stats.total), icon: Package, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-          { label: 'Disponiveis', value: String(stats.available), icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-          { label: 'Estoque Baixo', value: String(stats.lowStock), icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-          { label: 'Vencidos', value: String(stats.expired), icon: Calendar, color: 'text-red-400', bg: 'bg-red-500/10' },
+          { label: 'Total de Itens', value: stats.total, icon: Package, color: 'text-blue-400', bg: 'bg-gradient-to-br from-blue-500/20 to-blue-600/10', borderColor: 'border-blue-500/20 hover:border-blue-500/40' },
+          { label: 'Disponiveis', value: stats.available, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-gradient-to-br from-emerald-500/20 to-emerald-600/10', borderColor: 'border-emerald-500/20 hover:border-emerald-500/40' },
+          { label: 'Estoque Baixo', value: stats.lowStock, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-gradient-to-br from-amber-500/20 to-amber-600/10', borderColor: 'border-amber-500/20 hover:border-amber-500/40', pulse: stats.lowStock > 0 },
+          { label: 'Vencidos', value: stats.expired, icon: Calendar, color: 'text-red-400', bg: 'bg-gradient-to-br from-red-500/20 to-red-600/10', borderColor: 'border-red-500/20 hover:border-red-500/40', pulse: stats.expired > 0 },
         ].map((kpi) => (
-          <Card key={kpi.label} className="border-border bg-card">
+          <Card key={kpi.label} className={cn('group relative overflow-hidden border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:shadow-lg', kpi.borderColor)}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{kpi.label}</p>
-                  <p className="mt-1 text-2xl font-bold">{kpi.value}</p>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
+                  <p className="text-3xl font-bold tabular-nums tracking-tight">{kpi.value}</p>
                 </div>
-                <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', kpi.bg)}>
-                  <kpi.icon className={cn('h-5 w-5', kpi.color)} />
+                <div className={cn('flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110', kpi.bg)}>
+                  <kpi.icon className={cn('h-6 w-6', kpi.color)} />
                 </div>
               </div>
+              {'pulse' in kpi && kpi.pulse && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className={cn('absolute inline-flex h-full w-full animate-ping rounded-full opacity-75', kpi.color === 'text-amber-400' ? 'bg-amber-400' : 'bg-red-400')} />
+                    <span className={cn('relative inline-flex h-2 w-2 rounded-full', kpi.color === 'text-amber-400' ? 'bg-amber-500' : 'bg-red-500')} />
+                  </span>
+                  <span className={cn('text-[10px] font-medium', kpi.color)}>Requer atencao</span>
+                </div>
+              )}
             </CardContent>
+            <div className={cn('absolute bottom-0 left-0 right-0 h-0.5 opacity-0 transition-opacity group-hover:opacity-100', kpi.bg)} />
           </Card>
         ))}
       </div>
 
       {/* Filters & Actions */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 gap-2">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar medicamento..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-card border-border"
-            />
+      <Card className="border-border bg-card/50 backdrop-blur-sm">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-1 gap-2">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar medicamento..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-background/50 border-border"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40 bg-background/50 border-border">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="AVAILABLE">Disponivel</SelectItem>
+                  <SelectItem value="LOW_STOCK">Estoque Baixo</SelectItem>
+                  <SelectItem value="OUT_OF_STOCK">Sem Estoque</SelectItem>
+                  <SelectItem value="EXPIRED">Vencido</SelectItem>
+                  <SelectItem value="QUARANTINE">Quarentena</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <SelectTrigger className="w-44 bg-background/50 border-border">
+                  <SelectValue placeholder="Local" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Locais</SelectItem>
+                  {locations.map((loc) => (
+                    <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 shadow-lg shadow-teal-500/20 transition-all"
+              onClick={() => setAddDialogOpen(true)}
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              Registrar Entrada
+            </Button>
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40 bg-card border-border">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="AVAILABLE">Disponivel</SelectItem>
-              <SelectItem value="LOW_STOCK">Estoque Baixo</SelectItem>
-              <SelectItem value="OUT_OF_STOCK">Sem Estoque</SelectItem>
-              <SelectItem value="EXPIRED">Vencido</SelectItem>
-              <SelectItem value="QUARANTINE">Quarentena</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={locationFilter} onValueChange={setLocationFilter}>
-            <SelectTrigger className="w-44 bg-card border-border">
-              <SelectValue placeholder="Local" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Locais</SelectItem>
-              {locations.map((loc) => (
-                <SelectItem key={loc} value={loc}>{loc}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          className="bg-teal-600 hover:bg-teal-500"
-          onClick={() => setAddDialogOpen(true)}
-        >
-          <Plus className="mr-1.5 h-4 w-4" />
-          Registrar Entrada
-        </Button>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Inventory Table */}
-      <Card className="border-border bg-card">
+      <Card className="border-border bg-card/80 backdrop-blur-sm overflow-hidden">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Medicamento</TableHead>
-                <TableHead>Lote</TableHead>
-                <TableHead>Validade</TableHead>
-                <TableHead className="text-right">Qtd</TableHead>
-                <TableHead className="text-right">Min</TableHead>
-                <TableHead>Local</TableHead>
-                <TableHead>Status</TableHead>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Medicamento</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lote</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Validade</TableHead>
+                <TableHead className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Qtd</TableHead>
+                <TableHead className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Min</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Local</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {inventory.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Nenhum item encontrado
+                  <TableCell colSpan={7} className="text-center py-12">
+                    <div className="flex flex-col items-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/10">
+                        <Package className="h-6 w-6 text-blue-400" />
+                      </div>
+                      <p className="mt-3 text-sm font-medium">Nenhum item encontrado</p>
+                      <p className="text-xs text-muted-foreground">Ajuste os filtros ou registre uma nova entrada</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 inventory.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium text-sm">{item.drugName}</TableCell>
-                    <TableCell className="text-xs">{item.lot}</TableCell>
+                  <TableRow key={item.id} className={cn('transition-colors', item.status === 'EXPIRED' && 'bg-red-500/5', item.status === 'LOW_STOCK' && 'bg-amber-500/5')}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Pill className={cn('h-3.5 w-3.5', item.status === 'EXPIRED' ? 'text-red-400' : item.status === 'LOW_STOCK' ? 'text-amber-400' : 'text-muted-foreground')} />
+                        <span className="font-medium text-sm">{item.drugName}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">{item.lot}</TableCell>
                     <TableCell className="text-xs">
                       {new Date(item.expirationDate).toLocaleDateString('pt-BR')}
                     </TableCell>
-                    <TableCell className="text-right text-sm font-medium">
+                    <TableCell className="text-right text-sm font-semibold">
                       <span className={item.quantity <= item.minQuantity ? 'text-amber-400' : ''}>
                         {item.quantity}
                       </span>
@@ -703,37 +736,51 @@ function PrescriptionsTab() {
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Prescricoes Pendentes', value: String(kpiValues.pending), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-          { label: 'Dispensadas', value: String(kpiValues.dispensed), icon: CheckCircle2, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-500/10' },
-          { label: 'Itens Alto Alerta', value: String(kpiValues.highAlertItems), icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
-          { label: 'Total de Itens', value: String(kpiValues.totalItems), icon: Package, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Prescricoes Pendentes', value: kpiValues.pending, icon: Clock, color: 'text-amber-400', bg: 'bg-gradient-to-br from-amber-500/20 to-amber-600/10', borderColor: 'border-amber-500/20 hover:border-amber-500/40' },
+          { label: 'Dispensadas', value: kpiValues.dispensed, icon: CheckCircle2, color: 'text-teal-400', bg: 'bg-gradient-to-br from-teal-500/20 to-teal-600/10', borderColor: 'border-teal-500/20 hover:border-teal-500/40' },
+          { label: 'Itens Alto Alerta', value: kpiValues.highAlertItems, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-gradient-to-br from-red-500/20 to-red-600/10', borderColor: 'border-red-500/20 hover:border-red-500/40', pulse: kpiValues.highAlertItems > 0 },
+          { label: 'Total de Itens', value: kpiValues.totalItems, icon: Package, color: 'text-blue-400', bg: 'bg-gradient-to-br from-blue-500/20 to-blue-600/10', borderColor: 'border-blue-500/20 hover:border-blue-500/40' },
         ].map((kpi) => (
-          <Card key={kpi.label} className="border-border bg-card">
+          <Card key={kpi.label} className={cn('group relative overflow-hidden border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:shadow-lg', kpi.borderColor)}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{kpi.label}</p>
-                  <p className="mt-1 text-2xl font-bold">{kpi.value}</p>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
+                  <p className="text-3xl font-bold tabular-nums tracking-tight">{kpi.value}</p>
                 </div>
-                <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', kpi.bg)}>
-                  <kpi.icon className={cn('h-5 w-5', kpi.color)} />
+                <div className={cn('flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110', kpi.bg)}>
+                  <kpi.icon className={cn('h-6 w-6', kpi.color)} />
                 </div>
               </div>
+              {'pulse' in kpi && kpi.pulse && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                  </span>
+                  <span className="text-[10px] font-medium text-red-400">Requer atencao</span>
+                </div>
+              )}
             </CardContent>
+            <div className={cn('absolute bottom-0 left-0 right-0 h-0.5 opacity-0 transition-opacity group-hover:opacity-100', kpi.bg)} />
           </Card>
         ))}
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar medicamento ou prescricao..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-10 bg-card border-border"
-        />
-      </div>
+      <Card className="border-border bg-card/50 backdrop-blur-sm">
+        <CardContent className="p-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar medicamento ou prescricao..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 bg-background/50 border-border"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Safety Validation Panel */}
       <Card className="border-border bg-card">
@@ -974,20 +1021,35 @@ function PrescriptionsTab() {
 
 export default function PharmacyPage() {
   return (
-    <div className="space-y-4 animate-fade-in">
-      <h1 className="text-2xl font-bold tracking-tight">Farmacia</h1>
+    <div className="space-y-6 animate-fade-in">
+      {/* Header with gradient accent */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-teal-500/5 via-card to-card p-6">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-500/5 blur-3xl" />
+        <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-emerald-500/5 blur-3xl" />
+        <div className="relative flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-600 shadow-lg shadow-teal-500/20">
+            <Pill className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Farmacia</h1>
+            <p className="text-sm text-muted-foreground">
+              Dispensacao, controle de estoque e verificacao de seguranca
+            </p>
+          </div>
+        </div>
+      </div>
 
       <Tabs defaultValue="dispensacao" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="dispensacao" className="flex items-center gap-1.5">
+        <TabsList className="bg-card/80 border border-border backdrop-blur-sm grid w-full grid-cols-3 h-auto p-1">
+          <TabsTrigger value="dispensacao" className="flex items-center gap-1.5 text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <PackageCheck className="h-4 w-4" />
             Dispensacao
           </TabsTrigger>
-          <TabsTrigger value="estoque" className="flex items-center gap-1.5">
+          <TabsTrigger value="estoque" className="flex items-center gap-1.5 text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <Warehouse className="h-4 w-4" />
             Estoque
           </TabsTrigger>
-          <TabsTrigger value="prescricoes" className="flex items-center gap-1.5">
+          <TabsTrigger value="prescricoes" className="flex items-center gap-1.5 text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-600 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <Pill className="h-4 w-4" />
             Prescricoes
           </TabsTrigger>

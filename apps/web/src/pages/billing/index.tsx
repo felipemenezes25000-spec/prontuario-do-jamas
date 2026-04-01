@@ -359,12 +359,12 @@ function RevenueDashboardTab({ data }: { data: BillingDashboardData | null }) {
             ? kpi.trend === 'down'
             : kpi.trend === 'up';
           return (
-            <Card key={kpi.label} className={cn('border-border bg-card border-l-4', kpi.borderColor)}>
+            <Card key={kpi.label} className={cn('group border-border/50 bg-card/50 backdrop-blur-sm border-l-4 hover:shadow-lg hover:scale-[1.02] transition-all duration-300', kpi.borderColor)}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{kpi.label}</p>
-                    <p className="text-lg font-bold">{kpi.value}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{kpi.label}</p>
+                    <p className="text-xl font-bold tracking-tight">{kpi.value}</p>
                     <div className="flex items-center gap-1">
                       {isGoodTrend ? (
                         <ArrowUpRight className="h-3 w-3 text-emerald-400" />
@@ -376,7 +376,7 @@ function RevenueDashboardTab({ data }: { data: BillingDashboardData | null }) {
                       </span>
                     </div>
                   </div>
-                  <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', kpi.bgColor)}>
+                  <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl group-hover:scale-110 transition-transform duration-300', kpi.bgColor)}>
                     <kpi.icon className={cn('h-4 w-4', kpi.color)} />
                   </div>
                 </div>
@@ -699,55 +699,55 @@ function GlosaManagementTab() {
     <div className="space-y-6">
       {/* Glosa KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border bg-card border-l-4 border-l-red-500">
+        <Card className="group border-border/50 bg-card/50 backdrop-blur-sm border-l-4 border-l-red-500 hover:shadow-lg hover:shadow-red-500/5 hover:scale-[1.02] transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Glosado</p>
-                <p className="text-lg font-bold text-red-400 mt-1">{formatCurrency(totalGlosed)}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Total Glosado</p>
+                <p className="text-xl font-bold text-red-400 mt-1 tracking-tight">{formatCurrency(totalGlosed)}</p>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/10">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 group-hover:scale-110 transition-transform duration-300">
                 <TrendingDown className="h-4 w-4 text-red-400" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card border-l-4 border-l-blue-500">
+        <Card className="group border-border/50 bg-card/50 backdrop-blur-sm border-l-4 border-l-blue-500 hover:shadow-lg hover:shadow-blue-500/5 hover:scale-[1.02] transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Em Recurso</p>
-                <p className="text-lg font-bold text-blue-400 mt-1">{formatCurrency(totalAppealed)}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Em Recurso</p>
+                <p className="text-xl font-bold text-blue-400 mt-1 tracking-tight">{formatCurrency(totalAppealed)}</p>
                 <p className="text-[10px] text-muted-foreground">{pendingCount} pendentes</p>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 group-hover:scale-110 transition-transform duration-300">
                 <Scale className="h-4 w-4 text-blue-400" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card border-l-4 border-l-emerald-500">
+        <Card className="group border-border/50 bg-card/50 backdrop-blur-sm border-l-4 border-l-emerald-500 hover:shadow-lg hover:shadow-emerald-500/5 hover:scale-[1.02] transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Recuperado</p>
-                <p className="text-lg font-bold text-emerald-400 mt-1">{formatCurrency(totalRecovered)}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Recuperado</p>
+                <p className="text-xl font-bold text-emerald-400 mt-1 tracking-tight">{formatCurrency(totalRecovered)}</p>
                 <p className="text-[10px] text-muted-foreground">{acceptedCount} aceitos</p>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 group-hover:scale-110 transition-transform duration-300">
                 <Wallet className="h-4 w-4 text-emerald-400" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-border bg-card border-l-4 border-l-purple-500">
+        <Card className="group border-border/50 bg-card/50 backdrop-blur-sm border-l-4 border-l-purple-500 hover:shadow-lg hover:shadow-purple-500/5 hover:scale-[1.02] transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Taxa de Recuperacao</p>
-                <p className="text-lg font-bold text-purple-400 mt-1">{recoveryRate.toFixed(1)}%</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Taxa de Recuperacao</p>
+                <p className="text-xl font-bold text-purple-400 mt-1 tracking-tight">{recoveryRate.toFixed(1)}%</p>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/10">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/10 group-hover:scale-110 transition-transform duration-300">
                 <Percent className="h-4 w-4 text-purple-400" />
               </div>
             </div>
@@ -1705,55 +1705,60 @@ export default function BillingPage() {
   if (isError) return <PageError onRetry={() => refetch()} />;
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10">
-          <CircleDollarSign className="h-6 w-6 text-emerald-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Faturamento</h1>
-          <p className="text-sm text-muted-foreground">
-            Ciclo de receita, gestao de glosas, guias TISS e faturamento SUS
-          </p>
+    <div className="space-y-6 animate-fade-in">
+      {/* Header with gradient accent */}
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-emerald-500/5 via-card to-card p-6">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-emerald-500/5 blur-3xl" />
+        <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-blue-500/5 blur-3xl" />
+        <div className="relative flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/20">
+            <CircleDollarSign className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Faturamento</h1>
+            <p className="text-sm text-muted-foreground">
+              Ciclo de receita, gestao de glosas, guias TISS e faturamento SUS
+            </p>
+          </div>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
-          <Card key={kpi.label} className="border-border bg-card">
+          <Card key={kpi.label} className={cn('group relative overflow-hidden border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:shadow-lg', kpi.bgColor.replace('bg-', 'border-').replace('/10', '/20'), 'hover:' + kpi.bgColor.replace('bg-', 'border-').replace('/10', '/40'))}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{kpi.label}</p>
-                  <p className="mt-1 text-2xl font-bold">{kpi.value}</p>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
+                  <p className="text-2xl font-bold tabular-nums tracking-tight">{kpi.value}</p>
                 </div>
-                <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', kpi.bgColor)}>
-                  <kpi.icon className={cn('h-5 w-5', kpi.color)} />
+                <div className={cn('flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110', 'bg-gradient-to-br', kpi.bgColor, kpi.bgColor.replace('/10', '/5'))}>
+                  <kpi.icon className={cn('h-6 w-6', kpi.color)} />
                 </div>
               </div>
             </CardContent>
+            <div className={cn('absolute bottom-0 left-0 right-0 h-0.5 opacity-0 transition-opacity group-hover:opacity-100', kpi.bgColor)} />
           </Card>
         ))}
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="dashboard" className="space-y-4">
-        <TabsList className="flex-wrap h-auto gap-1 bg-zinc-900/50 p-1">
-          <TabsTrigger value="dashboard" className="flex items-center gap-1.5 text-xs">
+        <TabsList className="bg-card/80 border border-border backdrop-blur-sm flex-wrap h-auto gap-0.5 p-1">
+          <TabsTrigger value="dashboard" className="flex items-center gap-1.5 text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <BarChart3 className="h-3.5 w-3.5" />
             Dashboard Receita
           </TabsTrigger>
-          <TabsTrigger value="entries" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="entries" className="flex items-center gap-1.5 text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <FileText className="h-3.5 w-3.5" />
             Lancamentos
           </TabsTrigger>
-          <TabsTrigger value="glosas" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="glosas" className="flex items-center gap-1.5 text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <Scale className="h-3.5 w-3.5" />
             Gestao de Glosas
           </TabsTrigger>
-          <TabsTrigger value="tiss" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="tiss" className="flex items-center gap-1.5 text-xs data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">
             <FileCheck2 className="h-3.5 w-3.5" />
             Guias TISS / SUS
           </TabsTrigger>
