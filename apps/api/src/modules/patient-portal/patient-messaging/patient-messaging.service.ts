@@ -181,6 +181,86 @@ export class PatientMessagingService {
     return { threadId: doc.id, subject: thread.subject, participantIds: thread.participantIds, messages: thread.messages, createdAt: thread.createdAt, updatedAt: thread.updatedAt };
   }
 
+  // =========================================================================
+  // Message Triage & Doctor Queue
+  // =========================================================================
+
+  async triageMessage(tenantId: string, messageId: string, urgency: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT') {
+    const doc = await this.prisma.clinicalDocument.findFirst({
+      where: { id: messageId, tenantId, type: 'CUSTOM', title: { startsWith: 'MSG:' } },
+    });
+    if (!doc) throw new NotFoundException('Mensagem não encontrada.');
+
+    const thread = JSON.parse(doc.content ?? '{}') as MessageThread;
+    (thread as unknown as Record<string, unknown>).urgency = urgency;
+    (thread as unknown as Record<string, unknown>).triagedAt = new Date().toISOString();
+    thread.updatedAt = new Date().toISOString();
+
+    await this.prisma.clinicalDocument.update({
+      where: { id: messageId },
+      data: { content: JSON.stringify(thread) },
+    });
+
+    return { threadId: messageId, urgency, triagedAt: (thread as unknown as Record<string, unknown>).triagedAt };
+  }
+
+  async getMessageQueue(tenantId: string, doctorId: string) {
+    const doctor = await this.prisma.user.findFirst({
+      where: { id: doctorId, tenantId, role: 'DOCTOR' },
+      select: { id: true, name: true },
+    });
+    if (!doctor) throw new NotFoundException('Médico não encontrado.');
+
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        type: 'CUSTOM',
+        title: { startsWith: 'MSG:' },
+        OR: [
+          { authorId: doctorId },
+          { content: { contains: doctorId } },
+        ],
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, title: true, content: true, createdAt: true, updatedAt: true, patient: { select: { fullName: true } } },
+      take: 50,
+    });
+
+    const now = Date.now();
+    const messages = docs.map((d) => {
+      const thread = JSON.parse(d.content ?? '{}') as MessageThread & { urgency?: string; triagedAt?: string };
+      const lastMessage = thread.messages[thread.messages.length - 1];
+      const unreadCount = thread.messages.filter((m) => m.senderId !== doctorId && !m.readAt).length;
+      const ageHours = Math.round((now - new Date(d.updatedAt ?? d.createdAt).getTime()) / 3600000);
+
+      // SLA: HIGH/URGENT must be responded within 4h
+      const slaBreached = (thread.urgency === 'HIGH' || thread.urgency === 'URGENT') && ageHours > 4;
+
+      return {
+        threadId: d.id,
+        subject: thread.subject,
+        patientName: d.patient?.fullName,
+        lastMessage: lastMessage?.body?.substring(0, 100),
+        lastMessageAt: lastMessage?.sentAt,
+        messageCount: thread.messages.length,
+        unreadCount,
+        urgency: thread.urgency ?? 'NORMAL',
+        ageHours,
+        slaBreached,
+      };
+    }).filter((m) => m.unreadCount > 0);
+
+    return {
+      doctorId,
+      doctorName: doctor.name,
+      pendingMessages: messages.length,
+      messages: messages.sort((a, b) => {
+        const urgencyOrder: Record<string, number> = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
+        return (urgencyOrder[a.urgency] ?? 2) - (urgencyOrder[b.urgency] ?? 2);
+      }),
+    };
+  }
+
   async markAsRead(tenantId: string, userEmail: string, messageId: string) {
     const { userId } = await this.resolvePatientAndUser(tenantId, userEmail);
 
@@ -206,5 +286,27 @@ export class PatientMessagingService {
     }
 
     return { messageId, readAt: message?.readAt };
+  }
+
+  async getUnreadCount(tenantId: string, userEmail: string) {
+    const { userId } = await this.resolvePatientAndUser(tenantId, userEmail);
+
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        type: 'CUSTOM',
+        title: { startsWith: 'MSG:' },
+        OR: [{ authorId: userId }, { content: { contains: userId } }],
+      },
+      select: { content: true },
+    });
+
+    let unreadCount = 0;
+    for (const d of docs) {
+      const thread = JSON.parse(d.content ?? '{}') as MessageThread;
+      unreadCount += thread.messages.filter((m) => m.senderId !== userId && !m.readAt).length;
+    }
+
+    return { userId, unreadCount };
   }
 }

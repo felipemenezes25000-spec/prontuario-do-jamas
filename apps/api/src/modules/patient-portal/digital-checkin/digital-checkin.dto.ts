@@ -53,6 +53,21 @@ export class SubmitAnamnesisDto {
   additionalData?: Record<string, unknown>;
 }
 
+export class UploadCheckinDocumentDto {
+  @ApiProperty({ description: 'Document type: ID, INSURANCE_CARD, REFERRAL, EXTERNAL_EXAM' })
+  @IsString()
+  documentType!: string;
+
+  @ApiProperty({ description: 'S3 pre-signed URL or direct file URL' })
+  @IsString()
+  fileUrl!: string;
+
+  @ApiPropertyOptional({ description: 'Notes about the document' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
 export class SubmitConsentDto {
   @ApiProperty({ description: 'Consent type (TREATMENT, LGPD_GENERAL, etc.)' })
   @IsString()

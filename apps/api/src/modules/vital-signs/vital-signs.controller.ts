@@ -16,6 +16,15 @@ import {
 } from '@nestjs/swagger';
 import { VitalSignsService } from './vital-signs.service';
 import { CreateVitalSignsDto } from './dto/create-vital-signs.dto';
+import {
+  CreateRassDto,
+  CreateCamIcuDto,
+  CreateBisDto,
+  CreateIcpDto,
+  CreateInvasiveHemodynamicsDto,
+  CreateVentilatorSettingsDto,
+  RecordPediatricGrowthDto,
+} from './dto/enhanced-vitals.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../common/pipes/parse-uuid.pipe';
@@ -100,7 +109,7 @@ export class VitalSignsController {
   async createRassAssessment(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,
-    @Body() dto: { patientId: string; encounterId?: string; rass: number; observations?: string },
+    @Body() dto: CreateRassDto,
   ) {
     return this.vitalSignsService.createRassAssessment(tenantId, user.sub, dto);
   }
@@ -111,18 +120,7 @@ export class VitalSignsController {
   async createCamIcuAssessment(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,
-    @Body() dto: {
-      patientId: string;
-      encounterId?: string;
-      rassScore: number;
-      feature1AcuteOnset: boolean;
-      feature1Fluctuating: boolean;
-      feature2Inattention: boolean;
-      feature2Score?: number;
-      feature3AlteredConsciousness: boolean;
-      feature4DisorganizedThinking: boolean;
-      observations?: string;
-    },
+    @Body() dto: CreateCamIcuDto,
   ) {
     return this.vitalSignsService.createCamIcuAssessment(tenantId, user.sub, dto);
   }
@@ -133,14 +131,7 @@ export class VitalSignsController {
   async createBisRecord(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,
-    @Body() dto: {
-      patientId: string;
-      encounterId?: string;
-      bisValue: number;
-      emg?: number;
-      sr?: number;
-      observations?: string;
-    },
+    @Body() dto: CreateBisDto,
   ) {
     return this.vitalSignsService.createBisRecord(tenantId, user.sub, dto);
   }
@@ -151,13 +142,7 @@ export class VitalSignsController {
   async createIcpRecord(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,
-    @Body() dto: {
-      patientId: string;
-      encounterId?: string;
-      icp: number;
-      meanArterialPressure: number;
-      observations?: string;
-    },
+    @Body() dto: CreateIcpDto,
   ) {
     return this.vitalSignsService.createIcpRecord(tenantId, user.sub, dto);
   }
@@ -168,20 +153,7 @@ export class VitalSignsController {
   async createInvasiveHemodynamics(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,
-    @Body() dto: {
-      patientId: string;
-      encounterId?: string;
-      pam: number;
-      pvc?: number;
-      poap?: number;
-      cardiacOutput?: number;
-      cardiacIndex?: number;
-      svr?: number;
-      svri?: number;
-      pvr?: number;
-      svo2?: number;
-      observations?: string;
-    },
+    @Body() dto: CreateInvasiveHemodynamicsDto,
   ) {
     return this.vitalSignsService.createInvasiveHemodynamics(tenantId, user.sub, dto);
   }
@@ -192,24 +164,7 @@ export class VitalSignsController {
   async createVentilatorParams(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,
-    @Body() dto: {
-      patientId: string;
-      encounterId?: string;
-      mode: string;
-      tidalVolume?: number;
-      respiratoryRate?: number;
-      fio2?: number;
-      peep?: number;
-      pressureSupport?: number;
-      plateauPressure?: number;
-      peakPressure?: number;
-      meanAirwayPressure?: number;
-      compliance?: number;
-      resistance?: number;
-      autopeep?: number;
-      ieRatio?: string;
-      observations?: string;
-    },
+    @Body() dto: CreateVentilatorSettingsDto,
   ) {
     return this.vitalSignsService.createVentilatorParams(tenantId, user.sub, dto);
   }
@@ -234,5 +189,30 @@ export class VitalSignsController {
     @Param('patientId', ParseUUIDPipe) patientId: string,
   ) {
     return this.vitalSignsService.calculateCardiacArrestRisk(patientId);
+  }
+
+  // ─── Pediatric Growth Endpoints ──────────────────────────────────────────
+
+  @Post('pediatric-growth')
+  @ApiOperation({ summary: 'Record pediatric growth measurement with WHO/CDC z-scores' })
+  @ApiResponse({ status: 201, description: 'Growth measurement recorded with z-scores and percentiles' })
+  async recordPediatricGrowth(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: RecordPediatricGrowthDto,
+  ) {
+    return this.vitalSignsService.recordPediatricGrowth(tenantId, user.sub, dto);
+  }
+
+  @Get('patient/:patientId/pediatric-growth-curve')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'Get pediatric growth curve data with reference lines for charting' })
+  @ApiResponse({ status: 200, description: 'Growth curve measurements with WHO/CDC reference data' })
+  @ApiResponse({ status: 404, description: 'Patient not found' })
+  async getPediatricGrowthCurve(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+  ) {
+    return this.vitalSignsService.getPediatricGrowthCurve(tenantId, patientId);
   }
 }

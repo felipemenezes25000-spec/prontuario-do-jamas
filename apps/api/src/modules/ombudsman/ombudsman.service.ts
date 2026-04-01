@@ -6,7 +6,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateComplaintDto,
   RespondComplaintDto,
-  TicketType,
   TicketStatus,
 } from './ombudsman.dto';
 

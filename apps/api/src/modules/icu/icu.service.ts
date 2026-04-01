@@ -16,6 +16,13 @@ import {
   CreateDailyGoalsDto,
   CreateEcmoRecordDto,
   CreateEnteralNutritionDto,
+  VASOACTIVE_DRUG_RANGES,
+  BundleTypeEnum,
+  CVC_BUNDLE_ITEMS,
+  VAP_BUNDLE_ITEMS,
+  CAUTI_BUNDLE_ITEMS,
+  WeaningAssessmentResult,
+  WeaningCriteria,
 } from './dto/icu.dto';
 import {
   CreateHypothermiaSessionDto,
@@ -197,7 +204,7 @@ export class IcuService {
   // ─── SOFA Score ─────────────────────────────────────────────────────────
 
   async calculateSofa(tenantId: string, authorId: string, dto: CalculateSofaDto) {
-    const respiration = this.sofaRespiration(dto.pao2fio2);
+    const respiration = this.sofaRespiration(dto.pao2fio2, dto.mechanicalVentilation);
     const coagulation = this.sofaCoagulation(dto.platelets);
     const liver = this.sofaLiver(dto.bilirubin);
     const cardiovascular = this.sofaCardiovascular(dto);
@@ -233,9 +240,14 @@ export class IcuService {
     };
   }
 
-  private sofaRespiration(pf: number): number {
-    if (pf < 100) return 4;
-    if (pf < 200) return 3;
+  /**
+   * SOFA respiratory component.
+   * Scores 3 and 4 require mechanical ventilation per SOFA definition.
+   */
+  private sofaRespiration(pf: number, onMV?: boolean): number {
+    if (pf < 100 && onMV) return 4;
+    if (pf < 200 && onMV) return 3;
+    if (pf < 200) return 2; // <200 without MV treated as 2
     if (pf < 300) return 2;
     if (pf < 400) return 1;
     return 0;
@@ -365,12 +377,64 @@ export class IcuService {
 
   // ─── TISS-28 ────────────────────────────────────────────────────────────
 
+  /**
+   * TISS-28 calculation supporting both boolean fields (new) and legacy items[] (backward compat).
+   *
+   * Workload classification:
+   * - Class I (< 10): Observation
+   * - Class II (10-19): Prophylactic measures
+   * - Class III (20-39): Intensive nursing/medical care
+   * - Class IV (>= 40): Maximum intensive treatment
+   *
+   * 1 TISS point ~ 10.6 minutes of nursing time.
+   */
   async calculateTiss28(tenantId: string, authorId: string, dto: CalculateTiss28Dto) {
-    const totalScore = dto.items.reduce((sum, val) => sum + val, 0);
-    const classification =
-      totalScore > 46 ? 'CLASS_IV' :
-      totalScore > 35 ? 'CLASS_III' :
-      totalScore > 20 ? 'CLASS_II' : 'CLASS_I';
+    let totalScore: number;
+    let components: Record<string, number> | undefined;
+
+    // Use boolean fields if any are provided, otherwise fall back to legacy items[]
+    if (dto.standardMonitoring !== undefined) {
+      components = {};
+      components.standardMonitoring = dto.standardMonitoring ? 5 : 0;
+      components.labStudies = dto.labStudies ? 1 : 0;
+      components.singleMedication = dto.singleMedication ? 2 : 0;
+      components.multipleIVMedications = dto.multipleIVMedications ? 3 : 0;
+      components.routineDressingChanges = dto.routineDressingChanges ? 1 : 0;
+      components.frequentDressingChanges = dto.frequentDressingChanges ? 1 : 0;
+      components.drainCare = dto.drainCare ? 3 : 0;
+      components.mechanicalVentilation = dto.mechanicalVentilation ? 5 : 0;
+      components.supplementaryVentCare = dto.supplementaryVentCare ? 2 : 0;
+      components.artificialAirwayCare = dto.artificialAirwayCare ? 1 : 0;
+      components.singleVasoactiveMed = dto.singleVasoactiveMed ? 3 : 0;
+      components.multipleVasoactiveMeds = dto.multipleVasoactiveMeds ? 4 : 0;
+      components.largeFluidReplacement = dto.largeFluidReplacement ? 4 : 0;
+      components.peripheralArterialCatheter = dto.peripheralArterialCatheter ? 5 : 0;
+      components.cvpMonitoring = dto.cvpMonitoring ? 2 : 0;
+      components.pulmonaryArteryCatheter = dto.pulmonaryArteryCatheter ? 8 : 0;
+      components.activeDiuresis = dto.activeDiuresis ? 3 : 0;
+      components.renalReplacementTherapy = dto.renalReplacementTherapy ? 3 : 0;
+      components.urineOutputMeasurement = dto.urineOutputMeasurement ? 2 : 0;
+      components.icpMonitoring = dto.icpMonitoring ? 4 : 0;
+      components.metabolicTreatment = dto.metabolicTreatment ? 4 : 0;
+      components.ivHyperalimentation = dto.ivHyperalimentation ? 3 : 0;
+      components.enteralFeeding = dto.enteralFeeding ? 2 : 0;
+      components.singleSpecificIntervention = dto.singleSpecificIntervention ? 3 : 0;
+      components.multipleSpecificInterventions = dto.multipleSpecificInterventions ? 5 : 0;
+      components.interventionsOutsideICU = dto.interventionsOutsideICU ? 5 : 0;
+      totalScore = Object.values(components).reduce((sum, v) => sum + v, 0);
+    } else if (dto.items) {
+      totalScore = dto.items.reduce((sum, val) => sum + val, 0);
+    } else {
+      totalScore = 0;
+    }
+
+    let workloadClass: string;
+    if (totalScore < 10) workloadClass = 'CLASS_I';
+    else if (totalScore < 20) workloadClass = 'CLASS_II';
+    else if (totalScore < 40) workloadClass = 'CLASS_III';
+    else workloadClass = 'CLASS_IV';
+
+    const estimatedNursingMinutes = Math.round(totalScore * 10.6);
 
     const doc = await this.prisma.clinicalDocument.create({
       data: {
@@ -383,8 +447,10 @@ export class IcuService {
         content: JSON.stringify({
           scoreType: 'TISS_28',
           totalScore,
-          classification,
+          classification: workloadClass,
+          components,
           items: dto.items,
+          estimatedNursingMinutes,
           calculatedAt: new Date().toISOString(),
         }),
         generatedByAI: false,
@@ -392,22 +458,68 @@ export class IcuService {
       },
     });
 
-    return { id: doc.id, totalScore, classification, createdAt: doc.createdAt };
+    return {
+      id: doc.id,
+      totalScore,
+      classification: workloadClass,
+      components,
+      estimatedNursingMinutes,
+      createdAt: doc.createdAt,
+    };
   }
 
   // ─── Vasoactive Drug Calculator ─────────────────────────────────────────
 
+  /**
+   * Bidirectional vasoactive drug dose calculator.
+   *
+   * Dose (mcg/kg/min) = (concentration_mg_per_mL * rate_mL_per_h * 1000) / (weight_kg * 60)
+   * Rate (mL/h) = (dose_mcg_kg_min * weight_kg * 60) / (concentration_mg_per_mL * 1000)
+   *
+   * Provide targetDoseMcgKgMin to get required pump rate, OR
+   * provide currentRateMlH to get current dose. Both can be provided.
+   */
   calculateVasoactiveDrug(dto: VasoactiveDrugCalculatorDto) {
-    const dosePerMinute = dto.targetDoseMcgKgMin * dto.weightKg; // mcg/min
-    const dosePerHour = dosePerMinute * 60; // mcg/h
-    const doseMgPerHour = dosePerHour / 1000; // mg/h
-    const pumpRateMlH = doseMgPerHour / dto.concentrationMgMl; // mL/h
+    let currentDoseMcgKgMin: number | null = null;
+    let targetRateMlH: number | null = null;
+
+    // Calculate current dose from pump rate
+    if (dto.currentRateMlH !== undefined && dto.currentRateMlH > 0) {
+      currentDoseMcgKgMin =
+        (dto.concentrationMgMl * dto.currentRateMlH * 1000) / (dto.weightKg * 60);
+      currentDoseMcgKgMin = Math.round(currentDoseMcgKgMin * 10000) / 10000;
+    }
+
+    // Calculate required pump rate from target dose
+    if (dto.targetDoseMcgKgMin !== undefined && dto.targetDoseMcgKgMin > 0) {
+      targetRateMlH =
+        (dto.targetDoseMcgKgMin * dto.weightKg * 60) / (dto.concentrationMgMl * 1000);
+      targetRateMlH = Math.round(targetRateMlH * 100) / 100;
+    }
+
+    // Legacy: if only targetDoseMcgKgMin provided without currentRateMlH, set pumpRateMlH for backward compat
+    const effectiveDose = currentDoseMcgKgMin ?? dto.targetDoseMcgKgMin ?? 0;
+    const drugRange = VASOACTIVE_DRUG_RANGES[dto.drug];
+    const doseInRange = effectiveDose >= drugRange.min && effectiveDose <= drugRange.max;
+
+    // Legacy fields for backward compatibility
+    const dosePerMinute = (dto.targetDoseMcgKgMin ?? effectiveDose) * dto.weightKg;
+    const dosePerHour = dosePerMinute * 60;
+    const pumpRateMlH = targetRateMlH ?? (dosePerHour / 1000 / dto.concentrationMgMl);
 
     return {
       drug: dto.drug,
       weightKg: dto.weightKg,
-      targetDoseMcgKgMin: dto.targetDoseMcgKgMin,
       concentrationMgMl: dto.concentrationMgMl,
+      targetDoseMcgKgMin: dto.targetDoseMcgKgMin,
+      currentRateMlH: dto.currentRateMlH,
+      // New bidirectional results
+      calculatedDoseMcgKgMin: currentDoseMcgKgMin,
+      calculatedRateMlH: targetRateMlH,
+      doseInRange,
+      recommendedRange: drugRange,
+      targetMAP: dto.targetMAP,
+      // Legacy results
       dosePerMinuteMcg: Math.round(dosePerMinute * 100) / 100,
       dosePerHourMcg: Math.round(dosePerHour * 100) / 100,
       pumpRateMlH: Math.round(pumpRateMlH * 100) / 100,
@@ -419,6 +531,38 @@ export class IcuService {
   async createSedationAssessment(tenantId: string, authorId: string, dto: CreateSedationAssessmentDto) {
     const onTarget = dto.rass === dto.rassTarget;
     const rassDescription = this.rassDescription(dto.rass);
+    const recommendations: string[] = [];
+
+    // Sedation protocol recommendations
+    if (dto.rass < dto.rassTarget) {
+      const diff = dto.rassTarget - dto.rass;
+      if (diff >= 2) {
+        recommendations.push('Paciente significativamente mais sedado que o alvo. Considerar reducao de sedativos.');
+      } else {
+        recommendations.push('Paciente levemente mais sedado que o alvo. Avaliar reducao gradual.');
+      }
+    }
+
+    if (dto.rass > dto.rassTarget) {
+      if (dto.rass >= 2) {
+        recommendations.push('Paciente agitado. Verificar causas reversiveis (dor, delirium, hipoxia, retencao urinaria).');
+      }
+      recommendations.push('Considerar aumento de sedacao ou troca de agente.');
+    }
+
+    if (dto.bps !== undefined && dto.bps > 5) {
+      recommendations.push('Dor significativa detectada (BPS > 5). Priorizar analgesia antes de aumentar sedacao.');
+    }
+
+    if (dto.camIcuPositive === true) {
+      recommendations.push('CAM-ICU positivo: delirium presente. Avaliar causas, considerar haloperidol/quetiapina.');
+    }
+
+    if (!dto.satPerformed && !dto.satNotPerformedReason) {
+      recommendations.push('SAT nao realizado sem justificativa. Protocolo recomenda SAT diario.');
+    } else if (dto.satPerformed && dto.satPassed) {
+      recommendations.push('SAT bem-sucedido. Avaliar SBT se em ventilacao mecanica.');
+    }
 
     const doc = await this.prisma.clinicalDocument.create({
       data: {
@@ -436,12 +580,17 @@ export class IcuService {
           onTarget,
           bps: dto.bps,
           cpot: dto.cpot,
+          camIcuPositive: dto.camIcuPositive,
           satPerformed: dto.satPerformed,
+          satPassed: dto.satPassed,
+          satNotPerformedReason: dto.satNotPerformedReason,
           satOutcome: dto.satOutcome,
+          sedationDrugs: dto.sedationDrugs,
           sedativeDrug: dto.sedativeDrug,
           sedativeDose: dto.sedativeDose,
           analgesicDrug: dto.analgesicDrug,
           analgesicDose: dto.analgesicDose,
+          recommendations,
           observations: dto.observations,
           assessedAt: new Date().toISOString(),
         }),
@@ -450,7 +599,14 @@ export class IcuService {
       },
     });
 
-    return { id: doc.id, rass: dto.rass, rassDescription, onTarget, createdAt: doc.createdAt };
+    return {
+      id: doc.id,
+      rass: dto.rass,
+      rassDescription,
+      onTarget,
+      recommendations,
+      createdAt: doc.createdAt,
+    };
   }
 
   private rassDescription(rass: number): string {
@@ -471,16 +627,57 @@ export class IcuService {
 
   // ─── Mechanical Ventilation ─────────────────────────────────────────────
 
+  /**
+   * Record ventilator parameters with auto-calculated derived values and lung-protective alerts.
+   *
+   * Auto-calculates:
+   * - P/F ratio = PaO2 / (FiO2/100)
+   * - Driving pressure = Plateau pressure - PEEP
+   * - Static compliance = Tidal volume / Driving pressure
+   * - Tidal volume per IBW = Tidal volume / Ideal body weight
+   */
   async createVentilationRecord(tenantId: string, authorId: string, dto: CreateVentilationRecordDto) {
-    // Auto-calculate driving pressure and P/F ratio
+    const alerts: string[] = [];
+
+    // Auto-calculate driving pressure
     let drivingPressure: number | undefined;
     if (dto.plateauPressure !== undefined && dto.peep !== undefined) {
       drivingPressure = dto.plateauPressure - dto.peep;
     }
 
+    // Auto-calculate P/F ratio
     let pfRatio: number | undefined;
     if (dto.pao2 !== undefined && dto.fio2 !== undefined && dto.fio2 > 0) {
       pfRatio = Math.round((dto.pao2 / (dto.fio2 / 100)) * 10) / 10;
+    }
+
+    // Auto-calculate static compliance
+    let staticCompliance: number | undefined;
+    if (dto.tidalVolume !== undefined && drivingPressure !== undefined && drivingPressure > 0) {
+      staticCompliance = Math.round((dto.tidalVolume / drivingPressure) * 10) / 10;
+    }
+
+    // Auto-calculate tidal volume per IBW
+    let tidalVolumePerIBW: number | undefined;
+    if (dto.tidalVolume !== undefined && dto.idealBodyWeightKg !== undefined) {
+      tidalVolumePerIBW = Math.round((dto.tidalVolume / dto.idealBodyWeightKg) * 10) / 10;
+    }
+
+    // Lung-protective ventilation alerts
+    if (tidalVolumePerIBW !== undefined && tidalVolumePerIBW > 8) {
+      alerts.push(`Volume corrente elevado (${tidalVolumePerIBW} mL/kg IBW). Alvo: 6-8 mL/kg IBW.`);
+    }
+    if (dto.plateauPressure !== undefined && dto.plateauPressure > 30) {
+      alerts.push(`Pressao de plato elevada (${dto.plateauPressure} cmH2O). Manter < 30 cmH2O.`);
+    }
+    if (drivingPressure !== undefined && drivingPressure > 15) {
+      alerts.push(`Driving pressure elevada (${drivingPressure} cmH2O). Manter < 15 cmH2O.`);
+    }
+    if (pfRatio !== undefined && pfRatio < 150) {
+      alerts.push(`P/F ratio < 150: ARDS moderado/grave. Considerar pronacao, PEEP elevado.`);
+    }
+    if (dto.fio2 !== undefined && dto.fio2 > 60) {
+      alerts.push(`FiO2 > 60%. Titular PEEP para reduzir FiO2. Alvo SpO2 92-96%.`);
     }
 
     const doc = await this.prisma.clinicalDocument.create({
@@ -496,6 +693,7 @@ export class IcuService {
           mode: dto.mode,
           tidalVolume: dto.tidalVolume,
           respiratoryRate: dto.respiratoryRate,
+          measuredRR: dto.measuredRR,
           fio2: dto.fio2,
           peep: dto.peep,
           pressureSupport: dto.pressureSupport,
@@ -504,12 +702,19 @@ export class IcuService {
           peakPressure: dto.peakPressure,
           meanAirwayPressure: dto.meanAirwayPressure,
           drivingPressure,
+          staticCompliance,
+          tidalVolumePerIBW,
           compliance: dto.compliance,
           resistance: dto.resistance,
           pao2: dto.pao2,
           paco2: dto.paco2,
           spo2: dto.spo2,
           pfRatio,
+          idealBodyWeightKg: dto.idealBodyWeightKg,
+          minuteVentilation: dto.minuteVentilation,
+          ieRatio: dto.ieRatio,
+          autoPeep: dto.autoPeep,
+          alerts,
           observations: dto.observations,
           recordedAt: new Date().toISOString(),
         }),
@@ -518,7 +723,16 @@ export class IcuService {
       },
     });
 
-    return { id: doc.id, mode: dto.mode, drivingPressure, pfRatio, createdAt: doc.createdAt };
+    return {
+      id: doc.id,
+      mode: dto.mode,
+      drivingPressure,
+      pfRatio,
+      staticCompliance,
+      tidalVolumePerIBW,
+      alerts,
+      createdAt: doc.createdAt,
+    };
   }
 
   // ─── Dialysis / CRRT ────────────────────────────────────────────────────
@@ -1191,6 +1405,131 @@ export class IcuService {
       alerts,
       norepinephrineSuggestion,
       disclaimer: 'Sugestão assistida por IA — titulação de vasopressores é decisão médica. Revisão obrigatória.',
+    };
+  }
+
+  // ─── Weaning Assessment ──────────────────────────────────────────────────
+
+  /**
+   * Assess readiness for ventilator weaning based on latest ventilation and sedation data.
+   *
+   * SBT criteria:
+   * 1. FiO2 <= 40% and PEEP <= 8
+   * 2. Hemodynamically stable (no/low vasopressors)
+   * 3. Adequate consciousness (follows commands, RASS >= -1)
+   * 4. Adequate cough reflex
+   * 5. Minimal secretions
+   * 6. Resolved acute phase
+   *
+   * RSBI = RR / Vt(L) < 105 predicts successful extubation.
+   */
+  async assessWeaningReadiness(tenantId: string, patientId: string, encounterId?: string): Promise<WeaningAssessmentResult> {
+    const whereBase: Record<string, unknown> = { tenantId, patientId };
+    if (encounterId) whereBase.encounterId = encounterId;
+
+    // Get latest ventilation record
+    const latestVent = await this.prisma.clinicalDocument.findFirst({
+      where: { ...whereBase, title: { startsWith: '[ICU:VENTILATION]' }, status: 'FINAL' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Get latest sedation record
+    const latestSedation = await this.prisma.clinicalDocument.findFirst({
+      where: { ...whereBase, title: { startsWith: '[ICU:SEDATION]' }, status: 'FINAL' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const ventContent = latestVent ? JSON.parse(latestVent.content as string) : {};
+    const sedContent = latestSedation ? JSON.parse(latestSedation.content as string) : {};
+
+    const fio2 = ventContent.fio2 ?? 100;
+    const peep = ventContent.peep ?? 20;
+    const pfRatio = ventContent.pfRatio ?? 0;
+    const rass = sedContent.rass ?? -5;
+    const measuredRR = ventContent.measuredRR;
+    const tidalVolume = ventContent.tidalVolume;
+
+    // Calculate RSBI if data available
+    let rsbi: number | undefined;
+    if (measuredRR && tidalVolume && tidalVolume > 0) {
+      rsbi = measuredRR / (tidalVolume / 1000);
+    }
+
+    const criteria: WeaningCriteria = {
+      adequateOxygenation: pfRatio >= 150,
+      hemodynamicallyStable: true, // Would need vasopressor data
+      adequateConsciousness: rass >= -1,
+      adequateCoughReflex: true, // Clinical assessment
+      minimalSecretions: true, // Clinical assessment
+      resolvedAcutePhase: true, // Clinical assessment
+      fiO2LessOrEqual40: fio2 <= 40,
+      peepLessOrEqual8: peep <= 8,
+      noHighVasopressors: true, // Would need vasopressor data
+      rapidShallowBreathingIndex: rsbi,
+      rsbiAcceptable: rsbi !== undefined ? rsbi < 105 : false,
+    };
+
+    const readyForSBT = criteria.fiO2LessOrEqual40
+      && criteria.peepLessOrEqual8
+      && criteria.adequateConsciousness
+      && criteria.adequateOxygenation;
+
+    const recommendations: string[] = [];
+    if (readyForSBT) {
+      recommendations.push('Paciente preenche criterios para SBT. Iniciar teste de respiracao espontanea.');
+      if (rsbi !== undefined && rsbi < 105) {
+        recommendations.push(`RSBI ${Math.round(rsbi)}: favoravel para extubacao.`);
+      }
+    } else {
+      if (!criteria.fiO2LessOrEqual40) {
+        recommendations.push(`FiO2 ${Math.round(fio2)}% > 40%. Otimizar PEEP e titular FiO2.`);
+      }
+      if (!criteria.peepLessOrEqual8) {
+        recommendations.push(`PEEP ${peep} > 8 cmH2O. Reduzir gradualmente.`);
+      }
+      if (!criteria.adequateConsciousness) {
+        recommendations.push('Nivel de consciencia insuficiente. Realizar SAT e reavaliar.');
+      }
+      if (!criteria.adequateOxygenation) {
+        recommendations.push('P/F ratio insuficiente. Otimizar ventilacao antes de desmame.');
+      }
+    }
+
+    return { readyForSBT, criteria, recommendations };
+  }
+
+  // ─── Enhanced Device Tracking ──────────────────────────────────────────────
+
+  /**
+   * Get days a device has been in situ.
+   */
+  getDaysInSitu(insertionDate: string | Date, referenceDate: Date = new Date()): number {
+    const insertedAt = typeof insertionDate === 'string' ? new Date(insertionDate) : insertionDate;
+    return Math.floor((referenceDate.getTime() - insertedAt.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  /**
+   * Check bundle compliance against standard template items.
+   */
+  checkBundleComplianceDetailed(
+    bundleType: BundleTypeEnum,
+    items: Array<{ item: string; compliant: boolean }>,
+  ): { compliant: boolean; complianceRate: number; missingItems: string[] } {
+    let templateItems: readonly string[];
+    switch (bundleType) {
+      case BundleTypeEnum.CVC_BUNDLE: templateItems = CVC_BUNDLE_ITEMS; break;
+      case BundleTypeEnum.VAP_BUNDLE: templateItems = VAP_BUNDLE_ITEMS; break;
+      case BundleTypeEnum.CAUTI_BUNDLE: templateItems = CAUTI_BUNDLE_ITEMS; break;
+    }
+    const checkedItemNames = new Set(items.map((i) => i.item));
+    const missingItems = templateItems.filter((t) => !checkedItemNames.has(t));
+    const totalItems = items.length + missingItems.length;
+    const compliantCount = items.filter((i) => i.compliant).length;
+    const complianceRate = totalItems > 0 ? Math.round((compliantCount / totalItems) * 100) : 0;
+    return {
+      compliant: missingItems.length === 0 && items.every((i) => i.compliant),
+      complianceRate,
+      missingItems,
     };
   }
 

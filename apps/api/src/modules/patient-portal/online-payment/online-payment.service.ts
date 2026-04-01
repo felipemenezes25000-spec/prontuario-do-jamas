@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { CreateCheckoutDto, SetupInstallmentsDto } from './online-payment.dto';
+import { CreateCheckoutDto, SetupInstallmentsDto, PaymentWebhookDto, GeneratePixDto } from './online-payment.dto';
 
 interface PaymentRecord {
   id: string;
@@ -14,7 +14,7 @@ interface PaymentRecord {
   tenantId: string;
   amount: number;
   paymentMethod: string;
-  status: 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  status: 'PENDING' | 'PROCESSING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'EXPIRED';
   installments?: Array<{ number: number; amount: number; dueDate: string; status: string }>;
   cpf?: string;
   pixCode?: string;
@@ -183,5 +183,87 @@ export class OnlinePaymentService {
     });
 
     return { paymentId, installments: payment.installments };
+  }
+
+  async generatePixQrCode(tenantId: string, userEmail: string, dto: GeneratePixDto) {
+    const patientId = await this.resolvePatientId(tenantId, userEmail);
+
+    const billingEntry = await this.prisma.billingEntry.findFirst({
+      where: { id: dto.billingEntryId, tenantId, patientId },
+    });
+    if (!billingEntry) {
+      throw new NotFoundException('Fatura não encontrada.');
+    }
+
+    const amount = billingEntry.totalAmount ? Number(billingEntry.totalAmount) : 0;
+    if (amount <= 0) {
+      throw new BadRequestException('Valor da fatura inválido.');
+    }
+
+    // Generate PIX EMV code (production: call PSP API)
+    const txId = crypto.randomUUID().replace(/-/g, '').substring(0, 25);
+    const pixCopiaECola = `00020126580014br.gov.bcb.pix0136${crypto.randomUUID()}5204000053039865802BR5913VoxPEP Saude6012SAO PAULO62070503***6304`;
+    const qrImageUrl = `https://api.voxpep.com/pix/qr/${txId}.png`;
+
+    return {
+      amount,
+      pixCopiaECola,
+      qrImageUrl,
+      txId,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 min
+    };
+  }
+
+  async processPaymentWebhook(tenantId: string, dto: PaymentWebhookDto) {
+    const doc = await this.prisma.clinicalDocument.findFirst({
+      where: { id: dto.paymentId, tenantId, type: 'CUSTOM', title: { startsWith: 'PAYMENT:' } },
+    });
+    if (!doc) throw new NotFoundException('Pagamento não encontrado.');
+
+    const payment = JSON.parse(doc.content ?? '{}') as PaymentRecord;
+    payment.status = dto.status;
+    if (dto.status === 'PAID') {
+      payment.paidAt = dto.paidAt ?? new Date().toISOString();
+    }
+
+    await this.prisma.clinicalDocument.update({
+      where: { id: dto.paymentId },
+      data: {
+        content: JSON.stringify(payment),
+        status: dto.status === 'PAID' ? 'SIGNED' : 'DRAFT',
+      },
+    });
+
+    return { paymentId: dto.paymentId, status: dto.status, processed: true };
+  }
+
+  async getReceipt(tenantId: string, userEmail: string, paymentId: string) {
+    await this.resolvePatientId(tenantId, userEmail);
+
+    const doc = await this.prisma.clinicalDocument.findFirst({
+      where: { id: paymentId, tenantId, type: 'CUSTOM', title: { startsWith: 'PAYMENT:' } },
+    });
+    if (!doc) throw new NotFoundException('Pagamento não encontrado.');
+
+    const payment = JSON.parse(doc.content ?? '{}') as PaymentRecord;
+    if (payment.status !== 'PAID') {
+      throw new BadRequestException('Comprovante disponível apenas para pagamentos confirmados.');
+    }
+
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: payment.patientId, tenantId },
+      select: { fullName: true, cpf: true },
+    });
+
+    return {
+      receiptId: crypto.randomUUID(),
+      paymentId,
+      patientName: patient?.fullName,
+      cpf: payment.cpf ?? patient?.cpf,
+      amount: payment.amount,
+      paymentMethod: payment.paymentMethod,
+      paidAt: payment.paidAt,
+      installments: payment.installments,
+    };
   }
 }

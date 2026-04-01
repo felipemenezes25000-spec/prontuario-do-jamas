@@ -24,8 +24,6 @@ import {
   AiAutoCompleteDto,
   AiTranslateNoteDto,
   AiPatientSummaryDto,
-  PatientTimelineFilterDto,
-  TimelineEventType,
   InterConsultStatus,
   DocumentLockStatus,
   UnifiedTimelineEntry,

@@ -140,6 +140,16 @@ import { IdentityVerificationModule } from './modules/identity-verification/iden
 import { AccreditationModule } from './modules/accreditation/accreditation.module';
 // Device Integration (IEEE 11073 & Remote Exam Devices)
 import { DeviceIntegrationModule } from './modules/device-integration/device-integration.module';
+// Clinical History & Anamnesis
+import { ClinicalHistoryModule } from './modules/clinical-history/clinical-history.module';
+// Patient Safety Advanced & Hospital Management Consolidated Modules
+import { PatientSafetyModule } from './modules/patient-safety/patient-safety.module';
+import { HospitalManagementModule } from './modules/hospital-management/hospital-management.module';
+// Document OCR & Trauma Protocol
+import { DocumentOcrModule } from './modules/document-ocr/document-ocr.module';
+import { TraumaProtocolModule } from './modules/trauma-protocol/trauma-protocol.module';
+// Accessibility
+import { AccessibilityModule } from './modules/accessibility/accessibility.module';
 
 @Module({
   imports: [
@@ -280,6 +290,17 @@ import { DeviceIntegrationModule } from './modules/device-integration/device-int
     AccreditationModule,
     // Device Integration (IEEE 11073 & Remote Exam Devices)
     DeviceIntegrationModule,
+    // Clinical History & Anamnesis
+    ClinicalHistoryModule,
+    // Patient Safety Advanced (adverse events, near-miss, positive ID, RCA, VTE, SSI)
+    PatientSafetyModule,
+    // Hospital Management (supply, SND, laundry, waste, procurement, contracts, ombudsman, SAME)
+    HospitalManagementModule,
+    // Document OCR & Trauma Protocol
+    DocumentOcrModule,
+    TraumaProtocolModule,
+    // Accessibility
+    AccessibilityModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

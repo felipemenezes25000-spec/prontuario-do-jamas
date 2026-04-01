@@ -1271,6 +1271,170 @@ export class AiController {
     }
   }
 
+  // ─── Generate Coding Suggestions ─────────────────────────────────
+
+  @Post('encounters/:encounterId/coding-suggestions/generate')
+  @ApiOperation({
+    summary: 'Generate ICD-10 and procedure coding suggestions for an encounter',
+    description:
+      'Fetches encounter clinical notes and runs AI-powered coding suggestion generation.',
+  })
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Coding suggestions generated', type: CodingSuggestionsResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async generateCodingSuggestions(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<CodingSuggestionsResponseDto> {
+    try {
+      // Fetch encounter clinical notes to provide richer context
+      const clinicalNotes = await this.prisma.clinicalNote.findMany({
+        where: { encounterId },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const assessment = clinicalNotes.length > 0
+        ? clinicalNotes
+            .map((n) => [n.subjective, n.objective, n.assessment, n.plan, n.freeText].filter(Boolean).join(' '))
+            .join('\n')
+        : `Encounter ${encounterId}`;
+
+      const result = await this.codingAi.suggestCodes({ assessment });
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        action: 'AI_SUGGESTION',
+        entity: 'CodingSuggestion',
+        newData: {
+          encounterId,
+          operation: 'GENERATE',
+          diagnosisCount: result.diagnosisCodes.length,
+          procedureCount: result.procedureCodes.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return {
+        diagnosisCodes: result.diagnosisCodes,
+        procedureCodes: result.procedureCodes,
+      };
+    } catch (error) {
+      this.logger.error(
+        `generateCodingSuggestions failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
+  // ─── Generate Encounter Summary ─────────────────────────────────
+
+  @Post('encounters/:encounterId/summary/generate')
+  @ApiOperation({
+    summary: 'Generate AI-powered encounter summary',
+    description:
+      'Aggregates clinical notes, vitals, prescriptions, and diagnoses from the encounter and generates a concise AI summary.',
+  })
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID', type: String })
+  @ApiResponse({ status: 200, description: 'Encounter summary generated', type: PatientSummaryResponseDto })
+  @ApiResponse({ status: 503, description: 'AI service unavailable' })
+  async generateEncounterSummary(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<PatientSummaryResponseDto> {
+    try {
+      // Fetch encounter and related data via separate queries to avoid TS type inference issues
+      const [encounter, notes, prescriptions, vitals] = await Promise.all([
+        this.prisma.encounter.findUnique({
+          where: { id: encounterId },
+        }),
+        this.prisma.clinicalNote.findMany({
+          where: { encounterId },
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.prescription.findMany({
+          where: { encounterId, status: 'ACTIVE' },
+          include: { items: true },
+        }),
+        this.prisma.vitalSigns.findMany({
+          where: { encounterId },
+          take: 3,
+          orderBy: { recordedAt: 'desc' },
+        }),
+      ]);
+
+      // Fetch patient if encounter exists
+      const patient = encounter
+        ? await this.prisma.patient.findUnique({
+            where: { id: encounter.patientId },
+            select: { id: true, fullName: true, birthDate: true, gender: true },
+          })
+        : null;
+
+      const encounterData: Record<string, unknown> = {
+        encounterId,
+        patient: patient ?? {},
+        chiefComplaint: encounter?.chiefComplaint ?? 'Nao informado',
+        clinicalNotes: notes.map((n) => ({
+          type: n.type,
+          subjective: n.subjective,
+          objective: n.objective,
+          assessment: n.assessment,
+          plan: n.plan,
+          freeText: n.freeText,
+        })),
+        prescriptions: prescriptions.map((rx) => ({
+          status: rx.status,
+          items: rx.items.map((i) => ({
+            medication: i.medicationName,
+            dose: i.dose,
+            route: i.route,
+            frequency: i.frequency,
+          })),
+        })),
+        vitals: vitals.map((v) => ({
+          heartRate: v.heartRate,
+          systolicBP: v.systolicBP,
+          diastolicBP: v.diastolicBP,
+          temperature: v.temperature,
+          spo2: v.oxygenSaturation,
+          respiratoryRate: v.respiratoryRate,
+          recordedAt: v.recordedAt,
+        })),
+      };
+
+      const summary = await this.patientSummaryAi.generateSummary(encounterData);
+
+      await this.auditService.log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        patientId: patient?.id,
+        action: 'AI_SUGGESTION',
+        entity: 'EncounterSummary',
+        newData: {
+          encounterId,
+          summaryLength: summary.length,
+        },
+      }).catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      return { summary };
+    } catch (error) {
+      this.logger.error(
+        `generateEncounterSummary failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new ServiceUnavailableException(
+        'Servico de IA indisponivel. Tente novamente em alguns instantes.',
+      );
+    }
+  }
+
   // ─── Patient Summary (GET) ──────────────────────────────────────
 
   @Get('patients/:patientId/summary')

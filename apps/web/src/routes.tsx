@@ -145,6 +145,17 @@ const OmbudsmanPage = lazy(() => import('@/pages/ombudsman'));
 const ProcurementPage = lazy(() => import('@/pages/procurement'));
 const ContractsPage = lazy(() => import('@/pages/contracts'));
 const AccessibilityPage = lazy(() => import('@/pages/accessibility'));
+const ArrhythmiaMonitoringPage = lazy(() => import('@/pages/arrhythmia-monitoring'));
+const BackupRecoveryPage = lazy(() => import('@/pages/backup-recovery'));
+const ClinicalHistoryPage = lazy(() => import('@/pages/clinical-history'));
+const HospitalManagementPage = lazy(() => import('@/pages/hospital-management'));
+const LgpdDpoPage = lazy(() => import('@/pages/lgpd-dpo'));
+const PhlebotomyPage = lazy(() => import('@/pages/phlebotomy'));
+const DischargePage = lazy(() => import('@/pages/discharge'));
+const IcuMonitoringPage = lazy(() => import('@/pages/icu-monitoring'));
+const TraumaProtocolPage = lazy(() => import('@/pages/trauma-protocol'));
+const CardiacArrestPage = lazy(() => import('@/pages/cardiac-arrest'));
+const IdentityVerificationPage = lazy(() => import('@/pages/identity-verification'));
 
 function PageLoader() {
   return (
@@ -350,6 +361,19 @@ export function AppRoutes() {
         <Route path="compras" element={<SuspenseWrap><ProcurementPage /></SuspenseWrap>} />
         <Route path="contratos" element={<SuspenseWrap><ContractsPage /></SuspenseWrap>} />
         <Route path="acessibilidade" element={<SuspenseWrap><AccessibilityPage /></SuspenseWrap>} />
+        {/* Pages previously missing routes */}
+        <Route path="monitoramento-arritmia" element={<SuspenseWrap><ArrhythmiaMonitoringPage /></SuspenseWrap>} />
+        <Route path="backup-recovery" element={<SuspenseWrap><BackupRecoveryPage /></SuspenseWrap>} />
+        <Route path="historico-clinico" element={<SuspenseWrap><ClinicalHistoryPage /></SuspenseWrap>} />
+        <Route path="gestao-hospitalar" element={<SuspenseWrap><HospitalManagementPage /></SuspenseWrap>} />
+        <Route path="lgpd-dpo" element={<SuspenseWrap><LgpdDpoPage /></SuspenseWrap>} />
+        <Route path="flebotomia" element={<SuspenseWrap><PhlebotomyPage /></SuspenseWrap>} />
+        <Route path="alta" element={<SuspenseWrap><DischargePage /></SuspenseWrap>} />
+        {/* New pages */}
+        <Route path="uti-monitoramento" element={<SuspenseWrap><IcuMonitoringPage /></SuspenseWrap>} />
+        <Route path="protocolo-trauma" element={<SuspenseWrap><TraumaProtocolPage /></SuspenseWrap>} />
+        <Route path="parada-cardiaca" element={<SuspenseWrap><CardiacArrestPage /></SuspenseWrap>} />
+        <Route path="identificacao-paciente" element={<SuspenseWrap><IdentityVerificationPage /></SuspenseWrap>} />
         <Route
           path="tenants"
           element={

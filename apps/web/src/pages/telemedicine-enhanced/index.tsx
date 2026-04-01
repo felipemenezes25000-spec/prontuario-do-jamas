@@ -41,13 +41,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  useWaitingRoom,
+  useVirtualWaitingRoom,
   useAdmitPatient,
   useAsyncConsultations,
   useCreateAsyncConsultation,
-  useRpmAlerts,
-  useRequestDoctorConsult,
-  type RpmAlert,
+  useRPMAlerts,
+  useCreateTeleconsultoria,
+  type RPMAlert,
 } from '@/services/telemedicine-enhanced.service';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -80,8 +80,7 @@ const SPECIALTIES = [
 // ─── Waiting Room Tab ───────────────────────────────────────────────────────
 
 function WaitingRoomTab() {
-  const [roomName] = useState('default');
-  const { data: entries, isLoading } = useWaitingRoom(roomName);
+  const { data: entries, isLoading } = useVirtualWaitingRoom();
   const admitPatient = useAdmitPatient();
   const [recordingConsent, setRecordingConsent] = useState<Record<string, boolean>>({});
 
@@ -120,7 +119,7 @@ function WaitingRoomTab() {
         </Card>
         <Card>
           <CardContent className="pt-5 pb-4 text-center">
-            <p className="text-3xl font-bold text-blue-400">{roomName}</p>
+            <p className="text-3xl font-bold text-blue-400">Virtual</p>
             <p className="text-sm text-muted-foreground">Sala Virtual</p>
           </CardContent>
         </Card>
@@ -194,9 +193,9 @@ function WaitingRoomTab() {
 
 function RpmTab() {
   const [showAcknowledged, setShowAcknowledged] = useState(false);
-  const { data: alertsData, isLoading } = useRpmAlerts({ acknowledged: showAcknowledged ? undefined : false });
+  const { data: alertsData, isLoading } = useRPMAlerts({ acknowledged: showAcknowledged ? undefined : false });
 
-  const alerts: RpmAlert[] = alertsData?.data ?? [];
+  const alerts: RPMAlert[] = alertsData?.data ?? [];
 
   return (
     <div className="space-y-4">
@@ -265,7 +264,7 @@ function RpmTab() {
 function TeleconsultoriaTab() {
   const { data: consultData, isLoading } = useAsyncConsultations();
   const createConsult = useCreateAsyncConsultation();
-  const requestD2D = useRequestDoctorConsult();
+  const requestD2D = useCreateTeleconsultoria();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [specialty, setSpecialty] = useState('');
@@ -273,7 +272,6 @@ function TeleconsultoriaTab() {
   const [d2dDialogOpen, setD2dDialogOpen] = useState(false);
   const [d2dSpecialty, setD2dSpecialty] = useState('');
   const [d2dQuestion, setD2dQuestion] = useState('');
-  const [d2dUrgency, setD2dUrgency] = useState('MEDIUM');
 
   const consultations = consultData?.data ?? [];
 
@@ -283,7 +281,13 @@ function TeleconsultoriaTab() {
       return;
     }
     createConsult.mutate(
-      { specialty, description: description.trim() },
+      {
+        patientId: '',
+        specialty,
+        subject: description.trim(),
+        description: description.trim(),
+        priority: 'NORMAL',
+      },
       {
         onSuccess: () => {
           toast.success('Consulta assíncrona criada');
@@ -303,10 +307,8 @@ function TeleconsultoriaTab() {
     }
     requestD2D.mutate(
       {
-        encounterId: '',
-        targetSpecialty: d2dSpecialty,
-        consultType: 'ASYNC',
-        urgency: d2dUrgency,
+        specialty: d2dSpecialty,
+        patientSummary: '',
         clinicalQuestion: d2dQuestion.trim(),
       },
       {
@@ -315,12 +317,11 @@ function TeleconsultoriaTab() {
           setD2dDialogOpen(false);
           setD2dSpecialty('');
           setD2dQuestion('');
-          setD2dUrgency('MEDIUM');
         },
         onError: () => toast.error('Erro ao solicitar parecer'),
       },
     );
-  }, [d2dSpecialty, d2dQuestion, d2dUrgency, requestD2D]);
+  }, [d2dSpecialty, d2dQuestion, requestD2D]);
 
   return (
     <div className="space-y-4">
@@ -396,20 +397,6 @@ function TeleconsultoriaTab() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Urgência</Label>
-                <Select value={d2dUrgency} onValueChange={setD2dUrgency}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="LOW">Baixa</SelectItem>
-                    <SelectItem value="MEDIUM">Média</SelectItem>
-                    <SelectItem value="HIGH">Alta</SelectItem>
-                    <SelectItem value="CRITICAL">Crítica</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
                 <Label>Pergunta Clínica</Label>
                 <Textarea
                   value={d2dQuestion}
@@ -449,16 +436,16 @@ function TeleconsultoriaTab() {
             </TableHeader>
             <TableBody>
               {consultations.map((c) => (
-                <TableRow key={c.consultationId}>
+                <TableRow key={c.id}>
                   <TableCell className="font-medium text-sm">{c.specialty}</TableCell>
                   <TableCell className="text-sm max-w-xs truncate">{c.description}</TableCell>
                   <TableCell>
-                    <Badge variant={c.status === 'COMPLETED' ? 'default' : 'secondary'}>
-                      {c.status === 'COMPLETED' ? 'Respondida' : c.status === 'PENDING' ? 'Pendente' : c.status}
+                    <Badge variant={c.status === 'RESPONDED' ? 'default' : 'secondary'}>
+                      {c.status === 'RESPONDED' ? 'Respondida' : c.status === 'PENDING' ? 'Pendente' : c.status}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {c.hasResponse ? (
+                    {c.responseText ? (
                       <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                     ) : (
                       <Clock className="h-4 w-4 text-muted-foreground" />

@@ -181,4 +181,32 @@ export class RisPacsController {
   ) {
     return this.risPacsService.requestTeleradiology(tenantId, studyId, dto);
   }
+
+  // ─── Incidental Findings List ──────────────────────────────────────────────
+
+  @Get('findings/patient/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiOperation({ summary: 'List all incidental findings needing follow-up for a patient' })
+  @ApiResponse({ status: 200, description: 'Incidental findings list' })
+  async getIncidentalFindings(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+  ) {
+    return this.risPacsService.getIncidentalFindings(tenantId, patientId);
+  }
+
+  // ─── Image Comparison ──────────────────────────────────────────────────────
+
+  @Post('compare')
+  @ApiQuery({ name: 'studyId1', required: true, description: 'First study UUID or Study Instance UID' })
+  @ApiQuery({ name: 'studyId2', required: true, description: 'Second study UUID or Study Instance UID' })
+  @ApiOperation({ summary: 'Setup prior comparison between two imaging studies' })
+  @ApiResponse({ status: 201, description: 'Comparison setup created' })
+  async createImageComparison(
+    @CurrentTenant() tenantId: string,
+    @Query('studyId1') studyId1: string,
+    @Query('studyId2') studyId2: string,
+  ) {
+    return this.risPacsService.createImageComparison(tenantId, studyId1, studyId2);
+  }
 }

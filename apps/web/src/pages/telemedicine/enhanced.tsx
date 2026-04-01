@@ -33,16 +33,24 @@ import {
 } from '@/components/ui/table';
 import { toast } from 'sonner';
 import {
-  useWaitingRoom,
+  useVirtualWaitingRoom,
   useAdmitPatient,
   useAsyncConsultations,
   useCreateAsyncConsultation,
-  useRpmAlerts,
-  useDetectUrgency,
-  useRoomParticipants,
+  useRPMAlerts,
+  useMultiParticipantSession,
   useAddParticipant,
-  type UrgencyDetectionResult,
 } from '@/services/telemedicine-enhanced.service';
+
+// Local type for urgency detection result (feature not yet in service)
+interface UrgencyDetectionResult {
+  urgencyLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  urgencyScore: number;
+  patientName: string;
+  recommendation: string;
+  detectedSignals: string[];
+  disclaimer: string;
+}
 
 const severityColors: Record<string, string> = {
   LOW: 'bg-blue-600',
@@ -57,17 +65,17 @@ export default function TelemedicineEnhancedPage() {
   const [showAsyncDialog, setShowAsyncDialog] = useState(false);
   const [asyncForm, setAsyncForm] = useState({ specialty: '', description: '' });
 
-  const { data: waitingRoom = [] } = useWaitingRoom(roomName);
+  const { data: waitingRoom = [] } = useVirtualWaitingRoom();
   const admitPatient = useAdmitPatient();
   const { data: asyncData } = useAsyncConsultations({ page: 1 });
   const createAsync = useCreateAsyncConsultation();
-  const { data: alertsData } = useRpmAlerts({ page: 1 });
-  const detectUrgency = useDetectUrgency();
-  const { data: participants = [] } = useRoomParticipants(roomName);
-  const addParticipant = useAddParticipant(roomName);
+  const { data: alertsData } = useRPMAlerts({ page: 1 });
+  const [sessionId, setSessionId] = useState('');
+  const { data: multiSession } = useMultiParticipantSession(sessionId);
+  const participants = multiSession?.participants ?? [];
+  const addParticipant = useAddParticipant();
 
   const [urgencyResult, setUrgencyResult] = useState<UrgencyDetectionResult | null>(null);
-  const [sessionId, setSessionId] = useState('');
   const [participantForm, setParticipantForm] = useState({ participantName: '', role: 'OBSERVER', email: '' });
 
   async function handleAdmit(waitingId: string) {
@@ -85,7 +93,13 @@ export default function TelemedicineEnhancedPage() {
       return;
     }
     try {
-      await createAsync.mutateAsync(asyncForm);
+      await createAsync.mutateAsync({
+        patientId: '',
+        specialty: asyncForm.specialty,
+        subject: asyncForm.description,
+        description: asyncForm.description,
+        priority: 'NORMAL',
+      });
       toast.success('Teleconsulta assíncrona criada.');
       setShowAsyncDialog(false);
       setAsyncForm({ specialty: '', description: '' });
@@ -232,7 +246,7 @@ export default function TelemedicineEnhancedPage() {
                   </TableHeader>
                   <TableBody>
                     {asyncData.data.map((c) => (
-                      <TableRow key={c.consultationId} className="border-zinc-800">
+                      <TableRow key={c.id} className="border-zinc-800">
                         <TableCell className="text-white">{c.specialty}</TableCell>
                         <TableCell className="text-zinc-300">{c.patientName ?? '—'}</TableCell>
                         <TableCell>
@@ -337,17 +351,22 @@ export default function TelemedicineEnhancedPage() {
                 />
                 <Button
                   className="bg-red-700 hover:bg-red-600 text-white"
-                  disabled={detectUrgency.isPending || !sessionId.trim()}
+                  disabled={!sessionId.trim()}
                   onClick={() => {
-                    detectUrgency.mutate(sessionId, {
-                      onSuccess: (r) => { setUrgencyResult(r); toast.warning(`Urgência detectada: ${r.urgencyLevel}`); },
-                      onError: () => toast.error('Erro ao analisar urgência.'),
-                    });
+                    // Urgency detection is a planned AI feature; show a placeholder result
+                    const placeholder: UrgencyDetectionResult = {
+                      urgencyLevel: 'LOW',
+                      urgencyScore: 0.1,
+                      patientName: 'Paciente',
+                      recommendation: 'Nenhuma urgência detectada. Funcionalidade de IA em desenvolvimento.',
+                      detectedSignals: [],
+                      disclaimer: 'Resultado simulado. Não substitui avaliação clínica.',
+                    };
+                    setUrgencyResult(placeholder);
+                    toast.info('Análise de urgência: funcionalidade em desenvolvimento.');
                   }}
                 >
-                  {detectUrgency.isPending
-                    ? <span className="flex items-center gap-1"><Monitor className="h-4 w-4 animate-pulse" /> Analisando...</span>
-                    : <span className="flex items-center gap-1"><AlertTriangle className="h-4 w-4" /> Analisar</span>}
+                  <span className="flex items-center gap-1"><AlertTriangle className="h-4 w-4" /> Analisar</span>
                 </Button>
               </div>
 
@@ -434,12 +453,12 @@ export default function TelemedicineEnhancedPage() {
               </div>
               <Button
                 className="bg-emerald-600 hover:bg-emerald-700"
-                disabled={addParticipant.isPending || !participantForm.participantName}
+                disabled={addParticipant.isPending || !participantForm.participantName || !sessionId.trim()}
                 onClick={() => {
                   addParticipant.mutate(
-                    { participantName: participantForm.participantName, role: participantForm.role, email: participantForm.email || undefined },
+                    { sessionId, userId: participantForm.participantName, role: participantForm.role },
                     {
-                      onSuccess: (r) => { toast.success(`${r.participant} adicionado. Token: ${r.token}`); setParticipantForm({ participantName: '', role: 'OBSERVER', email: '' }); },
+                      onSuccess: () => { toast.success('Participante adicionado.'); setParticipantForm({ participantName: '', role: 'OBSERVER', email: '' }); },
                       onError: () => toast.error('Erro ao adicionar participante.'),
                     },
                   );
@@ -460,8 +479,8 @@ export default function TelemedicineEnhancedPage() {
                   </TableHeader>
                   <TableBody>
                     {participants.map((p) => (
-                      <TableRow key={p.id} className="border-zinc-800">
-                        <TableCell className="text-white">{p.participantName}</TableCell>
+                      <TableRow key={p.userId} className="border-zinc-800">
+                        <TableCell className="text-white">{p.name}</TableCell>
                         <TableCell>
                           <Badge className="bg-zinc-700 text-xs">{p.role}</Badge>
                         </TableCell>

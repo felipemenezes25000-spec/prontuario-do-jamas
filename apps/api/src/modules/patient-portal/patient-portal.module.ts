@@ -15,6 +15,9 @@ import { HealthDiaryModule } from './health-diary/health-diary.module';
 import { DocumentUploadModule } from './document-upload/document-upload.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { AiFeaturesModule } from './ai-features/ai-features.module';
+// Advanced portal features
+import { PortalAdvancedService } from './portal-advanced.service';
+import { PortalAdvancedController } from './portal-advanced.controller';
 
 @Module({
   imports: [
@@ -33,8 +36,8 @@ import { AiFeaturesModule } from './ai-features/ai-features.module';
     RemindersModule,
     AiFeaturesModule,
   ],
-  controllers: [PatientPortalController],
-  providers: [PatientPortalService],
-  exports: [PatientPortalService],
+  controllers: [PatientPortalController, PortalAdvancedController],
+  providers: [PatientPortalService, PortalAdvancedService],
+  exports: [PatientPortalService, PortalAdvancedService],
 })
 export class PatientPortalModule {}

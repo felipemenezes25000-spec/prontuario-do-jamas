@@ -78,4 +78,37 @@ export class PatientMessagingController {
   ) {
     return this.service.markAsRead(tenantId, user.email, id);
   }
+
+  @Patch('messages/:id/triage')
+  @ApiOperation({ summary: 'Triage incoming message by urgency' })
+  @ApiParam({ name: 'id', description: 'Message thread UUID' })
+  @ApiResponse({ status: 200, description: 'Message triaged' })
+  async triageMessage(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('urgency') urgency: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT',
+  ) {
+    return this.service.triageMessage(tenantId, id, urgency);
+  }
+
+  @Get('messages/queue/:doctorId')
+  @ApiOperation({ summary: 'Doctor pending messages with SLA tracking' })
+  @ApiParam({ name: 'doctorId', description: 'Doctor UUID' })
+  @ApiResponse({ status: 200, description: 'Doctor message queue' })
+  async getMessageQueue(
+    @CurrentTenant() tenantId: string,
+    @Param('doctorId', ParseUUIDPipe) doctorId: string,
+  ) {
+    return this.service.getMessageQueue(tenantId, doctorId);
+  }
+
+  @Get('messages/unread-count')
+  @ApiOperation({ summary: 'Get unread message count for current user' })
+  @ApiResponse({ status: 200, description: 'Unread count' })
+  async getUnreadCount(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.getUnreadCount(tenantId, user.email);
+  }
 }

@@ -61,4 +61,24 @@ export class ClinicalPharmacyController {
   async getRenalAlerts(@CurrentTenant() tenantId: string) {
     return this.clinicalPharmacyService.getRenalAlerts(tenantId);
   }
+
+  @Get('validation-queue')
+  @ApiOperation({ summary: 'Get pharmacy validation queue (pending prescriptions for pharmacist review)' })
+  @ApiResponse({ status: 200, description: 'Validation queue' })
+  async getPharmacyValidationQueue(@CurrentTenant() tenantId: string) {
+    return this.clinicalPharmacyService.getPharmacyValidationQueue(tenantId);
+  }
+
+  @Post('validate/:prescriptionId')
+  @ApiParam({ name: 'prescriptionId', description: 'Prescription UUID' })
+  @ApiOperation({ summary: 'Full pharmacist validation workflow for a prescription' })
+  @ApiResponse({ status: 201, description: 'Prescription validated' })
+  async validatePrescriptionFull(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('prescriptionId', ParseUUIDPipe) prescriptionId: string,
+    @Body() dto: ValidatePrescriptionDto,
+  ) {
+    return this.clinicalPharmacyService.validatePrescriptionFull(tenantId, user.sub, prescriptionId, dto);
+  }
 }

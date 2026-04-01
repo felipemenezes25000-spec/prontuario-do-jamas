@@ -80,4 +80,23 @@ export class PatientEducationController {
   ) {
     return this.service.createContent(tenantId, user.email, dto);
   }
+
+  @Post('education/:id/read')
+  @ApiOperation({ summary: 'Mark educational content as read by patient' })
+  @ApiParam({ name: 'id', description: 'Content UUID' })
+  @ApiResponse({ status: 201, description: 'Content marked as read' })
+  async markAsRead(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.markAsRead(tenantId, user.email, id);
+  }
+
+  @Get('education/categories')
+  @ApiOperation({ summary: 'List available education categories/diagnoses' })
+  @ApiResponse({ status: 200, description: 'Categories list' })
+  async getCategories(@CurrentTenant() tenantId: string) {
+    return this.service.getCategories(tenantId);
+  }
 }

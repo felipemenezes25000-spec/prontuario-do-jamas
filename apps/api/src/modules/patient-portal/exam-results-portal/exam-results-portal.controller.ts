@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Param,
   Query,
 } from '@nestjs/common';
@@ -68,5 +69,29 @@ export class ExamResultsPortalController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.service.getExamTrend(tenantId, user.email, id);
+  }
+
+  @Get('exam-results/:id/pdf')
+  @ApiOperation({ summary: 'Get exam result in PDF-friendly format with lay-language' })
+  @ApiParam({ name: 'id', description: 'ExamResult UUID' })
+  @ApiResponse({ status: 200, description: 'PDF-friendly exam result data' })
+  async getExamResultPdf(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.getExamResultForPdf(tenantId, user.email, id);
+  }
+
+  @Post('exam-results/:id/share')
+  @ApiOperation({ summary: 'Generate a secure share link for exam result' })
+  @ApiParam({ name: 'id', description: 'ExamResult UUID' })
+  @ApiResponse({ status: 201, description: 'Secure share link generated' })
+  async shareExamResult(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.shareExamResult(tenantId, user.email, id);
   }
 }

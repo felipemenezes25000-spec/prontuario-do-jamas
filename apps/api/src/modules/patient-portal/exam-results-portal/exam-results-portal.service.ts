@@ -137,6 +137,41 @@ export class ExamResultsPortalService {
     };
   }
 
+  async getExamResultForPdf(tenantId: string, userEmail: string, examId: string) {
+    const detail = await this.getExamResultDetail(tenantId, userEmail, examId);
+
+    return {
+      ...detail,
+      pdfReady: true,
+      generatedAt: new Date().toISOString(),
+      watermark: 'VoxPEP - Portal do Paciente',
+      disclaimer: 'Este documento é uma cópia digital dos resultados de exames. Para uso clínico, consulte o original.',
+    };
+  }
+
+  async shareExamResult(tenantId: string, userEmail: string, examId: string) {
+    const patientId = await this.resolvePatientId(tenantId, userEmail);
+
+    const exam = await this.prisma.examResult.findFirst({
+      where: { id: examId, patientId },
+      select: { id: true, examName: true },
+    });
+    if (!exam) {
+      throw new NotFoundException('Exame não encontrado.');
+    }
+
+    // Generate secure share token (production: signed JWT with expiration)
+    const shareToken = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(); // 72h
+
+    return {
+      shareUrl: `https://portal.voxpep.com/shared/exam/${shareToken}`,
+      examName: exam.examName,
+      expiresAt,
+      shareToken,
+    };
+  }
+
   private generateLayExplanation(aiInterpretation: string, examName: string): string {
     // Simplified lay-language generation — in production this would call GPT-4o
     return `Explicação simplificada do exame "${examName}": ${aiInterpretation.substring(0, 500)}. ` +

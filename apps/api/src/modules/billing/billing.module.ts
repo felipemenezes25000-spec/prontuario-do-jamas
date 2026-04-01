@@ -4,6 +4,8 @@ import { BillingController } from './billing.controller';
 import { TissService } from './tiss.service';
 import { AppealsService } from './appeals.service';
 import { AppealsController } from './appeals.controller';
+import { BillingInsuranceService } from './billing-insurance.service';
+import { BillingInsuranceController } from './billing-insurance.controller';
 import { DocumentsModule } from '../documents/documents.module';
 import { CodingAutomationModule } from './coding-automation/coding-automation.module';
 import { PriorAuthorizationModule } from './prior-authorization/prior-authorization.module';
@@ -22,8 +24,8 @@ import { PrivatePayModule } from './private-pay/private-pay.module';
     FinancialDashboardModule,
     PrivatePayModule,
   ],
-  controllers: [BillingController, AppealsController],
-  providers: [BillingService, TissService, AppealsService],
-  exports: [BillingService, TissService, AppealsService],
+  controllers: [BillingController, AppealsController, BillingInsuranceController],
+  providers: [BillingService, TissService, AppealsService, BillingInsuranceService],
+  exports: [BillingService, TissService, AppealsService, BillingInsuranceService],
 })
 export class BillingModule {}

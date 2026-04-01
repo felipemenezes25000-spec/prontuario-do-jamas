@@ -16,7 +16,7 @@ import { DigitalCheckinService } from './digital-checkin.service';
 import { CurrentTenant } from '../../../common/decorators/tenant.decorator';
 import { CurrentUser, type JwtPayload } from '../../../common/decorators/current-user.decorator';
 import { ParseUUIDPipe } from '../../../common/pipes/parse-uuid.pipe';
-import { CreateCheckinDto, SubmitAnamnesisDto, SubmitConsentDto } from './digital-checkin.dto';
+import { CreateCheckinDto, SubmitAnamnesisDto, SubmitConsentDto, UploadCheckinDocumentDto } from './digital-checkin.dto';
 
 @ApiTags('Patient Portal — Digital Check-in')
 @ApiBearerAuth('access-token')
@@ -71,5 +71,30 @@ export class DigitalCheckinController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.service.getCheckinStatus(tenantId, user.email, id);
+  }
+
+  @Post('checkin/:id/document')
+  @ApiOperation({ summary: 'Upload document during check-in (ID, insurance card, referral, external exam)' })
+  @ApiParam({ name: 'id', description: 'Checkin UUID' })
+  @ApiResponse({ status: 201, description: 'Document attached to check-in' })
+  async uploadCheckinDocument(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UploadCheckinDocumentDto,
+  ) {
+    return this.service.uploadCheckinDocument(tenantId, user.email, id, dto);
+  }
+
+  @Get('checkin/:id/documents')
+  @ApiOperation({ summary: 'List documents attached to a check-in' })
+  @ApiParam({ name: 'id', description: 'Checkin UUID' })
+  @ApiResponse({ status: 200, description: 'Check-in documents' })
+  async listCheckinDocuments(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.listCheckinDocuments(tenantId, user.email, id);
   }
 }

@@ -19,6 +19,12 @@ import {
   InterpretLabPanelDto,
   PredictResultDto,
   DetectSampleSwapDto,
+  CreatePanicValueAlertDto,
+  PanicValueStatus,
+  Gender,
+  InterpretBloodGasDto,
+  CreatePathologyReportDto,
+  CreateMicrobiologyResultDto,
 } from './dto/lis-advanced.dto';
 import {
   MarkCollectedDto,
@@ -68,6 +74,23 @@ export class LisService {
   private reflexRules: Array<CreateReflexRuleDto & { id: string; tenantId: string; createdAt: Date }> = [];
   private addOnRequests: Array<{ id: string; tenantId: string; barcode: string; testName: string; testCode: string; patientId: string; encounterId: string | null; justification: string | null; status: string; createdAt: Date }> = [];
   private pocResults: Array<{ id: string; tenantId: string } & Omit<RecordPocResultDto, 'results'> & { results: RecordPocResultDto['results']; createdAt: Date }> = [];
+  private panicAlerts: Array<{
+    id: string;
+    tenantId: string;
+    patientId: string;
+    encounterId: string | null;
+    analyte: string;
+    value: string;
+    unit: string | null;
+    referenceRange: string;
+    responsiblePhysicianId: string | null;
+    detectedById: string | null;
+    examResultId: string | null;
+    status: PanicValueStatus;
+    acknowledgedById: string | null;
+    acknowledgedAt: Date | null;
+    createdAt: Date;
+  }> = [];
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -952,6 +975,1067 @@ export class LisService {
       totalCollected,
       totalRefused,
       byHour,
+    };
+  }
+
+  // ─── Reference Ranges ─────────────────────────────────────────────────────
+
+  async getReferenceRanges(
+    tenantId: string,
+    examCode: string,
+    age: number,
+    gender: Gender,
+  ) {
+    // Comprehensive age/sex-specific reference ranges for common lab tests
+    interface RefRange {
+      analyte: string;
+      unit: string;
+      ranges: Array<{
+        ageMin: number;
+        ageMax: number;
+        gender: Gender | 'ALL';
+        low: number;
+        high: number;
+        criticalLow?: number;
+        criticalHigh?: number;
+      }>;
+    }
+
+    const referenceDatabase: Record<string, RefRange> = {
+      HGB: {
+        analyte: 'Hemoglobin',
+        unit: 'g/dL',
+        ranges: [
+          { ageMin: 0, ageMax: 0.08, gender: 'ALL', low: 14.0, high: 22.0, criticalLow: 7.0, criticalHigh: 25.0 },
+          { ageMin: 0.08, ageMax: 1, gender: 'ALL', low: 9.5, high: 14.0, criticalLow: 7.0, criticalHigh: 20.0 },
+          { ageMin: 1, ageMax: 6, gender: 'ALL', low: 11.0, high: 14.0, criticalLow: 7.0, criticalHigh: 20.0 },
+          { ageMin: 6, ageMax: 18, gender: 'ALL', low: 11.5, high: 15.5, criticalLow: 7.0, criticalHigh: 20.0 },
+          { ageMin: 18, ageMax: 200, gender: Gender.MALE, low: 13.5, high: 17.5, criticalLow: 7.0, criticalHigh: 20.0 },
+          { ageMin: 18, ageMax: 200, gender: Gender.FEMALE, low: 12.0, high: 16.0, criticalLow: 7.0, criticalHigh: 20.0 },
+        ],
+      },
+      K: {
+        analyte: 'Potassium',
+        unit: 'mEq/L',
+        ranges: [
+          { ageMin: 0, ageMax: 0.08, gender: 'ALL', low: 3.7, high: 5.9, criticalLow: 2.5, criticalHigh: 6.5 },
+          { ageMin: 0.08, ageMax: 1, gender: 'ALL', low: 3.5, high: 5.5, criticalLow: 2.5, criticalHigh: 6.5 },
+          { ageMin: 1, ageMax: 18, gender: 'ALL', low: 3.4, high: 5.0, criticalLow: 2.5, criticalHigh: 6.5 },
+          { ageMin: 18, ageMax: 200, gender: 'ALL', low: 3.5, high: 5.0, criticalLow: 2.5, criticalHigh: 6.5 },
+        ],
+      },
+      NA: {
+        analyte: 'Sodium',
+        unit: 'mEq/L',
+        ranges: [
+          { ageMin: 0, ageMax: 1, gender: 'ALL', low: 133, high: 146, criticalLow: 120, criticalHigh: 160 },
+          { ageMin: 1, ageMax: 200, gender: 'ALL', low: 136, high: 145, criticalLow: 120, criticalHigh: 160 },
+        ],
+      },
+      GLU: {
+        analyte: 'Glucose (fasting)',
+        unit: 'mg/dL',
+        ranges: [
+          { ageMin: 0, ageMax: 0.08, gender: 'ALL', low: 40, high: 80, criticalLow: 30, criticalHigh: 400 },
+          { ageMin: 0.08, ageMax: 18, gender: 'ALL', low: 60, high: 100, criticalLow: 40, criticalHigh: 400 },
+          { ageMin: 18, ageMax: 200, gender: 'ALL', low: 70, high: 99, criticalLow: 40, criticalHigh: 500 },
+        ],
+      },
+      CREAT: {
+        analyte: 'Creatinine',
+        unit: 'mg/dL',
+        ranges: [
+          { ageMin: 0, ageMax: 1, gender: 'ALL', low: 0.2, high: 0.5 },
+          { ageMin: 1, ageMax: 12, gender: 'ALL', low: 0.3, high: 0.7 },
+          { ageMin: 12, ageMax: 18, gender: 'ALL', low: 0.5, high: 1.0 },
+          { ageMin: 18, ageMax: 200, gender: Gender.MALE, low: 0.7, high: 1.3 },
+          { ageMin: 18, ageMax: 200, gender: Gender.FEMALE, low: 0.6, high: 1.1 },
+        ],
+      },
+      TSH: {
+        analyte: 'TSH',
+        unit: 'mIU/L',
+        ranges: [
+          { ageMin: 0, ageMax: 0.02, gender: 'ALL', low: 1.0, high: 39.0 },
+          { ageMin: 0.02, ageMax: 1, gender: 'ALL', low: 0.7, high: 6.4 },
+          { ageMin: 1, ageMax: 18, gender: 'ALL', low: 0.5, high: 4.5 },
+          { ageMin: 18, ageMax: 200, gender: 'ALL', low: 0.4, high: 4.0 },
+        ],
+      },
+      WBC: {
+        analyte: 'White Blood Cells',
+        unit: '/mm3',
+        ranges: [
+          { ageMin: 0, ageMax: 0.08, gender: 'ALL', low: 9000, high: 30000, criticalLow: 2000, criticalHigh: 50000 },
+          { ageMin: 0.08, ageMax: 2, gender: 'ALL', low: 6000, high: 17500, criticalLow: 2000, criticalHigh: 30000 },
+          { ageMin: 2, ageMax: 18, gender: 'ALL', low: 5000, high: 14500, criticalLow: 2000, criticalHigh: 30000 },
+          { ageMin: 18, ageMax: 200, gender: 'ALL', low: 4500, high: 11000, criticalLow: 2000, criticalHigh: 30000 },
+        ],
+      },
+      PLT: {
+        analyte: 'Platelets',
+        unit: 'x10^3/uL',
+        ranges: [
+          { ageMin: 0, ageMax: 200, gender: 'ALL', low: 150, high: 400, criticalLow: 50, criticalHigh: 1000 },
+        ],
+      },
+      TROP: {
+        analyte: 'Troponin I (High-Sensitivity)',
+        unit: 'ng/L',
+        ranges: [
+          { ageMin: 18, ageMax: 200, gender: Gender.MALE, low: 0, high: 34 },
+          { ageMin: 18, ageMax: 200, gender: Gender.FEMALE, low: 0, high: 16 },
+        ],
+      },
+      CA: {
+        analyte: 'Calcium (total)',
+        unit: 'mg/dL',
+        ranges: [
+          { ageMin: 0, ageMax: 1, gender: 'ALL', low: 8.8, high: 11.3, criticalLow: 6.0, criticalHigh: 14.0 },
+          { ageMin: 1, ageMax: 200, gender: 'ALL', low: 8.5, high: 10.5, criticalLow: 6.0, criticalHigh: 14.0 },
+        ],
+      },
+    };
+
+    const ageInYears = age;
+    const refData = referenceDatabase[examCode.toUpperCase()];
+    if (!refData) {
+      return {
+        examCode,
+        found: false,
+        message: `Reference range for exam code "${examCode}" not found in database`,
+        availableCodes: Object.keys(referenceDatabase),
+      };
+    }
+
+    // Find the matching range for age + gender
+    const matchingRange = refData.ranges.find(
+      (r) =>
+        ageInYears >= r.ageMin &&
+        ageInYears < r.ageMax &&
+        (r.gender === 'ALL' || r.gender === gender),
+    );
+
+    if (!matchingRange) {
+      return {
+        examCode,
+        analyte: refData.analyte,
+        found: false,
+        message: `No reference range found for age=${age} gender=${gender}`,
+      };
+    }
+
+    return {
+      examCode,
+      analyte: refData.analyte,
+      unit: refData.unit,
+      found: true,
+      age,
+      gender,
+      referenceLow: matchingRange.low,
+      referenceHigh: matchingRange.high,
+      criticalLow: matchingRange.criticalLow ?? null,
+      criticalHigh: matchingRange.criticalHigh ?? null,
+      rangeText: `${matchingRange.low} - ${matchingRange.high} ${refData.unit}`,
+    };
+  }
+
+  // ─── Panic Value Alert ─────────────────────────────────────────────────────
+
+  /**
+   * Critical value alert with mandatory read-back acknowledgment.
+   * PANIC VALUES: K+ >6.5, Hb <7, Platelets <20k, Glucose <40 or >500, etc.
+   */
+  async createPanicValueAlert(tenantId: string, dto: CreatePanicValueAlertDto) {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: dto.patientId, tenantId },
+    });
+    if (!patient) {
+      throw new NotFoundException(`Patient "${dto.patientId}" not found`);
+    }
+
+    // Known panic value thresholds for validation/severity
+    const panicThresholds: Record<string, { criticalLow?: number; criticalHigh?: number; unit: string }> = {
+      potassium: { criticalLow: 2.5, criticalHigh: 6.5, unit: 'mEq/L' },
+      hemoglobin: { criticalLow: 7.0, criticalHigh: 20.0, unit: 'g/dL' },
+      glucose: { criticalLow: 40, criticalHigh: 500, unit: 'mg/dL' },
+      platelets: { criticalLow: 20, criticalHigh: 1000, unit: 'x10^3/uL' },
+      sodium: { criticalLow: 120, criticalHigh: 160, unit: 'mEq/L' },
+      calcium: { criticalLow: 6.0, criticalHigh: 14.0, unit: 'mg/dL' },
+      troponin: { criticalHigh: 0.04, unit: 'ng/mL' },
+      inr: { criticalHigh: 5.0, unit: '' },
+      lactate: { criticalHigh: 4.0, unit: 'mmol/L' },
+    };
+
+    const numValue = parseFloat(String(dto.value).replace(',', '.'));
+    const analyteKey = dto.analyte.toLowerCase();
+    const threshold = panicThresholds[analyteKey];
+    let severity: 'CRITICAL' | 'HIGH' = 'CRITICAL';
+    if (threshold && !isNaN(numValue)) {
+      const isAboveCritical = threshold.criticalHigh !== undefined && numValue > threshold.criticalHigh;
+      const isBelowCritical = threshold.criticalLow !== undefined && numValue < threshold.criticalLow;
+      severity = isAboveCritical || isBelowCritical ? 'CRITICAL' : 'HIGH';
+    }
+
+    const alert = {
+      id: crypto.randomUUID(),
+      tenantId,
+      patientId: dto.patientId,
+      encounterId: dto.encounterId ?? null,
+      analyte: dto.analyte,
+      value: dto.value,
+      unit: dto.unit ?? null,
+      referenceRange: dto.referenceRange,
+      responsiblePhysicianId: dto.responsiblePhysicianId ?? null,
+      detectedById: dto.detectedById ?? null,
+      examResultId: dto.examResultId ?? null,
+      status: PanicValueStatus.PENDING,
+      acknowledgedById: null,
+      acknowledgedAt: null,
+      createdAt: new Date(),
+    };
+
+    this.panicAlerts.push(alert);
+
+    // Persist as clinical document for audit trail
+    await this.prisma.clinicalDocument.create({
+      data: {
+        tenantId,
+        patientId: dto.patientId,
+        encounterId: dto.encounterId ?? null,
+        authorId: dto.detectedById ?? 'SYSTEM',
+        type: 'CUSTOM',
+        title: `[LIS:PANIC_VALUE] ${dto.analyte} = ${dto.value} ${dto.unit ?? ''}`,
+        content: JSON.stringify({
+          ...alert,
+          severity,
+          panicThreshold: threshold ?? null,
+        }),
+        status: 'FINAL',
+        generatedByAI: false,
+      },
+    });
+
+    return {
+      ...alert,
+      severity,
+      message: `VALOR CRITICO: ${dto.analyte} = ${dto.value} ${dto.unit ?? ''} (Ref: ${dto.referenceRange}). Notificacao obrigatoria ao medico responsavel.`,
+      requiresAcknowledgment: true,
+      escalationMinutes: 15,
+    };
+  }
+
+  /**
+   * Read-back acknowledgment for panic value.
+   * Records who acknowledged, when, completing the mandatory notification loop.
+   */
+  async acknowledgePanicValue(tenantId: string, alertId: string, userId: string) {
+    const alert = this.panicAlerts.find(
+      (a) => a.id === alertId && a.tenantId === tenantId,
+    );
+    if (!alert) {
+      throw new NotFoundException(`Panic value alert "${alertId}" not found`);
+    }
+
+    if (alert.status === PanicValueStatus.ACKNOWLEDGED) {
+      throw new BadRequestException('Alert already acknowledged');
+    }
+
+    alert.status = PanicValueStatus.ACKNOWLEDGED;
+    alert.acknowledgedById = userId;
+    alert.acknowledgedAt = new Date();
+
+    // Update clinical document
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        patientId: alert.patientId,
+        title: { contains: '[LIS:PANIC_VALUE]' },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
+    const matchingDoc = docs.find((d) => {
+      const content = typeof d.content === 'string' ? d.content : JSON.stringify(d.content);
+      return content.includes(alertId);
+    });
+
+    if (matchingDoc) {
+      const existingContent = typeof matchingDoc.content === 'string'
+        ? JSON.parse(matchingDoc.content)
+        : matchingDoc.content;
+      await this.prisma.clinicalDocument.update({
+        where: { id: matchingDoc.id },
+        data: {
+          content: JSON.stringify({
+            ...existingContent,
+            acknowledgedById: userId,
+            acknowledgedAt: alert.acknowledgedAt.toISOString(),
+            status: PanicValueStatus.ACKNOWLEDGED,
+          }),
+        },
+      });
+    }
+
+    const responseTimeSec = Math.round(
+      (alert.acknowledgedAt.getTime() - alert.createdAt.getTime()) / 1000,
+    );
+
+    return {
+      alertId,
+      status: PanicValueStatus.ACKNOWLEDGED,
+      acknowledgedById: userId,
+      acknowledgedAt: alert.acknowledgedAt.toISOString(),
+      responseTimeSeconds: responseTimeSec,
+      responseTimeFormatted: responseTimeSec > 60
+        ? `${Math.floor(responseTimeSec / 60)}min ${responseTimeSec % 60}s`
+        : `${responseTimeSec}s`,
+      withinSla: responseTimeSec <= 900, // 15 minutes SLA
+    };
+  }
+
+  // ─── Lab Trend ─────────────────────────────────────────────────────────────
+
+  /**
+   * Returns trend chart data for a specific lab test over a given period.
+   */
+  async getLabTrend(
+    tenantId: string,
+    patientId: string,
+    examCode: string,
+    months: number,
+  ) {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: patientId, tenantId },
+    });
+    if (!patient) {
+      throw new NotFoundException(`Patient "${patientId}" not found`);
+    }
+
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+
+    const exams = await this.prisma.examResult.findMany({
+      where: {
+        patientId,
+        status: { in: ['COMPLETED', 'REVIEWED'] },
+        completedAt: { gte: cutoff },
+      },
+      orderBy: { completedAt: 'asc' },
+    });
+
+    const dataPoints: Array<{
+      date: string;
+      value: number;
+      unit: string;
+      flag: string | null;
+    }> = [];
+
+    for (const exam of exams) {
+      const results = exam.labResults as unknown as Array<{
+        analyte: string;
+        analyteCode?: string;
+        value: string;
+        unit?: string;
+        flag?: string;
+      }>;
+      if (!Array.isArray(results)) continue;
+
+      for (const r of results) {
+        const matchByCode = r.analyteCode?.toUpperCase() === examCode.toUpperCase();
+        const matchByName = r.analyte.toLowerCase().includes(examCode.toLowerCase());
+        if (!matchByCode && !matchByName) continue;
+
+        const numVal = parseFloat(String(r.value).replace(',', '.'));
+        if (isNaN(numVal)) continue;
+
+        dataPoints.push({
+          date: (exam.completedAt ?? exam.createdAt).toISOString(),
+          value: numVal,
+          unit: r.unit ?? '',
+          flag: r.flag ?? null,
+        });
+      }
+    }
+
+    // Calculate statistics
+    const values = dataPoints.map((p) => p.value);
+    const stats = values.length > 0
+      ? {
+          min: Math.min(...values),
+          max: Math.max(...values),
+          mean: Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100,
+          latest: values[values.length - 1],
+          trend: values.length >= 2
+            ? values[values.length - 1] > values[values.length - 2]
+              ? 'INCREASING'
+              : values[values.length - 1] < values[values.length - 2]
+                ? 'DECREASING'
+                : 'STABLE'
+            : 'INSUFFICIENT_DATA',
+        }
+      : null;
+
+    return {
+      patientId,
+      examCode,
+      periodMonths: months,
+      totalDataPoints: dataPoints.length,
+      dataPoints,
+      statistics: stats,
+    };
+  }
+
+  // ─── Check Delta Value ─────────────────────────────────────────────────────
+
+  /**
+   * Compare a specific result with previous results; alert if variation exceeds threshold.
+   */
+  async checkDeltaValue(tenantId: string, resultId: string) {
+    const exam = await this.prisma.examResult.findUnique({ where: { id: resultId } });
+    if (!exam) {
+      throw new NotFoundException(`Exam result "${resultId}" not found`);
+    }
+
+    const labResults = exam.labResults as unknown as Array<{
+      analyte: string;
+      value: string;
+      unit?: string;
+    }>;
+    if (!Array.isArray(labResults) || labResults.length === 0) {
+      throw new BadRequestException('No lab results for delta check');
+    }
+
+    // Thresholds for delta check (percentage change that triggers an alert)
+    const deltaThresholds: Record<string, number> = {
+      hemoglobin: 25,
+      hematocrit: 25,
+      potassium: 30,
+      sodium: 10,
+      calcium: 20,
+      creatinine: 50,
+      glucose: 50,
+      platelets: 50,
+      wbc: 75,
+      albumin: 30,
+      troponin: 100,
+    };
+
+    // Get previous results for this patient
+    const previousExams = await this.prisma.examResult.findMany({
+      where: {
+        patientId: exam.patientId,
+        status: { in: ['COMPLETED', 'REVIEWED'] },
+        id: { not: resultId },
+      },
+      orderBy: { completedAt: 'desc' },
+      take: 5,
+    });
+
+    const deltaChecks: Array<{
+      analyte: string;
+      currentValue: number;
+      previousValue: number;
+      percentChange: number;
+      threshold: number;
+      flagged: boolean;
+      previousDate: string;
+    }> = [];
+
+    for (const r of labResults) {
+      const currentVal = parseFloat(String(r.value).replace(',', '.'));
+      if (isNaN(currentVal)) continue;
+
+      // Find most recent prior value for this analyte
+      for (const prevExam of previousExams) {
+        const prevResults = prevExam.labResults as unknown as Array<{
+          analyte: string;
+          value: string;
+        }>;
+        if (!Array.isArray(prevResults)) continue;
+
+        const prevResult = prevResults.find(
+          (pr) => pr.analyte.toLowerCase() === r.analyte.toLowerCase(),
+        );
+        if (!prevResult) continue;
+
+        const prevVal = parseFloat(String(prevResult.value).replace(',', '.'));
+        if (isNaN(prevVal) || prevVal === 0) continue;
+
+        const pctChange = Math.round(
+          Math.abs((currentVal - prevVal) / prevVal) * 10000,
+        ) / 100;
+        const threshold = deltaThresholds[r.analyte.toLowerCase()] ?? 50;
+
+        deltaChecks.push({
+          analyte: r.analyte,
+          currentValue: currentVal,
+          previousValue: prevVal,
+          percentChange: pctChange,
+          threshold,
+          flagged: pctChange > threshold,
+          previousDate: (prevExam.completedAt ?? prevExam.createdAt).toISOString(),
+        });
+        break; // Only compare with most recent previous
+      }
+    }
+
+    const flaggedCount = deltaChecks.filter((d) => d.flagged).length;
+    return {
+      resultId,
+      patientId: exam.patientId,
+      totalAnalytes: deltaChecks.length,
+      flaggedCount,
+      deltaChecks,
+      recommendation: flaggedCount > 0
+        ? 'VERIFICAR: Variacao significativa detectada. Possivel troca de amostra ou alteracao clinica aguda.'
+        : 'Delta check dentro dos limites aceitaveis.',
+    };
+  }
+
+  // ─── Quality Control — Westgard Rules ──────────────────────────────────────
+
+  /**
+   * Full Levey-Jennings QC with Westgard multi-rule check.
+   */
+  async runQualityControl(tenantId: string, dto: QualityControlEntryDto) {
+    const zScore = (dto.measuredValue - dto.expectedMean) / dto.expectedSd;
+
+    // Retrieve recent QC entries for this analyzer + analyte + level (for multi-rule checks)
+    const recentEntries = this.qcEntries
+      .filter(
+        (e) =>
+          e.analyzerId === dto.analyzerId &&
+          e.analyte === dto.analyte &&
+          e.level === dto.level,
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 11); // need up to 12 consecutive points for 10x rule
+
+    // Westgard rules evaluation
+    const rules: Record<string, boolean> = {};
+
+    // 1-2s: Warning rule — one point exceeds +-2SD
+    rules['1_2s_warning'] = Math.abs(zScore) > 2;
+
+    // 1-3s: Reject — one point exceeds +-3SD
+    rules['1_3s_reject'] = Math.abs(zScore) > 3;
+
+    // 2-2s: Reject — two consecutive points exceed +-2SD in the same direction
+    if (recentEntries.length >= 1) {
+      const prevZ = recentEntries[0].zScore;
+      rules['2_2s_reject'] =
+        Math.abs(zScore) > 2 &&
+        Math.abs(prevZ) > 2 &&
+        Math.sign(zScore) === Math.sign(prevZ);
+    } else {
+      rules['2_2s_reject'] = false;
+    }
+
+    // R-4s: Reject — range of two consecutive exceeds 4SD
+    if (recentEntries.length >= 1) {
+      rules['R_4s_reject'] = Math.abs(zScore - recentEntries[0].zScore) > 4;
+    } else {
+      rules['R_4s_reject'] = false;
+    }
+
+    // 4-1s: Reject — four consecutive points exceed +-1SD in the same direction
+    if (recentEntries.length >= 3) {
+      const last3 = recentEntries.slice(0, 3).map((e) => e.zScore);
+      const allSameDirection = [zScore, ...last3].every((z) => z > 1) ||
+        [zScore, ...last3].every((z) => z < -1);
+      rules['4_1s_reject'] = allSameDirection;
+    } else {
+      rules['4_1s_reject'] = false;
+    }
+
+    // 10x: Reject — ten consecutive points on the same side of the mean
+    if (recentEntries.length >= 9) {
+      const last9 = recentEntries.slice(0, 9).map((e) => e.zScore);
+      const allPositive = [zScore, ...last9].every((z) => z > 0);
+      const allNegative = [zScore, ...last9].every((z) => z < 0);
+      rules['10x_reject'] = allPositive || allNegative;
+    } else {
+      rules['10x_reject'] = false;
+    }
+
+    const anyReject = rules['1_3s_reject'] || rules['2_2s_reject'] ||
+      rules['R_4s_reject'] || rules['4_1s_reject'] || rules['10x_reject'];
+    const isAccepted = !anyReject;
+
+    const entry: QcPoint = {
+      id: crypto.randomUUID(),
+      analyzerId: dto.analyzerId,
+      analyte: dto.analyte,
+      level: dto.level,
+      measuredValue: dto.measuredValue,
+      expectedMean: dto.expectedMean,
+      expectedSd: dto.expectedSd,
+      zScore: Math.round(zScore * 100) / 100,
+      isAccepted,
+      lotNumber: dto.lotNumber ?? null,
+      createdAt: new Date(),
+    };
+
+    this.qcEntries.push(entry);
+
+    return {
+      ...entry,
+      westgardRules: rules,
+      status: isAccepted ? 'ACCEPTED' : 'REJECTED',
+      violatedRules: Object.entries(rules)
+        .filter(([, val]) => val)
+        .map(([key]) => key),
+      recommendation: anyReject
+        ? 'PARAR: Controle de qualidade fora. Verificar calibracao, reagentes e manutenção do analisador antes de liberar resultados.'
+        : 'CQ aceito. Resultados podem ser liberados.',
+    };
+  }
+
+  // ─── Institutional Antibiogram ─────────────────────────────────────────────
+
+  /**
+   * Compiles institutional sensitivity data from microbiology results over a period.
+   */
+  async getInstitutionalAntibiogram(tenantId: string, period: string) {
+    // period format: "2025" or "2025-Q1" or "2025-01"
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where: {
+        tenantId,
+        title: { startsWith: '[LIS:MICROBIOLOGY]' },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    // Parse all microbiology results
+    interface ParsedResult {
+      organism: string;
+      antibiotic: string;
+      result: string;
+    }
+
+    const allResults: ParsedResult[] = [];
+    for (const doc of docs) {
+      try {
+        const content = typeof doc.content === 'string'
+          ? JSON.parse(doc.content)
+          : doc.content;
+        if (!content.organism || !content.antibiogram) continue;
+
+        // Filter by period
+        const docDate = doc.createdAt.toISOString();
+        if (period.length === 4 && !docDate.startsWith(period)) continue;
+        if (period.includes('Q')) {
+          const year = period.split('-')[0];
+          const quarter = parseInt(period.split('Q')[1], 10);
+          const month = doc.createdAt.getMonth();
+          const quarterMonth = Math.floor(month / 3) + 1;
+          if (!docDate.startsWith(year) || quarterMonth !== quarter) continue;
+        }
+        if (period.length === 7 && !docDate.startsWith(period)) continue;
+
+        for (const entry of content.antibiogram) {
+          allResults.push({
+            organism: content.organism,
+            antibiotic: entry.antibiotic,
+            result: entry.result,
+          });
+        }
+      } catch {
+        // Skip malformed documents
+      }
+    }
+
+    // Compile sensitivity rates
+    const matrix: Record<string, Record<string, { S: number; I: number; R: number; total: number }>> = {};
+
+    for (const r of allResults) {
+      if (!matrix[r.organism]) matrix[r.organism] = {};
+      if (!matrix[r.organism][r.antibiotic]) {
+        matrix[r.organism][r.antibiotic] = { S: 0, I: 0, R: 0, total: 0 };
+      }
+      const cell = matrix[r.organism][r.antibiotic];
+      if (r.result === 'S') cell.S++;
+      else if (r.result === 'I') cell.I++;
+      else if (r.result === 'R') cell.R++;
+      cell.total++;
+    }
+
+    // Build output table
+    const organisms = Object.keys(matrix).sort();
+    const allAntibiotics = [...new Set(allResults.map((r) => r.antibiotic))].sort();
+
+    const table = organisms.map((org) => ({
+      organism: org,
+      totalIsolates: Object.values(matrix[org]).reduce((sum, v) => sum + v.total, 0) / allAntibiotics.length || 0,
+      antibiotics: allAntibiotics.map((ab) => {
+        const cell = matrix[org][ab];
+        if (!cell) return { antibiotic: ab, sensitivityRate: null, tested: 0 };
+        return {
+          antibiotic: ab,
+          sensitive: cell.S,
+          intermediate: cell.I,
+          resistant: cell.R,
+          tested: cell.total,
+          sensitivityRate: cell.total > 0
+            ? Math.round((cell.S / cell.total) * 100)
+            : null,
+        };
+      }),
+    }));
+
+    return {
+      period,
+      tenantId,
+      totalIsolates: allResults.length,
+      organisms: organisms.length,
+      antibiotics: allAntibiotics,
+      table,
+      generatedAt: new Date().toISOString(),
+      disclaimer: 'Antibiograma institucional — uso interno. Amostra pode nao ser representativa.',
+    };
+  }
+
+  // ─── Blood Gas Interpretation ──────────────────────────────────────────────
+
+  /**
+   * Full ABG interpretation: primary disorder, compensation, anion gap, oxygenation.
+   */
+  async interpretBloodGas(tenantId: string, dto: InterpretBloodGasDto) {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: dto.patientId, tenantId },
+    });
+    if (!patient) {
+      throw new NotFoundException(`Patient "${dto.patientId}" not found`);
+    }
+
+    const interpretations: string[] = [];
+    const alerts: string[] = [];
+
+    // Step 1: Evaluate pH
+    let primaryDisorder = 'Normal';
+    if (dto.ph < 7.35) {
+      primaryDisorder = 'Acidemia';
+    } else if (dto.ph > 7.45) {
+      primaryDisorder = 'Alkalemia';
+    }
+
+    // Step 2: Determine respiratory vs metabolic
+    let disorderType = '';
+    let compensation = '';
+
+    if (dto.ph < 7.35) {
+      if (dto.pCO2 > 45) {
+        disorderType = 'Acidose Respiratoria';
+        // Expected HCO3 compensation
+        const expectedHCO3Acute = 24 + ((dto.pCO2 - 40) / 10) * 1;
+        const expectedHCO3Chronic = 24 + ((dto.pCO2 - 40) / 10) * 3.5;
+        if (dto.hco3 > expectedHCO3Chronic + 2) {
+          compensation = 'Compensacao metabolica acima do esperado — disturbio misto';
+        } else if (dto.hco3 >= expectedHCO3Acute - 2 && dto.hco3 <= expectedHCO3Chronic + 2) {
+          compensation = 'Compensacao metabolica adequada';
+        } else {
+          compensation = 'Compensacao metabolica insuficiente — possivel disturbio misto';
+        }
+      } else if (dto.hco3 < 22) {
+        disorderType = 'Acidose Metabolica';
+        // Expected pCO2 by Winter's formula
+        const expectedPCO2 = 1.5 * dto.hco3 + 8;
+        if (dto.pCO2 < expectedPCO2 - 2) {
+          compensation = 'Hiperventilacao alem do esperado — alcalose respiratoria concomitante';
+        } else if (dto.pCO2 > expectedPCO2 + 2) {
+          compensation = 'Hipoventilacao — acidose respiratoria concomitante';
+        } else {
+          compensation = 'Compensacao respiratoria adequada (Winter)';
+        }
+      }
+    } else if (dto.ph > 7.45) {
+      if (dto.pCO2 < 35) {
+        disorderType = 'Alcalose Respiratoria';
+        const expectedHCO3Acute = 24 - ((40 - dto.pCO2) / 10) * 2;
+        const expectedHCO3Chronic = 24 - ((40 - dto.pCO2) / 10) * 5;
+        if (dto.hco3 < expectedHCO3Chronic - 2) {
+          compensation = 'Compensacao metabolica acima do esperado — disturbio misto';
+        } else if (dto.hco3 >= expectedHCO3Chronic - 2 && dto.hco3 <= expectedHCO3Acute + 2) {
+          compensation = 'Compensacao metabolica adequada';
+        } else {
+          compensation = 'Compensacao metabolica insuficiente';
+        }
+      } else if (dto.hco3 > 26) {
+        disorderType = 'Alcalose Metabolica';
+        const expectedPCO2 = 0.7 * dto.hco3 + 21;
+        if (Math.abs(dto.pCO2 - expectedPCO2) <= 2) {
+          compensation = 'Compensacao respiratoria adequada';
+        } else {
+          compensation = 'Disturbio misto provavel';
+        }
+      }
+    } else {
+      disorderType = 'Equilibrio acido-base normal';
+      compensation = 'Sem necessidade de compensacao';
+    }
+
+    interpretations.push(`Disturbio primario: ${primaryDisorder}`);
+    interpretations.push(`Tipo: ${disorderType}`);
+    interpretations.push(`Compensacao: ${compensation}`);
+
+    // Step 3: Anion gap (if sodium and chloride available)
+    let anionGap: number | null = null;
+    let correctedAnionGap: number | null = null;
+    if (dto.sodium !== undefined && dto.chloride !== undefined) {
+      anionGap = dto.sodium - dto.chloride - dto.hco3;
+      interpretations.push(`Anion Gap: ${anionGap} mEq/L (normal: 8-12)`);
+
+      if (anionGap > 12) {
+        interpretations.push('Anion Gap elevado — investigar: cetoacidose, acidose latica, uremia, intoxicacao (MUDPILES)');
+
+        // Delta-delta ratio
+        const deltaAG = anionGap - 12;
+        const deltaHCO3 = 24 - dto.hco3;
+        if (deltaHCO3 > 0) {
+          const deltaDelta = deltaAG / deltaHCO3;
+          if (deltaDelta < 1) {
+            interpretations.push('Delta-Delta < 1: Acidose metabolica hiperclorémica concomitante');
+          } else if (deltaDelta > 2) {
+            interpretations.push('Delta-Delta > 2: Alcalose metabolica concomitante');
+          } else {
+            interpretations.push('Delta-Delta 1-2: Acidose AG pura');
+          }
+          correctedAnionGap = Math.round(deltaDelta * 100) / 100;
+        }
+      }
+    }
+
+    // Step 4: Oxygenation assessment
+    let oxygenationStatus = '';
+    if (dto.sampleType === 'ARTERIAL') {
+      if (dto.pO2 < 60) {
+        oxygenationStatus = 'Hipoxemia (PaO2 < 60 mmHg)';
+        alerts.push('HIPOXEMIA — considerar suporte de O2');
+      } else if (dto.pO2 < 80) {
+        oxygenationStatus = 'PaO2 levemente reduzido';
+      } else {
+        oxygenationStatus = 'Oxigenacao adequada';
+      }
+
+      // P/F ratio if FiO2 provided
+      if (dto.fiO2 !== undefined && dto.fiO2 > 0) {
+        const pfRatio = Math.round(dto.pO2 / dto.fiO2);
+        interpretations.push(`P/F Ratio: ${pfRatio}`);
+        if (pfRatio < 100) {
+          alerts.push('P/F < 100: SDRA GRAVE');
+        } else if (pfRatio < 200) {
+          alerts.push('P/F < 200: SDRA Moderada');
+        } else if (pfRatio < 300) {
+          alerts.push('P/F < 300: SDRA Leve / Injuria pulmonar');
+        }
+      }
+
+      // A-a gradient
+      if (dto.fiO2 !== undefined) {
+        const pAlveolar = (dto.fiO2 * (760 - 47)) - (dto.pCO2 / 0.8);
+        const aAGradient = Math.round((pAlveolar - dto.pO2) * 10) / 10;
+        interpretations.push(`Gradiente A-a: ${aAGradient} mmHg`);
+        if (aAGradient > 20) {
+          interpretations.push('Gradiente A-a elevado — investigar shunt ou V/Q mismatch');
+        }
+      }
+    }
+
+    // Step 5: Critical alerts
+    if (dto.ph < 7.10) alerts.push('pH CRITICO < 7.10 — Acidemia grave, risco de colapso cardiovascular');
+    if (dto.ph > 7.60) alerts.push('pH CRITICO > 7.60 — Alcalemia grave');
+    if (dto.potassium !== undefined && dto.potassium > 6.5) alerts.push(`HIPERCALEMIA CRITICA: K+ = ${dto.potassium} mEq/L`);
+    if (dto.potassium !== undefined && dto.potassium < 2.5) alerts.push(`HIPOCALEMIA CRITICA: K+ = ${dto.potassium} mEq/L`);
+    if (dto.lactate !== undefined && dto.lactate > 4) alerts.push(`LACTATO ELEVADO: ${dto.lactate} mmol/L — investigar hipoperfusão`);
+    if (dto.lactate !== undefined && dto.lactate > 2 && dto.lactate <= 4) interpretations.push(`Lactato moderadamente elevado: ${dto.lactate} mmol/L`);
+
+    if (oxygenationStatus) interpretations.push(`Oxigenacao: ${oxygenationStatus}`);
+
+    // Persist interpretation
+    const doc = await this.prisma.clinicalDocument.create({
+      data: {
+        tenantId,
+        patientId: dto.patientId,
+        encounterId: dto.encounterId ?? null,
+        authorId: 'AI_SYSTEM',
+        type: 'CUSTOM',
+        title: `[LIS:BLOOD_GAS] Gasometria ${dto.sampleType}`,
+        content: JSON.stringify({
+          input: dto,
+          primaryDisorder,
+          disorderType,
+          compensation,
+          anionGap,
+          correctedAnionGap,
+          oxygenationStatus,
+          interpretations,
+          alerts,
+        }),
+        status: 'DRAFT',
+        generatedByAI: true,
+      },
+    });
+
+    return {
+      documentId: doc.id,
+      patientId: dto.patientId,
+      sampleType: dto.sampleType,
+      values: {
+        ph: dto.ph,
+        pCO2: dto.pCO2,
+        pO2: dto.pO2,
+        hco3: dto.hco3,
+        baseExcess: dto.baseExcess ?? null,
+        saO2: dto.saO2 ?? null,
+        lactate: dto.lactate ?? null,
+      },
+      primaryDisorder,
+      disorderType,
+      compensation,
+      anionGap,
+      correctedAnionGap,
+      oxygenationStatus: oxygenationStatus || null,
+      interpretations,
+      alerts,
+      disclaimer: 'Interpretacao assistida por IA — correlacionar com contexto clinico. Revisao medica obrigatoria.',
+    };
+  }
+
+  // ─── Pathology Report ──────────────────────────────────────────────────────
+
+  async createPathologyReport(tenantId: string, dto: CreatePathologyReportDto) {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: dto.patientId, tenantId },
+    });
+    if (!patient) {
+      throw new NotFoundException(`Patient "${dto.patientId}" not found`);
+    }
+
+    const reportId = crypto.randomUUID();
+
+    const reportContent = {
+      id: reportId,
+      reportType: dto.reportType,
+      specimenSite: dto.specimenSite,
+      clinicalHistory: dto.clinicalHistory,
+      macroscopy: dto.macroscopy,
+      microscopy: dto.microscopy,
+      ihqResults: dto.ihqResults ?? [],
+      specialStains: dto.specialStains ?? [],
+      diagnosis: dto.diagnosis,
+      staging: dto.staging ?? null,
+      marginStatus: dto.marginStatus ?? null,
+      comment: dto.comment ?? null,
+      pathologistId: dto.pathologistId,
+    };
+
+    const doc = await this.prisma.clinicalDocument.create({
+      data: {
+        tenantId,
+        patientId: dto.patientId,
+        encounterId: dto.encounterId ?? null,
+        authorId: dto.pathologistId,
+        type: 'CUSTOM',
+        title: `[LIS:PATHOLOGY] ${dto.reportType} — ${dto.specimenSite}`,
+        content: JSON.stringify(reportContent),
+        status: 'FINAL',
+        generatedByAI: false,
+      },
+    });
+
+    return {
+      documentId: doc.id,
+      ...reportContent,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  // ─── Microbiology Result ───────────────────────────────────────────────────
+
+  async createMicrobiologyResult(tenantId: string, dto: CreateMicrobiologyResultDto) {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: dto.patientId, tenantId },
+    });
+    if (!patient) {
+      throw new NotFoundException(`Patient "${dto.patientId}" not found`);
+    }
+
+    const resultId = crypto.randomUUID();
+
+    // Determine if this requires urgent notification
+    const isMultiDrugResistant = dto.antibiogram
+      ? dto.antibiogram.filter((a) => a.result === 'R').length >=
+        Math.ceil(dto.antibiogram.length * 0.5)
+      : false;
+
+    const isCriticalOrganism = dto.organism
+      ? [
+          'MRSA', 'VRE', 'KPC', 'NDM', 'ESBL',
+          'Candida auris', 'Clostridioides difficile',
+          'Neisseria meningitidis', 'Mycobacterium tuberculosis',
+        ].some((o) => dto.organism!.toUpperCase().includes(o.toUpperCase()))
+      : false;
+
+    const isBloodCulturePositive =
+      dto.sampleSource === 'BLOOD' &&
+      dto.cultureResult.toLowerCase().includes('positive');
+
+    const alerts: string[] = [];
+    if (isMultiDrugResistant) alerts.push('ORGANISMO MULTIRRESISTENTE — notificar CCIH');
+    if (isCriticalOrganism) alerts.push(`ORGANISMO CRITICO: ${dto.organism} — precauções de isolamento`);
+    if (isBloodCulturePositive) alerts.push('HEMOCULTURA POSITIVA — notificação urgente ao médico');
+
+    const resultContent = {
+      id: resultId,
+      sampleSource: dto.sampleSource,
+      cultureResult: dto.cultureResult,
+      organism: dto.organism ?? null,
+      colonyCount: dto.colonyCount ?? null,
+      gramStain: dto.gramStain ?? null,
+      antibiogram: dto.antibiogram ?? [],
+      incubationDays: dto.incubationDays ?? null,
+      notes: dto.notes ?? null,
+      microbiologistId: dto.microbiologistId,
+      isMultiDrugResistant,
+      isCriticalOrganism,
+      alerts,
+    };
+
+    const doc = await this.prisma.clinicalDocument.create({
+      data: {
+        tenantId,
+        patientId: dto.patientId,
+        encounterId: dto.encounterId ?? null,
+        authorId: dto.microbiologistId,
+        type: 'CUSTOM',
+        title: `[LIS:MICROBIOLOGY] ${dto.sampleSource} — ${dto.organism ?? dto.cultureResult}`,
+        content: JSON.stringify(resultContent),
+        status: 'FINAL',
+        generatedByAI: false,
+      },
+    });
+
+    // Build sensitivity summary
+    const sensitivitySummary = dto.antibiogram
+      ? {
+          totalTested: dto.antibiogram.length,
+          sensitive: dto.antibiogram.filter((a) => a.result === 'S').length,
+          intermediate: dto.antibiogram.filter((a) => a.result === 'I').length,
+          resistant: dto.antibiogram.filter((a) => a.result === 'R').length,
+          bestOptions: dto.antibiogram
+            .filter((a) => a.result === 'S')
+            .map((a) => a.antibiotic),
+        }
+      : null;
+
+    return {
+      documentId: doc.id,
+      ...resultContent,
+      sensitivitySummary,
+      createdAt: new Date().toISOString(),
     };
   }
 }

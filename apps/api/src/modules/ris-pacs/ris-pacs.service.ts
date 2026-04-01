@@ -78,6 +78,14 @@ export class RisPacsService {
   private archives: Array<{ id: string; studyId: string; tenantId: string; tier: string; reason: string | null; archivedAt: Date; retrievedAt: Date | null }> = [];
   private reconstructionRequests: Array<{ id: string; studyId: string; tenantId: string; status: string; createdAt: Date } & Request3DReconstructionDto> = [];
   private teleradiologyRequests: Array<{ id: string; studyId: string; tenantId: string; status: string; createdAt: Date } & RequestTeleradiologyDto> = [];
+  private imageComparisons: Array<{
+    id: string;
+    tenantId: string;
+    studyId1: string;
+    studyId2: string;
+    comparisonUrl: string;
+    createdAt: Date;
+  }> = [];
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -543,6 +551,164 @@ export class RisPacsService {
       accessionNumber: order.accessionNumber,
       slaTurnAroundMinutes: sla,
       message: `Tele-radiologia solicitada para ${dto.specialty} — SLA ${sla} min`,
+    };
+  }
+
+  // ─── Incidental Findings List ──────────────────────────────────────────────
+
+  async getIncidentalFindings(tenantId: string, patientId: string) {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id: patientId, tenantId },
+    });
+    if (!patient) {
+      throw new NotFoundException(`Patient "${patientId}" not found`);
+    }
+
+    // Get all reports for this patient's orders
+    const patientOrders = this.orders.filter(
+      (o) => o.patientId === patientId && o.tenantId === tenantId,
+    );
+
+    const findings: Array<{
+      followUp: IncidentalFollowUp;
+      study: {
+        orderId: string;
+        procedureName: string;
+        modality: string;
+        accessionNumber: string;
+        studyDate: string;
+      };
+      report: {
+        reportId: string;
+        impression: string;
+      };
+    }> = [];
+
+    for (const order of patientOrders) {
+      const report = this.reports.find((r) => r.orderId === order.id);
+      if (!report) continue;
+
+      const orderFollowUps = this.followUps.filter(
+        (f) => f.reportId === report.id,
+      );
+
+      for (const fu of orderFollowUps) {
+        findings.push({
+          followUp: fu,
+          study: {
+            orderId: order.id,
+            procedureName: order.procedureName,
+            modality: order.modality,
+            accessionNumber: order.accessionNumber,
+            studyDate: (order.scheduledAt ?? order.createdAt).toISOString(),
+          },
+          report: {
+            reportId: report.id,
+            impression: report.impression,
+          },
+        });
+      }
+    }
+
+    const pending = findings.filter((f) => f.followUp.status === 'PENDING');
+    const overdue = pending.filter(
+      (f) => f.followUp.dueDate && f.followUp.dueDate < new Date(),
+    );
+
+    return {
+      patientId,
+      totalFindings: findings.length,
+      pendingCount: pending.length,
+      overdueCount: overdue.length,
+      findings: findings.sort((a, b) => {
+        // Overdue first, then pending, then completed
+        const priorityOrder: Record<string, number> = { PENDING: 0, COMPLETED: 1 };
+        const aOverdue = a.followUp.dueDate && a.followUp.dueDate < new Date() ? -1 : 0;
+        const bOverdue = b.followUp.dueDate && b.followUp.dueDate < new Date() ? -1 : 0;
+        if (aOverdue !== bOverdue) return aOverdue - bOverdue;
+        return (priorityOrder[a.followUp.status] ?? 2) - (priorityOrder[b.followUp.status] ?? 2);
+      }),
+    };
+  }
+
+  // ─── Image Comparison ──────────────────────────────────────────────────────
+
+  async createImageComparison(tenantId: string, studyId1: string, studyId2: string) {
+    const order1 = this.orders.find(
+      (o) => (o.id === studyId1 || o.studyInstanceUid === studyId1) && o.tenantId === tenantId,
+    );
+    if (!order1) {
+      throw new NotFoundException(`Study "${studyId1}" not found`);
+    }
+
+    const order2 = this.orders.find(
+      (o) => (o.id === studyId2 || o.studyInstanceUid === studyId2) && o.tenantId === tenantId,
+    );
+    if (!order2) {
+      throw new NotFoundException(`Study "${studyId2}" not found`);
+    }
+
+    // Validate both studies are for the same patient
+    if (order1.patientId !== order2.patientId) {
+      throw new BadRequestException('Both studies must belong to the same patient');
+    }
+
+    // Validate same modality for meaningful comparison
+    if (order1.modality !== order2.modality) {
+      throw new BadRequestException(
+        `Modality mismatch: ${order1.modality} vs ${order2.modality}. Comparison requires same modality.`,
+      );
+    }
+
+    const comparison = {
+      id: crypto.randomUUID(),
+      tenantId,
+      studyId1: order1.id,
+      studyId2: order2.id,
+      comparisonUrl: `/viewer/compare?study1=${order1.studyInstanceUid}&study2=${order2.studyInstanceUid}`,
+      createdAt: new Date(),
+    };
+
+    this.imageComparisons.push(comparison);
+
+    const patient = await this.prisma.patient.findUnique({
+      where: { id: order1.patientId },
+      select: { id: true, fullName: true, mrn: true },
+    });
+
+    // Determine temporal relationship
+    const date1 = order1.scheduledAt ?? order1.createdAt;
+    const date2 = order2.scheduledAt ?? order2.createdAt;
+    const daysDifference = Math.round(
+      Math.abs(date2.getTime() - date1.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    return {
+      ...comparison,
+      patient,
+      modality: order1.modality,
+      study1: {
+        id: order1.id,
+        studyInstanceUid: order1.studyInstanceUid,
+        accessionNumber: order1.accessionNumber,
+        procedureName: order1.procedureName,
+        date: date1.toISOString(),
+        report: this.reports.find((r) => r.orderId === order1.id) ?? null,
+      },
+      study2: {
+        id: order2.id,
+        studyInstanceUid: order2.studyInstanceUid,
+        accessionNumber: order2.accessionNumber,
+        procedureName: order2.procedureName,
+        date: date2.toISOString(),
+        report: this.reports.find((r) => r.orderId === order2.id) ?? null,
+      },
+      daysBetweenStudies: daysDifference,
+      viewerUrl: comparison.comparisonUrl,
+      wadoRsEndpoints: {
+        study1: `/wado-rs/studies/${order1.studyInstanceUid}`,
+        study2: `/wado-rs/studies/${order2.studyInstanceUid}`,
+      },
     };
   }
 }

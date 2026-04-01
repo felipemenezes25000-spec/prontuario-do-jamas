@@ -4,7 +4,6 @@ import {
   Post,
   Param,
   Body,
-  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -12,7 +11,6 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
-  ApiQuery,
 } from '@nestjs/swagger';
 import { CurrentTenant } from '../../../common/decorators/tenant.decorator';
 import { ParseUUIDPipe } from '../../../common/pipes/parse-uuid.pipe';

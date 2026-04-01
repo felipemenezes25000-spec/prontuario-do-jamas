@@ -30,6 +30,11 @@ import {
   InterpretLabPanelDto,
   PredictResultDto,
   DetectSampleSwapDto,
+  Gender,
+  CreatePanicValueAlertDto,
+  InterpretBloodGasDto,
+  CreatePathologyReportDto,
+  CreateMicrobiologyResultDto,
 } from './dto/lis-advanced.dto';
 import { MarkCollectedDto } from './dto/phlebotomy.dto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
@@ -281,5 +286,140 @@ export class LisController {
     @Query('date') date?: string,
   ) {
     return this.lisService.getPhlebotomyStats(tenantId, date);
+  }
+
+  // ─── Reference Ranges ────────────────────────────────────────────────────
+
+  @Get('reference-ranges/:examCode')
+  @ApiParam({ name: 'examCode', description: 'Exam code (e.g. HGB, K, NA, GLU, CREAT, TSH, WBC, PLT)' })
+  @ApiQuery({ name: 'age', required: true, description: 'Patient age in years' })
+  @ApiQuery({ name: 'gender', required: true, description: 'Patient gender', enum: Gender })
+  @ApiOperation({ summary: 'Get age/sex-specific reference ranges for a lab test' })
+  @ApiResponse({ status: 200, description: 'Reference range data' })
+  async getReferenceRanges(
+    @CurrentTenant() tenantId: string,
+    @Param('examCode') examCode: string,
+    @Query('age') age: string,
+    @Query('gender') gender: Gender,
+  ) {
+    return this.lisService.getReferenceRanges(tenantId, examCode, parseFloat(age), gender);
+  }
+
+  // ─── Panic Value Alerts ──────────────────────────────────────────────────
+
+  @Post('panic-alerts')
+  @ApiOperation({ summary: 'Create a panic/critical value alert with mandatory ACK' })
+  @ApiResponse({ status: 201, description: 'Panic value alert created' })
+  async createPanicValueAlert(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: CreatePanicValueAlertDto,
+  ) {
+    return this.lisService.createPanicValueAlert(tenantId, dto);
+  }
+
+  @Post('panic-alerts/:id/acknowledge')
+  @ApiParam({ name: 'id', description: 'Panic alert UUID' })
+  @ApiOperation({ summary: 'Acknowledge a panic value alert (read-back confirmation)' })
+  @ApiResponse({ status: 200, description: 'Alert acknowledged' })
+  async acknowledgePanicValue(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.lisService.acknowledgePanicValue(tenantId, id, user.sub);
+  }
+
+  // ─── Lab Trend ───────────────────────────────────────────────────────────
+
+  @Get('trend/:patientId/:examCode')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiParam({ name: 'examCode', description: 'Exam/analyte code or name' })
+  @ApiQuery({ name: 'months', required: false, description: 'Number of months to look back (default 6)' })
+  @ApiOperation({ summary: 'Get trend chart data for a specific lab test' })
+  @ApiResponse({ status: 200, description: 'Lab trend data' })
+  async getLabTrend(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @Param('examCode') examCode: string,
+    @Query('months') months?: string,
+  ) {
+    return this.lisService.getLabTrend(tenantId, patientId, examCode, months ? parseInt(months, 10) : 6);
+  }
+
+  // ─── Delta Value Check ───────────────────────────────────────────────────
+
+  @Post('delta-check/result/:resultId')
+  @ApiParam({ name: 'resultId', description: 'Exam result UUID' })
+  @ApiOperation({ summary: 'Check delta values for a specific result vs previous' })
+  @ApiResponse({ status: 200, description: 'Delta check results' })
+  async checkDeltaValue(
+    @CurrentTenant() tenantId: string,
+    @Param('resultId', ParseUUIDPipe) resultId: string,
+  ) {
+    return this.lisService.checkDeltaValue(tenantId, resultId);
+  }
+
+  // ─── Quality Control (Westgard) ──────────────────────────────────────────
+
+  @Post('qc/westgard')
+  @ApiOperation({ summary: 'Run full Westgard multi-rule QC check (Levey-Jennings)' })
+  @ApiResponse({ status: 201, description: 'QC result with Westgard rules evaluation' })
+  async runQualityControl(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: QualityControlEntryDto,
+  ) {
+    return this.lisService.runQualityControl(tenantId, dto);
+  }
+
+  // ─── Institutional Antibiogram ───────────────────────────────────────────
+
+  @Get('antibiogram')
+  @ApiQuery({ name: 'period', required: false, description: 'Period (e.g. "2025", "2025-Q1", "2025-06")' })
+  @ApiOperation({ summary: 'Get compiled institutional antibiogram/sensitivity data' })
+  @ApiResponse({ status: 200, description: 'Institutional antibiogram' })
+  async getInstitutionalAntibiogram(
+    @CurrentTenant() tenantId: string,
+    @Query('period') period?: string,
+  ) {
+    return this.lisService.getInstitutionalAntibiogram(
+      tenantId,
+      period ?? new Date().getFullYear().toString(),
+    );
+  }
+
+  // ─── Blood Gas Interpretation ────────────────────────────────────────────
+
+  @Post('blood-gas/interpret')
+  @ApiOperation({ summary: 'Full ABG interpretation: acidosis/alkalosis, compensation, oxygenation' })
+  @ApiResponse({ status: 201, description: 'Blood gas interpretation' })
+  async interpretBloodGas(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: InterpretBloodGasDto,
+  ) {
+    return this.lisService.interpretBloodGas(tenantId, dto);
+  }
+
+  // ─── Pathology Report ────────────────────────────────────────────────────
+
+  @Post('pathology')
+  @ApiOperation({ summary: 'Create pathology report (biopsy, macroscopy, microscopy, IHQ, AP)' })
+  @ApiResponse({ status: 201, description: 'Pathology report created' })
+  async createPathologyReport(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: CreatePathologyReportDto,
+  ) {
+    return this.lisService.createPathologyReport(tenantId, dto);
+  }
+
+  // ─── Microbiology Result ─────────────────────────────────────────────────
+
+  @Post('microbiology')
+  @ApiOperation({ summary: 'Create microbiology result: culture + antibiogram with MIC/sensitivity' })
+  @ApiResponse({ status: 201, description: 'Microbiology result created' })
+  async createMicrobiologyResult(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: CreateMicrobiologyResultDto,
+  ) {
+    return this.lisService.createMicrobiologyResult(tenantId, dto);
   }
 }

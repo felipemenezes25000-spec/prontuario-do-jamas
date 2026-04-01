@@ -32,6 +32,8 @@ import {
   CreateDailyGoalsDto,
   CreateEcmoRecordDto,
   CreateEnteralNutritionDto,
+  InvasiveDeviceTypeEnum,
+  DEVICE_DAYS_THRESHOLDS,
 } from './dto/icu.dto';
 import {
   CreateHypothermiaSessionDto,
@@ -145,6 +147,303 @@ export class IcuController {
     @Body() dto: CreateVentilationRecordDto,
   ) {
     return this.icuService.createVentilationRecord(tenantId, user.sub, dto);
+  }
+
+  // ─── Weaning Assessment ──────────────────────────────────────────────────
+
+  @Get('weaning-assessment/:patientId')
+  @ApiParam({ name: 'patientId', description: 'Patient UUID' })
+  @ApiQuery({ name: 'encounterId', required: false, description: 'Encounter UUID (optional)' })
+  @ApiOperation({ summary: 'Assess readiness for ventilator weaning (SBT criteria, RSBI)' })
+  @ApiResponse({ status: 200, description: 'Weaning readiness assessment' })
+  async assessWeaningReadiness(
+    @CurrentTenant() tenantId: string,
+    @Param('patientId', ParseUUIDPipe) patientId: string,
+    @Query('encounterId') encounterId?: string,
+  ) {
+    return this.icuService.assessWeaningReadiness(tenantId, patientId, encounterId);
+  }
+
+  // ─── Encounter-based score endpoint ────────────────────────────────────
+
+  @Post('scores/:encounterId/calculate')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Calculate and save ICU severity score by encounter (alternative route)' })
+  @ApiResponse({ status: 201, description: 'Score calculated and saved' })
+  async calculateScoreByEncounter(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { scoreType: string; data: Record<string, unknown> },
+  ) {
+    // Route to appropriate calculator based on scoreType
+    const data = body.data as unknown;
+    switch (body.scoreType) {
+      case 'APACHE_II':
+        return this.icuService.calculateApacheII(tenantId, user.sub, {
+          encounterId,
+          ...(data as CalculateApacheIIDto),
+        } as unknown as CalculateApacheIIDto);
+      case 'SOFA':
+        return this.icuService.calculateSofa(tenantId, user.sub, {
+          encounterId,
+          ...(data as CalculateSofaDto),
+        } as unknown as CalculateSofaDto);
+      case 'SAPS_3':
+        return this.icuService.calculateSaps3(tenantId, user.sub, {
+          encounterId,
+          ...(data as CalculateSaps3Dto),
+        } as unknown as CalculateSaps3Dto);
+      case 'TISS_28':
+        return this.icuService.calculateTiss28(tenantId, user.sub, {
+          encounterId,
+          ...(data as CalculateTiss28Dto),
+        } as unknown as CalculateTiss28Dto);
+      default:
+        return { error: `Unknown score type: ${body.scoreType}` };
+    }
+  }
+
+  @Get('scores/:encounterId/history')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiQuery({ name: 'scoreType', required: false, description: 'Score type filter' })
+  @ApiOperation({ summary: 'Get score history for an encounter' })
+  async getScoresByEncounter(
+    @CurrentTenant() tenantId: string,
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @Query('scoreType') scoreType?: string,
+  ) {
+    // Use existing score history but filter by encounter
+    const titleFilter = scoreType ? `[ICU:${scoreType}]` : '[ICU:';
+    const docs = await this.icuService['prisma'].clinicalDocument.findMany({
+      where: {
+        tenantId,
+        encounterId,
+        title: { startsWith: titleFilter },
+        status: 'FINAL',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return docs.map((doc) => ({
+      id: doc.id,
+      ...JSON.parse(doc.content as string),
+      createdAt: doc.createdAt,
+    }));
+  }
+
+  // ─── Encounter-based Vasoactive Dose ───────────────────────────────────
+
+  @Post('vasoactive/:encounterId/calculate')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Calculate vasoactive drug dose by encounter' })
+  @ApiResponse({ status: 200, description: 'Vasoactive dose calculation result' })
+  async calculateVasoactiveDoseByEncounter(
+    @Param('encounterId', ParseUUIDPipe) _encounterId: string,
+    @Body() dto: VasoactiveDrugCalculatorDto,
+  ) {
+    return this.icuService.calculateVasoactiveDrug(dto);
+  }
+
+  // ─── Encounter-based Sedation ──────────────────────────────────────────
+
+  @Post('sedation/:encounterId/record')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Record sedation assessment by encounter' })
+  @ApiResponse({ status: 201, description: 'Sedation assessment recorded' })
+  async recordSedationByEncounter(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateSedationAssessmentDto,
+  ) {
+    return this.icuService.createSedationAssessment(tenantId, user.sub, {
+      ...dto,
+      encounterId,
+    });
+  }
+
+  // ─── Encounter-based Ventilation ───────────────────────────────────────
+
+  @Post('ventilation/:encounterId/record')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Record ventilator parameters by encounter' })
+  @ApiResponse({ status: 201, description: 'Ventilation record created with calculated values and alerts' })
+  async recordVentilationByEncounter(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateVentilationRecordDto,
+  ) {
+    return this.icuService.createVentilationRecord(tenantId, user.sub, {
+      ...dto,
+      encounterId,
+    });
+  }
+
+  // ─── Encounter-based Devices ───────────────────────────────────────────
+
+  @Post('devices/:encounterId/register')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Register invasive device by encounter' })
+  @ApiResponse({ status: 201, description: 'Device registered' })
+  async registerDeviceByEncounter(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateInvasiveDeviceDto,
+  ) {
+    return this.icuService.createInvasiveDevice(tenantId, user.sub, {
+      ...dto,
+      encounterId,
+    });
+  }
+
+  @Get('devices/:encounterId/active')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Get active devices for an encounter with days in situ' })
+  async getActiveDevicesByEncounter(
+    @CurrentTenant() tenantId: string,
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+  ) {
+    const docs = await this.icuService['prisma'].clinicalDocument.findMany({
+      where: {
+        tenantId,
+        encounterId,
+        title: { startsWith: '[ICU:DEVICE]' },
+        status: 'FINAL',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return docs.map((doc) => {
+      const content = JSON.parse(doc.content as string) as Record<string, unknown>;
+      const insertedAt = new Date(content.insertedAt as string);
+      const daysInserted = Math.floor((Date.now() - insertedAt.getTime()) / (1000 * 60 * 60 * 24));
+      const threshold = DEVICE_DAYS_THRESHOLDS[content.deviceType as InvasiveDeviceTypeEnum];
+      return {
+        id: doc.id,
+        ...content,
+        daysInserted,
+        alertThresholdExceeded: threshold !== undefined && daysInserted > threshold,
+        createdAt: doc.createdAt,
+      };
+    }).filter((d) => !(d as Record<string, unknown>).removed);
+  }
+
+  // ─── Encounter-based Daily Goals ───────────────────────────────────────
+
+  @Post('daily-goals/:encounterId/set')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Set daily goals by encounter' })
+  @ApiResponse({ status: 201, description: 'Daily goals set' })
+  async setDailyGoalsByEncounter(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateDailyGoalsDto,
+  ) {
+    return this.icuService.createDailyGoals(tenantId, user.sub, {
+      ...dto,
+      encounterId,
+    });
+  }
+
+  // ─── Encounter-based Flowsheet ─────────────────────────────────────────
+
+  @Get('flowsheet/encounter/:encounterId')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiOperation({ summary: 'Get ICU flowsheet for an encounter' })
+  @ApiResponse({ status: 200, description: 'ICU flowsheet data' })
+  async getFlowsheetByEncounter(
+    @CurrentTenant() tenantId: string,
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    // Get patientId from encounter's clinical documents
+    const anyDoc = await this.icuService['prisma'].clinicalDocument.findFirst({
+      where: { tenantId, encounterId },
+      select: { patientId: true },
+    });
+    if (!anyDoc) {
+      return { error: 'No data found for this encounter' };
+    }
+    return this.icuService.getFlowsheet(tenantId, anyDoc.patientId, encounterId, dateFrom, dateTo);
+  }
+
+  // ─── Encounter-based Dialysis ──────────────────────────────────────────
+
+  @Post('dialysis/:encounterId/record')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Record dialysis/CRRT session by encounter' })
+  @ApiResponse({ status: 201, description: 'Dialysis session recorded' })
+  async recordDialysisByEncounter(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateDialysisPrescriptionDto,
+  ) {
+    return this.icuService.createDialysisPrescription(tenantId, user.sub, {
+      ...dto,
+      encounterId,
+    });
+  }
+
+  // ─── Encounter-based Nutrition ─────────────────────────────────────────
+
+  @Post('nutrition/:encounterId/record')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Record enteral nutrition by encounter' })
+  @ApiResponse({ status: 201, description: 'Nutrition recorded' })
+  async recordNutritionByEncounter(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateEnteralNutritionDto,
+  ) {
+    return this.icuService.createEnteralNutrition(tenantId, user.sub, {
+      ...dto,
+      encounterId,
+    });
+  }
+
+  // ─── Encounter-based Pronation ─────────────────────────────────────────
+
+  @Post('pronation/:encounterId/record')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Record pronation session by encounter' })
+  @ApiResponse({ status: 201, description: 'Pronation session recorded' })
+  async recordPronationByEncounter(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateProneSessionDto,
+  ) {
+    return this.icuService.createProneSession(tenantId, user.sub, {
+      ...dto,
+      encounterId,
+    });
+  }
+
+  // ─── Encounter-based Bundles ───────────────────────────────────────────
+
+  @Post('bundles/:encounterId/record')
+  @ApiParam({ name: 'encounterId', description: 'Encounter UUID' })
+  @ApiOperation({ summary: 'Record bundle compliance by encounter' })
+  @ApiResponse({ status: 201, description: 'Bundle compliance recorded' })
+  async recordBundleByEncounter(
+    @Param('encounterId', ParseUUIDPipe) encounterId: string,
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateBundleChecklistDto,
+  ) {
+    return this.icuService.createBundleChecklist(tenantId, user.sub, {
+      ...dto,
+      encounterId,
+    });
   }
 
   // ─── Dialysis / CRRT ───────────────────────────────────────────────────

@@ -16,6 +16,37 @@ export class CreateCheckoutDto {
   cpf?: string;
 }
 
+export class PaymentWebhookDto {
+  @ApiProperty({ description: 'Payment UUID' })
+  @IsUUID()
+  paymentId!: string;
+
+  @ApiProperty({ description: 'Payment status from gateway' })
+  @IsIn(['PAID', 'FAILED', 'REFUNDED', 'EXPIRED'])
+  status!: 'PAID' | 'FAILED' | 'REFUNDED' | 'EXPIRED';
+
+  @ApiPropertyOptional({ description: 'Gateway transaction ID' })
+  @IsOptional()
+  @IsString()
+  gatewayTransactionId?: string;
+
+  @ApiPropertyOptional({ description: 'ISO datetime of payment' })
+  @IsOptional()
+  @IsString()
+  paidAt?: string;
+}
+
+export class GeneratePixDto {
+  @ApiProperty({ description: 'Billing entry UUID' })
+  @IsUUID()
+  billingEntryId!: string;
+
+  @ApiPropertyOptional({ description: 'CPF for PIX receipt' })
+  @IsOptional()
+  @IsString()
+  cpf?: string;
+}
+
 export class SetupInstallmentsDto {
   @ApiProperty({ description: 'Number of installments (2-12)' })
   @IsInt()

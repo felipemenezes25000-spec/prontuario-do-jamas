@@ -18,7 +18,7 @@ import { OnlinePaymentService } from './online-payment.service';
 import { CurrentTenant } from '../../../common/decorators/tenant.decorator';
 import { CurrentUser, type JwtPayload } from '../../../common/decorators/current-user.decorator';
 import { ParseUUIDPipe } from '../../../common/pipes/parse-uuid.pipe';
-import { CreateCheckoutDto, SetupInstallmentsDto } from './online-payment.dto';
+import { CreateCheckoutDto, SetupInstallmentsDto, PaymentWebhookDto, GeneratePixDto } from './online-payment.dto';
 
 @ApiTags('Patient Portal — Online Payment')
 @ApiBearerAuth('access-token')
@@ -77,5 +77,38 @@ export class OnlinePaymentController {
     @Body() dto: SetupInstallmentsDto,
   ) {
     return this.service.setupInstallments(tenantId, user.email, id, dto);
+  }
+
+  @Post('payments/pix')
+  @ApiOperation({ summary: 'Generate PIX QR code for payment (copia-e-cola + QR image URL)' })
+  @ApiResponse({ status: 201, description: 'PIX QR code generated' })
+  async generatePix(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: GeneratePixDto,
+  ) {
+    return this.service.generatePixQrCode(tenantId, user.email, dto);
+  }
+
+  @Post('payments/webhook')
+  @ApiOperation({ summary: 'Payment gateway webhook (confirm/fail/refund)' })
+  @ApiResponse({ status: 200, description: 'Webhook processed' })
+  async paymentWebhook(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: PaymentWebhookDto,
+  ) {
+    return this.service.processPaymentWebhook(tenantId, dto);
+  }
+
+  @Get('payments/:id/receipt')
+  @ApiOperation({ summary: 'Download payment receipt/comprovante' })
+  @ApiParam({ name: 'id', description: 'Payment UUID' })
+  @ApiResponse({ status: 200, description: 'Receipt data' })
+  async getReceipt(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.getReceipt(tenantId, user.email, id);
   }
 }

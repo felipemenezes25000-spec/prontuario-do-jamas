@@ -225,3 +225,326 @@ export class DetectSampleSwapDto {
   @IsBoolean()
   includeDemographicCheck?: boolean;
 }
+
+// ─── Reference Ranges ───────────────────────────────────────────────────────
+
+export enum Gender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+}
+
+// ─── Panic Value Alert ──────────────────────────────────────────────────────
+
+export enum PanicValueStatus {
+  PENDING = 'PENDING',
+  ACKNOWLEDGED = 'ACKNOWLEDGED',
+  ESCALATED = 'ESCALATED',
+}
+
+export class CreatePanicValueAlertDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  patientId: string;
+
+  @ApiPropertyOptional({ description: 'Encounter ID' })
+  @IsOptional()
+  @IsUUID()
+  encounterId?: string;
+
+  @ApiProperty({ description: 'Analyte with critical value (e.g. Potassium)' })
+  @IsString()
+  @IsNotEmpty()
+  analyte: string;
+
+  @ApiProperty({ description: 'Critical result value' })
+  @IsString()
+  @IsNotEmpty()
+  value: string;
+
+  @ApiPropertyOptional({ description: 'Unit' })
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @ApiProperty({ description: 'Normal reference range (e.g. "3.5-5.0")' })
+  @IsString()
+  @IsNotEmpty()
+  referenceRange: string;
+
+  @ApiPropertyOptional({ description: 'Responsible physician ID to notify' })
+  @IsOptional()
+  @IsUUID()
+  responsiblePhysicianId?: string;
+
+  @ApiPropertyOptional({ description: 'Lab technician who detected the value' })
+  @IsOptional()
+  @IsUUID()
+  detectedById?: string;
+
+  @ApiPropertyOptional({ description: 'Exam result ID' })
+  @IsOptional()
+  @IsUUID()
+  examResultId?: string;
+}
+
+// ─── Lab Trend ──────────────────────────────────────────────────────────────
+
+// ─── Institutional Antibiogram ──────────────────────────────────────────────
+
+// ─── Blood Gas Interpretation ───────────────────────────────────────────────
+
+export enum BloodGasSampleType {
+  ARTERIAL = 'ARTERIAL',
+  VENOUS = 'VENOUS',
+  CAPILLARY = 'CAPILLARY',
+}
+
+export class InterpretBloodGasDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  patientId: string;
+
+  @ApiPropertyOptional({ description: 'Encounter ID' })
+  @IsOptional()
+  @IsUUID()
+  encounterId?: string;
+
+  @ApiProperty({ description: 'Sample type', enum: BloodGasSampleType })
+  @IsEnum(BloodGasSampleType)
+  sampleType: BloodGasSampleType;
+
+  @ApiProperty({ description: 'pH value' })
+  @IsNumber()
+  ph: number;
+
+  @ApiProperty({ description: 'pCO2 in mmHg' })
+  @IsNumber()
+  pCO2: number;
+
+  @ApiProperty({ description: 'pO2 in mmHg' })
+  @IsNumber()
+  pO2: number;
+
+  @ApiProperty({ description: 'HCO3 in mEq/L' })
+  @IsNumber()
+  hco3: number;
+
+  @ApiPropertyOptional({ description: 'Base excess in mEq/L' })
+  @IsOptional()
+  @IsNumber()
+  baseExcess?: number;
+
+  @ApiPropertyOptional({ description: 'SaO2 percentage' })
+  @IsOptional()
+  @IsNumber()
+  saO2?: number;
+
+  @ApiPropertyOptional({ description: 'Lactate in mmol/L' })
+  @IsOptional()
+  @IsNumber()
+  lactate?: number;
+
+  @ApiPropertyOptional({ description: 'Sodium in mEq/L' })
+  @IsOptional()
+  @IsNumber()
+  sodium?: number;
+
+  @ApiPropertyOptional({ description: 'Potassium in mEq/L' })
+  @IsOptional()
+  @IsNumber()
+  potassium?: number;
+
+  @ApiPropertyOptional({ description: 'Chloride in mEq/L' })
+  @IsOptional()
+  @IsNumber()
+  chloride?: number;
+
+  @ApiPropertyOptional({ description: 'FiO2 fraction' })
+  @IsOptional()
+  @IsNumber()
+  fiO2?: number;
+
+  @ApiPropertyOptional({ description: 'Patient temperature in Celsius' })
+  @IsOptional()
+  @IsNumber()
+  temperature?: number;
+}
+
+// ─── Pathology Report ───────────────────────────────────────────────────────
+
+export enum PathologyReportType {
+  BIOPSY = 'BIOPSY',
+  SURGICAL = 'SURGICAL',
+  CYTOLOGY = 'CYTOLOGY',
+  FINE_NEEDLE_ASPIRATION = 'FINE_NEEDLE_ASPIRATION',
+  FROZEN_SECTION = 'FROZEN_SECTION',
+}
+
+export class CreatePathologyReportDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  patientId: string;
+
+  @ApiPropertyOptional({ description: 'Encounter ID' })
+  @IsOptional()
+  @IsUUID()
+  encounterId?: string;
+
+  @ApiProperty({ description: 'Report type', enum: PathologyReportType })
+  @IsEnum(PathologyReportType)
+  reportType: PathologyReportType;
+
+  @ApiProperty({ description: 'Specimen site (e.g. "Skin, left forearm")' })
+  @IsString()
+  @IsNotEmpty()
+  specimenSite: string;
+
+  @ApiProperty({ description: 'Clinical history' })
+  @IsString()
+  @IsNotEmpty()
+  clinicalHistory: string;
+
+  @ApiProperty({ description: 'Macroscopic description' })
+  @IsString()
+  @IsNotEmpty()
+  macroscopy: string;
+
+  @ApiProperty({ description: 'Microscopic description' })
+  @IsString()
+  @IsNotEmpty()
+  microscopy: string;
+
+  @ApiPropertyOptional({ description: 'Immunohistochemistry results' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ihqResults?: string[];
+
+  @ApiPropertyOptional({ description: 'Special stains used' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  specialStains?: string[];
+
+  @ApiProperty({ description: 'Final diagnosis' })
+  @IsString()
+  @IsNotEmpty()
+  diagnosis: string;
+
+  @ApiPropertyOptional({ description: 'Tumor staging (TNM) if applicable' })
+  @IsOptional()
+  @IsString()
+  staging?: string;
+
+  @ApiPropertyOptional({ description: 'Margin status' })
+  @IsOptional()
+  @IsString()
+  marginStatus?: string;
+
+  @ApiPropertyOptional({ description: 'Pathologist comment' })
+  @IsOptional()
+  @IsString()
+  comment?: string;
+
+  @ApiProperty({ description: 'Pathologist ID' })
+  @IsUUID()
+  pathologistId: string;
+}
+
+// ─── Microbiology Result ────────────────────────────────────────────────────
+
+export enum MicrobiologySampleSource {
+  BLOOD = 'BLOOD',
+  URINE = 'URINE',
+  SPUTUM = 'SPUTUM',
+  WOUND = 'WOUND',
+  CSF = 'CSF',
+  STOOL = 'STOOL',
+  TISSUE = 'TISSUE',
+  RESPIRATORY = 'RESPIRATORY',
+  GENITAL = 'GENITAL',
+  OTHER = 'OTHER',
+}
+
+export enum SensitivityResult {
+  SENSITIVE = 'S',
+  INTERMEDIATE = 'I',
+  RESISTANT = 'R',
+}
+
+export class AntibiogramEntryDto {
+  @ApiProperty({ description: 'Antibiotic name' })
+  @IsString()
+  @IsNotEmpty()
+  antibiotic: string;
+
+  @ApiProperty({ description: 'Sensitivity result', enum: SensitivityResult })
+  @IsEnum(SensitivityResult)
+  result: SensitivityResult;
+
+  @ApiPropertyOptional({ description: 'MIC value (ug/mL)' })
+  @IsOptional()
+  @IsNumber()
+  mic?: number;
+
+  @ApiPropertyOptional({ description: 'Disk zone diameter (mm)' })
+  @IsOptional()
+  @IsNumber()
+  diskZone?: number;
+}
+
+export class CreateMicrobiologyResultDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  patientId: string;
+
+  @ApiPropertyOptional({ description: 'Encounter ID' })
+  @IsOptional()
+  @IsUUID()
+  encounterId?: string;
+
+  @ApiProperty({ description: 'Sample source', enum: MicrobiologySampleSource })
+  @IsEnum(MicrobiologySampleSource)
+  sampleSource: MicrobiologySampleSource;
+
+  @ApiProperty({ description: 'Culture result (e.g. "Positive" or "No growth")' })
+  @IsString()
+  @IsNotEmpty()
+  cultureResult: string;
+
+  @ApiPropertyOptional({ description: 'Organism identified' })
+  @IsOptional()
+  @IsString()
+  organism?: string;
+
+  @ApiPropertyOptional({ description: 'Colony count (e.g. ">100,000 CFU/mL")' })
+  @IsOptional()
+  @IsString()
+  colonyCount?: string;
+
+  @ApiPropertyOptional({ description: 'Gram stain result' })
+  @IsOptional()
+  @IsString()
+  gramStain?: string;
+
+  @ApiPropertyOptional({ description: 'Antibiogram entries', type: [AntibiogramEntryDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AntibiogramEntryDto)
+  antibiogram?: AntibiogramEntryDto[];
+
+  @ApiPropertyOptional({ description: 'Incubation days' })
+  @IsOptional()
+  @IsNumber()
+  incubationDays?: number;
+
+  @ApiPropertyOptional({ description: 'Microbiologist notes' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiProperty({ description: 'Microbiologist ID' })
+  @IsUUID()
+  microbiologistId: string;
+}

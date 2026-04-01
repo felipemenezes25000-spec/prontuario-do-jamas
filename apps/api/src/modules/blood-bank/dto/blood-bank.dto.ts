@@ -215,3 +215,94 @@ export class TransfusionReactionDto {
   @IsBoolean()
   transfusionStopped?: boolean;
 }
+
+export enum BloodUnitStatus {
+  AVAILABLE = 'AVAILABLE',
+  RESERVED = 'RESERVED',
+  TRANSFUSED = 'TRANSFUSED',
+  DISCARDED = 'DISCARDED',
+  EXPIRED = 'EXPIRED',
+  QUARANTINE = 'QUARANTINE',
+}
+
+export enum TransfusionUrgency {
+  ROUTINE = 'ROUTINE',
+  URGENT = 'URGENT',
+  EMERGENCY = 'EMERGENCY',
+}
+
+export class TrackBloodUnitDto {
+  @ApiProperty({ description: 'Blood unit bag number/ID' })
+  @IsString()
+  @IsNotEmpty()
+  unitId: string;
+
+  @ApiProperty({ description: 'Blood product type', enum: BloodProduct })
+  @IsEnum(BloodProduct)
+  product: BloodProduct;
+
+  @ApiProperty({ description: 'ABO/Rh blood type' })
+  @IsString()
+  @IsNotEmpty()
+  bloodType: string;
+
+  @ApiProperty({ description: 'Volume in mL' })
+  @IsNumber()
+  volumeMl: number;
+
+  @ApiProperty({ description: 'Collection date (ISO 8601)' })
+  @IsDateString()
+  collectedAt: string;
+
+  @ApiPropertyOptional({ description: 'Expiry date override (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
+
+  @ApiPropertyOptional({ description: 'Unit status', enum: BloodUnitStatus })
+  @IsOptional()
+  @IsEnum(BloodUnitStatus)
+  status?: BloodUnitStatus;
+}
+
+export class RequestTransfusionDto {
+  @ApiProperty({ description: 'Patient ID' })
+  @IsUUID()
+  @IsNotEmpty()
+  patientId: string;
+
+  @ApiPropertyOptional({ description: 'Encounter ID' })
+  @IsOptional()
+  @IsUUID()
+  encounterId?: string;
+
+  @ApiProperty({ description: 'Blood product type', enum: BloodProduct })
+  @IsEnum(BloodProduct)
+  product: BloodProduct;
+
+  @ApiPropertyOptional({ description: 'Urgency level', enum: TransfusionUrgency })
+  @IsOptional()
+  @IsEnum(TransfusionUrgency)
+  urgency?: TransfusionUrgency;
+
+  @ApiProperty({ description: 'Clinical indication' })
+  @IsString()
+  @IsNotEmpty()
+  indication: string;
+
+  @ApiPropertyOptional({ description: 'Number of units requested' })
+  @IsOptional()
+  @IsNumber()
+  unitsRequested?: number;
+
+  @ApiPropertyOptional({ description: 'Special requirements (e.g. irradiated, CMV-negative)' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  specialRequirements?: string[];
+
+  @ApiPropertyOptional({ description: 'Additional clinical notes' })
+  @IsOptional()
+  @IsString()
+  clinicalNotes?: string;
+}

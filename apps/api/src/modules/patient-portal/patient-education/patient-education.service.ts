@@ -163,4 +163,53 @@ export class PatientEducationService {
 
     return { patientId, recommendations };
   }
+
+  async markAsRead(tenantId: string, userEmail: string, contentId: string) {
+    const patient = await this.prisma.patient.findFirst({
+      where: { tenantId, email: userEmail, isActive: true },
+      select: { id: true },
+    });
+    if (!patient) throw new ForbiddenException('Paciente não encontrado.');
+
+    const doc = await this.prisma.clinicalDocument.findFirst({
+      where: { id: contentId, tenantId, type: 'CUSTOM', title: { startsWith: 'EDUCATION:' } },
+    });
+    if (!doc) throw new NotFoundException('Conteúdo educativo não encontrado.');
+
+    const edu = JSON.parse(doc.content ?? '{}') as EducationContent & { readBy?: Array<{ patientId: string; readAt: string }> };
+    if (!edu.readBy) edu.readBy = [];
+
+    const alreadyRead = edu.readBy.some((r) => r.patientId === patient.id);
+    if (!alreadyRead) {
+      edu.readBy.push({ patientId: patient.id, readAt: new Date().toISOString() });
+      await this.prisma.clinicalDocument.update({
+        where: { id: contentId },
+        data: { content: JSON.stringify(edu) },
+      });
+    }
+
+    return { contentId, readAt: new Date().toISOString(), alreadyRead };
+  }
+
+  async getCategories(tenantId: string) {
+    const docs = await this.prisma.clinicalDocument.findMany({
+      where: { tenantId, type: 'CUSTOM', title: { startsWith: 'EDUCATION:' }, status: 'SIGNED' },
+      select: { content: true },
+    });
+
+    const conditionSet = new Set<string>();
+    const contentTypes = new Set<string>();
+
+    for (const d of docs) {
+      const edu = JSON.parse(d.content ?? '{}') as EducationContent;
+      edu.relatedConditions?.forEach((c) => conditionSet.add(c));
+      if (edu.contentType) contentTypes.add(edu.contentType);
+    }
+
+    return {
+      conditions: Array.from(conditionSet).sort(),
+      contentTypes: Array.from(contentTypes).sort(),
+      totalContent: docs.length,
+    };
+  }
 }

@@ -24,6 +24,7 @@ import { randomUUID } from 'crypto';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { AuditService } from '../audit/audit.service';
 import { VoiceTranscriptionService } from './voice-transcription.service';
+import { VoiceEngineService } from './voice-engine.service';
 
 import {
   ListTranscriptionsQueryDto,
@@ -34,6 +35,7 @@ import {
   StreamStopDto,
   StreamStopResponseDto,
   EditTranscriptionDto,
+  VoiceProcessResponseDto,
 } from './dto';
 
 @ApiTags('AI / Voice Transcriptions')
@@ -44,6 +46,7 @@ export class VoiceTranscriptionController {
 
   constructor(
     private readonly transcriptionService: VoiceTranscriptionService,
+    private readonly voiceEngine: VoiceEngineService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -109,6 +112,54 @@ export class VoiceTranscriptionController {
       });
 
     return result;
+  }
+
+  // ─── POST /ai/voice/transcriptions/:id/process ────────────────────
+
+  @Post('transcriptions/:id/process')
+  @ApiOperation({
+    summary: 'Process transcription with NER',
+    description:
+      'Runs Named Entity Recognition on an existing transcription, extracting structured medical data (symptoms, medications, diagnoses, etc.).',
+  })
+  @ApiParam({ name: 'id', description: 'Transcription UUID' })
+  @ApiResponse({ status: 200, description: 'NER processing result', type: VoiceProcessResponseDto })
+  @ApiResponse({ status: 404, description: 'Transcription not found' })
+  async processTranscription(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<VoiceProcessResponseDto> {
+    // 1. Fetch the transcription
+    const transcription = await this.transcriptionService.findById(id);
+
+    // 2. Run NER via VoiceEngineService
+    const result = await this.voiceEngine.processTranscription(
+      transcription.text,
+      'general',
+    );
+
+    // 3. Audit
+    await this.auditService
+      .log({
+        tenantId: user.tenantId,
+        userId: user.sub,
+        action: 'AI_SUGGESTION',
+        entity: 'VoiceTranscription',
+        entityId: id,
+        newData: {
+          operation: 'NER_PROCESS',
+          entitiesCount: result.entities.length,
+        },
+      })
+      .catch((err: unknown) => {
+        this.logger.warn(`Audit log failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+    return {
+      processedText: result.processedText,
+      structuredData: result.structuredData,
+      entities: result.entities,
+    };
   }
 
   // ─── POST /ai/voice/stream/start ─────────────────────────────────

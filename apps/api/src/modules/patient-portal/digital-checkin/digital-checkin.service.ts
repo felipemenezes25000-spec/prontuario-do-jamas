@@ -4,7 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { CreateCheckinDto, SubmitAnamnesisDto, SubmitConsentDto } from './digital-checkin.dto';
+import { CreateCheckinDto, SubmitAnamnesisDto, SubmitConsentDto, UploadCheckinDocumentDto } from './digital-checkin.dto';
 
 interface CheckinRecord {
   id: string;
@@ -18,6 +18,7 @@ interface CheckinRecord {
   geolocation?: string;
   anamnesis?: Record<string, unknown>;
   consents: Array<{ consentType: string; accepted: boolean; acceptedAt: string; ipAddress?: string }>;
+  documents: Array<{ id: string; documentType: string; fileUrl: string; notes?: string; uploadedAt: string }>;
   checkedInAt: string;
   completedAt?: string;
 }
@@ -59,6 +60,7 @@ export class DigitalCheckinService {
       insuranceCardPhoto: dto.insuranceCardPhoto,
       geolocation: dto.geolocation,
       consents: [],
+      documents: [],
       checkedInAt: new Date().toISOString(),
     };
 
@@ -169,7 +171,55 @@ export class DigitalCheckinService {
       status: checkinData.status,
       hasAnamnesis: !!checkinData.anamnesis,
       consentsGiven: checkinData.consents.length,
+      documentsUploaded: checkinData.documents?.length ?? 0,
       checkedInAt: checkinData.checkedInAt,
     };
+  }
+
+  async uploadCheckinDocument(tenantId: string, userEmail: string, checkinId: string, dto: UploadCheckinDocumentDto) {
+    await this.resolvePatientId(tenantId, userEmail);
+
+    const document = await this.prisma.clinicalDocument.findFirst({
+      where: { id: checkinId, tenantId },
+    });
+    if (!document) {
+      throw new NotFoundException('Check-in não encontrado.');
+    }
+
+    const checkinData = JSON.parse(document.content ?? '{}') as CheckinRecord;
+    if (!checkinData.documents) {
+      checkinData.documents = [];
+    }
+
+    const docEntry = {
+      id: crypto.randomUUID(),
+      documentType: dto.documentType,
+      fileUrl: dto.fileUrl,
+      notes: dto.notes,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    checkinData.documents.push(docEntry);
+
+    await this.prisma.clinicalDocument.update({
+      where: { id: checkinId },
+      data: { content: JSON.stringify(checkinData) },
+    });
+
+    return { checkinId, documentId: docEntry.id, documentType: dto.documentType };
+  }
+
+  async listCheckinDocuments(tenantId: string, userEmail: string, checkinId: string) {
+    await this.resolvePatientId(tenantId, userEmail);
+
+    const document = await this.prisma.clinicalDocument.findFirst({
+      where: { id: checkinId, tenantId },
+    });
+    if (!document) {
+      throw new NotFoundException('Check-in não encontrado.');
+    }
+
+    const checkinData = JSON.parse(document.content ?? '{}') as CheckinRecord;
+    return { checkinId, documents: checkinData.documents ?? [] };
   }
 }

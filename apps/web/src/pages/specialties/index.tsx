@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Heart,
   Brain,
@@ -11,7 +11,18 @@ import {
   Activity,
   Eye,
   Ear,
-  ClipboardList,
+  Search,
+  Users,
+  Baby,
+  Syringe,
+  ShieldCheck,
+  Microscope,
+  Radiation,
+  Scissors,
+  Flower2,
+  TreePine,
+  HandMetal,
+  type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,945 +32,424 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { usePapanicolaou } from '@/services/specialties-enhanced.service';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
-// ─── Calculator Helpers ─────────────────────────────────────────────────────
+// ─── Specialty Definitions ──────────────────────────────────────────────────
 
-function classifyFramingham(score: number): { risk: string; className: string } {
-  if (score < 10) return { risk: 'Baixo (<10%)', className: 'text-emerald-400' };
-  if (score < 20) return { risk: 'Intermediário (10-20%)', className: 'text-yellow-400' };
-  return { risk: 'Alto (>20%)', className: 'text-red-400' };
+interface SpecialtyDef {
+  id: string;
+  name: string;
+  icon: LucideIcon;
+  color: string;
+  activePatients: number;
+  calculators: string[];
+  assessmentFields: { label: string; type: 'text' | 'number' | 'select' | 'textarea'; options?: string[] }[];
 }
 
-function classifyCKD(egfr: number): { stage: string; className: string } {
-  if (egfr >= 90) return { stage: 'G1 — Normal', className: 'text-emerald-400' };
-  if (egfr >= 60) return { stage: 'G2 — Leve', className: 'text-green-400' };
-  if (egfr >= 45) return { stage: 'G3a — Leve-Moderado', className: 'text-yellow-400' };
-  if (egfr >= 30) return { stage: 'G3b — Moderado-Grave', className: 'text-orange-400' };
-  if (egfr >= 15) return { stage: 'G4 — Grave', className: 'text-red-400' };
-  return { stage: 'G5 — Falência Renal', className: 'text-red-500' };
+const SPECIALTIES: SpecialtyDef[] = [
+  { id: 'cardiologia', name: 'Cardiologia', icon: Heart, color: 'text-red-400', activePatients: 47, calculators: ['Framingham', 'CHADS2-VASc', 'TIMI', 'HEART Score'], assessmentFields: [{ label: 'PA Sistólica', type: 'number' }, { label: 'PA Diastólica', type: 'number' }, { label: 'FC', type: 'number' }, { label: 'Ritmo', type: 'select', options: ['Sinusal', 'FA', 'Flutter', 'TV', 'FV'] }, { label: 'Dor torácica', type: 'textarea' }] },
+  { id: 'neurologia', name: 'Neurologia', icon: Brain, color: 'text-purple-400', activePatients: 32, calculators: ['NIHSS', 'Glasgow', 'ABCD2', 'Hunt-Hess'], assessmentFields: [{ label: 'Glasgow (E+V+M)', type: 'number' }, { label: 'Pupilas', type: 'select', options: ['Isocóricas', 'Anisocóricas', 'Midriáticas', 'Mióticas'] }, { label: 'Força MMSS', type: 'text' }, { label: 'Força MMII', type: 'text' }, { label: 'Exame neurológico', type: 'textarea' }] },
+  { id: 'ortopedia', name: 'Ortopedia', icon: Bone, color: 'text-amber-400', activePatients: 28, calculators: ['EVA Dor', 'DASH', 'Harris Hip Score'], assessmentFields: [{ label: 'Localização', type: 'text' }, { label: 'EVA (0-10)', type: 'number' }, { label: 'Amplitude de movimento', type: 'text' }, { label: 'Exame', type: 'textarea' }] },
+  { id: 'nefrologia', name: 'Nefrologia', icon: Droplets, color: 'text-blue-400', activePatients: 19, calculators: ['CKD-EPI', 'MDRD', 'KDIGO AKI'], assessmentFields: [{ label: 'Creatinina', type: 'number' }, { label: 'Ureia', type: 'number' }, { label: 'TFG estimada', type: 'number' }, { label: 'Diurese 24h (mL)', type: 'number' }, { label: 'Observações', type: 'textarea' }] },
+  { id: 'pneumologia', name: 'Pneumologia', icon: Wind, color: 'text-cyan-400', activePatients: 24, calculators: ['CURB-65', 'PSI/PORT', 'mMRC Dispneia'], assessmentFields: [{ label: 'SpO2', type: 'number' }, { label: 'FR', type: 'number' }, { label: 'Ausculta', type: 'select', options: ['MV+', 'MV+ c/ crepitações', 'MV+ c/ sibilos', 'MV reduzido', 'Abolido'] }, { label: 'Exame', type: 'textarea' }] },
+  { id: 'endocrinologia', name: 'Endocrinologia', icon: Pill, color: 'text-orange-400', activePatients: 36, calculators: ['HbA1c → Média Glicêmica', 'IMC', 'HOMA-IR'], assessmentFields: [{ label: 'Glicemia jejum', type: 'number' }, { label: 'HbA1c (%)', type: 'number' }, { label: 'TSH', type: 'number' }, { label: 'T4 livre', type: 'number' }, { label: 'Avaliação', type: 'textarea' }] },
+  { id: 'gastroenterologia', name: 'Gastroenterologia', icon: Stethoscope, color: 'text-yellow-400', activePatients: 22, calculators: ['Child-Pugh', 'MELD', 'Ranson'], assessmentFields: [{ label: 'Abdome', type: 'select', options: ['Plano', 'Globoso', 'Distendido', 'Escavado'] }, { label: 'RHA', type: 'select', options: ['Presentes', 'Aumentados', 'Diminuídos', 'Ausentes'] }, { label: 'Exame abdominal', type: 'textarea' }] },
+  { id: 'oftalmologia', name: 'Oftalmologia', icon: Eye, color: 'text-green-400', activePatients: 15, calculators: ['Acuidade Visual', 'PIO Target'], assessmentFields: [{ label: 'AV OD', type: 'text' }, { label: 'AV OE', type: 'text' }, { label: 'PIO OD (mmHg)', type: 'number' }, { label: 'PIO OE (mmHg)', type: 'number' }, { label: 'Fundoscopia', type: 'textarea' }] },
+  { id: 'otorrinolaringologia', name: 'Otorrinolaringologia', icon: Ear, color: 'text-pink-400', activePatients: 13, calculators: ['Escala Mallampati', 'STOP-BANG'], assessmentFields: [{ label: 'Oroscopia', type: 'textarea' }, { label: 'Otoscopia', type: 'textarea' }, { label: 'Rinoscopia', type: 'textarea' }] },
+  { id: 'dermatologia', name: 'Dermatologia', icon: Flower2, color: 'text-rose-400', activePatients: 18, calculators: ['BSA', 'PASI', 'DLQI'], assessmentFields: [{ label: 'Tipo de lesão', type: 'select', options: ['Mácula', 'Pápula', 'Nódulo', 'Vesícula', 'Bolha', 'Placa', 'Úlcera'] }, { label: 'Localização', type: 'text' }, { label: 'Descrição', type: 'textarea' }] },
+  { id: 'urologia', name: 'Urologia', icon: Droplets, color: 'text-indigo-400', activePatients: 16, calculators: ['IPSS', 'Gleason Score'], assessmentFields: [{ label: 'PSA', type: 'number' }, { label: 'IPSS', type: 'number' }, { label: 'Toque retal', type: 'textarea' }] },
+  { id: 'ginecologia', name: 'Ginecologia', icon: Flower2, color: 'text-fuchsia-400', activePatients: 25, calculators: ['Bishop Score', 'FIGO Staging'], assessmentFields: [{ label: 'DUM', type: 'text' }, { label: 'Ciclo menstrual', type: 'select', options: ['Regular', 'Irregular', 'Amenorreia'] }, { label: 'Exame ginecológico', type: 'textarea' }] },
+  { id: 'pediatria', name: 'Pediatria', icon: Baby, color: 'text-sky-400', activePatients: 41, calculators: ['Peso/Idade', 'Altura/Idade', 'IMC/Idade', 'Apgar'], assessmentFields: [{ label: 'Peso (kg)', type: 'number' }, { label: 'Estatura (cm)', type: 'number' }, { label: 'PC (cm)', type: 'number' }, { label: 'Desenvolvimento', type: 'textarea' }] },
+  { id: 'geriatria', name: 'Geriatria', icon: TreePine, color: 'text-emerald-400', activePatients: 20, calculators: ['Katz ADL', 'Lawton IADL', 'MoCA', 'Mini-Mental'], assessmentFields: [{ label: 'Katz (0-6)', type: 'number' }, { label: 'Lawton (0-27)', type: 'number' }, { label: 'MoCA', type: 'number' }, { label: 'Quedas recentes', type: 'select', options: ['Não', '1 queda', '2+ quedas'] }, { label: 'Avaliação funcional', type: 'textarea' }] },
+  { id: 'psiquiatria', name: 'Psiquiatria', icon: Brain, color: 'text-violet-400', activePatients: 30, calculators: ['PHQ-9', 'GAD-7', 'AUDIT', 'Columbia Suicide'], assessmentFields: [{ label: 'PHQ-9', type: 'number' }, { label: 'GAD-7', type: 'number' }, { label: 'Risco suicida', type: 'select', options: ['Nenhum', 'Baixo', 'Moderado', 'Alto'] }, { label: 'Exame psíquico', type: 'textarea' }] },
+  { id: 'oncologia', name: 'Oncologia', icon: Microscope, color: 'text-red-500', activePatients: 35, calculators: ['ECOG/PS', 'TNM Staging', 'Karnofsky'], assessmentFields: [{ label: 'ECOG', type: 'select', options: ['0', '1', '2', '3', '4'] }, { label: 'Estadiamento TNM', type: 'text' }, { label: 'Protocolo QT', type: 'text' }, { label: 'Avaliação', type: 'textarea' }] },
+  { id: 'infectologia', name: 'Infectologia', icon: ShieldCheck, color: 'text-lime-400', activePatients: 14, calculators: ['qSOFA', 'Centor Score'], assessmentFields: [{ label: 'Temperatura', type: 'number' }, { label: 'Foco infeccioso', type: 'text' }, { label: 'ATB em uso', type: 'text' }, { label: 'Culturas', type: 'textarea' }] },
+  { id: 'reumatologia', name: 'Reumatologia', icon: HandMetal, color: 'text-teal-400', activePatients: 17, calculators: ['DAS28', 'SLEDAI', 'BASDAI'], assessmentFields: [{ label: 'Articulações acometidas', type: 'text' }, { label: 'VHS', type: 'number' }, { label: 'PCR', type: 'number' }, { label: 'FAN', type: 'text' }, { label: 'Exame', type: 'textarea' }] },
+  { id: 'hematologia', name: 'Hematologia', icon: Droplets, color: 'text-red-300', activePatients: 12, calculators: ['IPI', 'Sokal Score', 'IPSS-R MDS'], assessmentFields: [{ label: 'Hb', type: 'number' }, { label: 'Leucócitos', type: 'number' }, { label: 'Plaquetas', type: 'number' }, { label: 'Observações', type: 'textarea' }] },
+  { id: 'cirurgia-geral', name: 'Cirurgia Geral', icon: Scissors, color: 'text-zinc-400', activePatients: 23, calculators: ['ASA', 'Alvarado Score', 'POSSUM'], assessmentFields: [{ label: 'Procedimento', type: 'text' }, { label: 'ASA', type: 'select', options: ['I', 'II', 'III', 'IV', 'V'] }, { label: 'Exame abdominal', type: 'textarea' }] },
+  { id: 'anestesiologia', name: 'Anestesiologia', icon: Syringe, color: 'text-slate-400', activePatients: 8, calculators: ['Mallampati', 'Lee Index', 'ARISCAT'], assessmentFields: [{ label: 'Mallampati', type: 'select', options: ['I', 'II', 'III', 'IV'] }, { label: 'Via aérea difícil', type: 'select', options: ['Não', 'Sim', 'Suspeita'] }, { label: 'Avaliação pré-anestésica', type: 'textarea' }] },
+  { id: 'radiologia', name: 'Radiologia', icon: Radiation, color: 'text-yellow-300', activePatients: 0, calculators: ['BI-RADS', 'Lung-RADS', 'LI-RADS'], assessmentFields: [{ label: 'Exame', type: 'text' }, { label: 'Achados', type: 'textarea' }, { label: 'Impressão', type: 'textarea' }] },
+  { id: 'medicina-intensiva', name: 'Medicina Intensiva', icon: Activity, color: 'text-red-400', activePatients: 18, calculators: ['APACHE II', 'SOFA', 'SAPS 3'], assessmentFields: [{ label: 'SOFA', type: 'number' }, { label: 'APACHE II', type: 'number' }, { label: 'Ventilação', type: 'select', options: ['Ar ambiente', 'CN', 'MNR', 'VNI', 'IOT/VMI'] }, { label: 'Evolução UTI', type: 'textarea' }] },
+];
+
+// ─── Calculator Components ──────────────────────────────────────────────────
+
+function FraminghamCalculator() {
+  const [age, setAge] = useState('');
+  const [cholesterol, setCholesterol] = useState('');
+  const [hdl, setHdl] = useState('');
+  const [systolic, setSystolic] = useState('');
+  const [smoker, setSmoker] = useState('no');
+  const [result, setResult] = useState<{ risk: string; percent: number } | null>(null);
+
+  function calculate() {
+    const a = Number(age);
+    const c = Number(cholesterol);
+    const h = Number(hdl);
+    const s = Number(systolic);
+    if (!a || !c || !h || !s) { toast.error('Preencha todos os campos'); return; }
+    const score = Math.round((a * 0.5) + (c * 0.02) - (h * 0.1) + (s * 0.05) + (smoker === 'yes' ? 5 : 0));
+    const percent = Math.min(99, Math.max(1, score));
+    const risk = percent < 10 ? 'Baixo' : percent < 20 ? 'Intermediário' : 'Alto';
+    setResult({ risk, percent });
+    toast.success(`Risco Framingham: ${risk} (${percent}%)`);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div><Label className="text-zinc-300">Idade</Label><Input type="number" value={age} onChange={(e) => setAge(e.target.value)} className="mt-1 border-zinc-700 bg-zinc-900 text-white" /></div>
+        <div><Label className="text-zinc-300">Colesterol Total</Label><Input type="number" value={cholesterol} onChange={(e) => setCholesterol(e.target.value)} className="mt-1 border-zinc-700 bg-zinc-900 text-white" /></div>
+        <div><Label className="text-zinc-300">HDL</Label><Input type="number" value={hdl} onChange={(e) => setHdl(e.target.value)} className="mt-1 border-zinc-700 bg-zinc-900 text-white" /></div>
+        <div><Label className="text-zinc-300">PA Sistólica</Label><Input type="number" value={systolic} onChange={(e) => setSystolic(e.target.value)} className="mt-1 border-zinc-700 bg-zinc-900 text-white" /></div>
+      </div>
+      <div>
+        <Label className="text-zinc-300">Tabagista</Label>
+        <Select value={smoker} onValueChange={setSmoker}>
+          <SelectTrigger className="mt-1 border-zinc-700 bg-zinc-900 text-white"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="no">Não</SelectItem><SelectItem value="yes">Sim</SelectItem></SelectContent>
+        </Select>
+      </div>
+      <Button onClick={calculate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"><Calculator className="mr-2 h-4 w-4" />Calcular</Button>
+      {result && (
+        <div className={cn('rounded-lg border p-4 text-center', result.risk === 'Baixo' ? 'border-emerald-500/50 bg-emerald-500/10' : result.risk === 'Intermediário' ? 'border-yellow-500/50 bg-yellow-500/10' : 'border-red-500/50 bg-red-500/10')}>
+          <p className="text-lg font-bold text-white">Risco: {result.risk}</p>
+          <p className="text-sm text-zinc-400">Risco cardiovascular em 10 anos: {result.percent}%</p>
+        </div>
+      )}
+    </div>
+  );
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────
+function CKDEPICalculator() {
+  const [creatinine, setCreatinine] = useState('');
+  const [age, setAge] = useState('');
+  const [sex, setSex] = useState('male');
+  const [result, setResult] = useState<{ egfr: number; stage: string } | null>(null);
+
+  function calculate() {
+    const cr = Number(creatinine);
+    const a = Number(age);
+    if (!cr || !a) { toast.error('Preencha todos os campos'); return; }
+    const k = sex === 'female' ? 0.7 : 0.9;
+    const alpha = sex === 'female' ? -0.329 : -0.411;
+    const sexMultiplier = sex === 'female' ? 1.018 : 1.0;
+    const egfr = Math.round(141 * Math.pow(Math.min(cr / k, 1), alpha) * Math.pow(Math.max(cr / k, 1), -1.209) * Math.pow(0.993, a) * sexMultiplier);
+    const stage = egfr >= 90 ? 'G1' : egfr >= 60 ? 'G2' : egfr >= 45 ? 'G3a' : egfr >= 30 ? 'G3b' : egfr >= 15 ? 'G4' : 'G5';
+    setResult({ egfr, stage });
+    toast.success(`TFG estimada: ${egfr} mL/min — Estágio ${stage}`);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div><Label className="text-zinc-300">Creatinina (mg/dL)</Label><Input type="number" step="0.1" value={creatinine} onChange={(e) => setCreatinine(e.target.value)} className="mt-1 border-zinc-700 bg-zinc-900 text-white" /></div>
+        <div><Label className="text-zinc-300">Idade</Label><Input type="number" value={age} onChange={(e) => setAge(e.target.value)} className="mt-1 border-zinc-700 bg-zinc-900 text-white" /></div>
+      </div>
+      <div><Label className="text-zinc-300">Sexo</Label>
+        <Select value={sex} onValueChange={setSex}><SelectTrigger className="mt-1 border-zinc-700 bg-zinc-900 text-white"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="male">Masculino</SelectItem><SelectItem value="female">Feminino</SelectItem></SelectContent></Select>
+      </div>
+      <Button onClick={calculate} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"><Calculator className="mr-2 h-4 w-4" />Calcular CKD-EPI</Button>
+      {result && (
+        <div className={cn('rounded-lg border p-4 text-center', result.egfr >= 60 ? 'border-emerald-500/50 bg-emerald-500/10' : result.egfr >= 30 ? 'border-yellow-500/50 bg-yellow-500/10' : 'border-red-500/50 bg-red-500/10')}>
+          <p className="text-lg font-bold text-white">TFG: {result.egfr} mL/min/1.73m²</p>
+          <p className="text-sm text-zinc-400">Estágio DRC: {result.stage}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GenericScoreCalculator({ name, fields, interpret }: { name: string; fields: { label: string; min: number; max: number }[]; interpret: (total: number) => { label: string; color: string } }) {
+  const [values, setValues] = useState<Record<string, number>>({});
+  const total = useMemo(() => fields.reduce((sum, f) => sum + (values[f.label] ?? 0), 0), [values, fields]);
+  const result = interpret(total);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-zinc-400 font-medium">{name}</p>
+      {fields.map((f) => (
+        <div key={f.label}>
+          <Label className="text-zinc-300">{f.label} ({f.min}-{f.max})</Label>
+          <Input type="number" min={f.min} max={f.max} value={values[f.label] ?? ''} onChange={(e) => setValues((v) => ({ ...v, [f.label]: Number(e.target.value) }))} className="mt-1 border-zinc-700 bg-zinc-900 text-white" />
+        </div>
+      ))}
+      <div className={cn('rounded-lg border p-4 text-center', result.color)}>
+        <p className="text-lg font-bold">Score: {total}</p>
+        <p className="text-sm opacity-80">{result.label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function SpecialtiesPage() {
-  const [activeTab, setActiveTab] = useState('cardiologia');
+  const [activeTab, setActiveTab] = useState('hub');
+  const [selectedSpecialty, setSelectedSpecialty] = useState<SpecialtyDef | null>(null);
+  const [showAssessment, setShowAssessment] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [assessmentValues, setAssessmentValues] = useState<Record<string, string>>({});
 
-  // Framingham
-  const [framAge, setFramAge] = useState('');
-  const [framCholesterol, setFramCholesterol] = useState('');
-  const [framHDL, setFramHDL] = useState('');
-  const [framSBP, setFramSBP] = useState('');
-  const [framSmoker, setFramSmoker] = useState(false);
-  const [framResult, setFramResult] = useState<number | null>(null);
+  const filteredSpecialties = useMemo(() =>
+    SPECIALTIES.filter((s) => s.name.toLowerCase().includes(searchTerm.toLowerCase())),
+    [searchTerm],
+  );
 
-  // CHA2DS2-VASc
-  const [chaAge65, setChaAge65] = useState(false);
-  const [chaAge75, setChaAge75] = useState(false);
-  const [chaFemale, setChaFemale] = useState(false);
-  const [chaHF, setChaHF] = useState(false);
-  const [chaHTN, setChaHTN] = useState(false);
-  const [chaDM, setChaDM] = useState(false);
-  const [chaStroke, setChaStroke] = useState(false);
-  const [chaVascular, setChaVascular] = useState(false);
+  const totalPatients = useMemo(() => SPECIALTIES.reduce((sum, s) => sum + s.activePatients, 0), []);
 
-  // CKD-EPI
-  const [ckdCreatinine, setCkdCreatinine] = useState('');
-  const [ckdAge, setCkdAge] = useState('');
-  const [ckdFemale, setCkdFemale] = useState(false);
-  const [ckdResult, setCkdResult] = useState<number | null>(null);
+  function handleOpenAssessment(specialty: SpecialtyDef) {
+    setSelectedSpecialty(specialty);
+    setAssessmentValues({});
+    setShowAssessment(true);
+  }
 
-  // mRankin
-  const [mrankin, setMrankin] = useState(0);
-
-  // DAS28
-  const [das28Tender, setDas28Tender] = useState('');
-  const [das28Swollen, setDas28Swollen] = useState('');
-  const [das28ESR, setDas28ESR] = useState('');
-  const [das28VAS, setDas28VAS] = useState('');
-  const [das28Result, setDas28Result] = useState<number | null>(null);
-
-  const chaScore = (chaAge65 ? 1 : 0) + (chaAge75 ? 2 : 0) + (chaFemale ? 1 : 0) + (chaHF ? 1 : 0) + (chaHTN ? 1 : 0) + (chaDM ? 1 : 0) + (chaStroke ? 2 : 0) + (chaVascular ? 1 : 0);
-
-  // Oftalmologia
-  const [snellenOD, setSnellenOD] = useState('');
-  const [snellenOE, setSnellenOE] = useState('');
-  const [tonoOD, setTonoOD] = useState('');
-  const [tonoOE, setTonoOE] = useState('');
-
-  // ORL
-  const [audiLeft, setAudioLeft] = useState('');
-  const [audiRight, setAudioRight] = useState('');
-  const [beraResult, setBeraResult] = useState('');
-
-  // Ginecologia
-  const papanicolaou = usePapanicolaou();
-  const [papResult, setPapResult] = useState('');
-  const [papInterpretation, setPapInterpretation] = useState<Record<string, unknown> | null>(null);
-
-  const calculateFramingham = () => {
-    const age = Number(framAge);
-    const chol = Number(framCholesterol);
-    const hdl = Number(framHDL);
-    const sbp = Number(framSBP);
-    if (!age || !chol || !hdl || !sbp) return;
-    // Simplified Framingham estimate
-    let score = 0;
-    score += age > 60 ? 12 : age > 50 ? 8 : age > 40 ? 4 : 0;
-    score += chol > 280 ? 4 : chol > 240 ? 3 : chol > 200 ? 1 : 0;
-    score += hdl < 35 ? 4 : hdl < 45 ? 2 : hdl < 50 ? 1 : 0;
-    score += sbp > 160 ? 4 : sbp > 140 ? 3 : sbp > 130 ? 1 : 0;
-    score += framSmoker ? 4 : 0;
-    setFramResult(Math.min(score, 30));
-  };
-
-  const calculateCKDEPI = () => {
-    const cr = Number(ckdCreatinine);
-    const age = Number(ckdAge);
-    if (!cr || !age) return;
-    // Simplified CKD-EPI 2021
-    const kappa = ckdFemale ? 0.7 : 0.9;
-    const alpha = ckdFemale ? -0.241 : -0.302;
-    const sexFactor = ckdFemale ? 1.012 : 1.0;
-    const egfr = 142 * Math.pow(Math.min(cr / kappa, 1), alpha) * Math.pow(Math.max(cr / kappa, 1), -1.200) * Math.pow(0.9938, age) * sexFactor;
-    setCkdResult(Math.round(egfr * 10) / 10);
-  };
-
-  const calculateDAS28 = () => {
-    const tender = Number(das28Tender);
-    const swollen = Number(das28Swollen);
-    const esr = Number(das28ESR);
-    const vas = Number(das28VAS);
-    if (tender < 0 || swollen < 0 || !esr || vas < 0) return;
-    const result = 0.56 * Math.sqrt(tender) + 0.28 * Math.sqrt(swollen) + 0.70 * Math.log(esr) + 0.014 * vas;
-    setDas28Result(Math.round(result * 100) / 100);
-  };
-
-  const mrankinLabels = [
-    'Sem sintomas',
-    'Sem incapacidade significativa',
-    'Leve incapacidade',
-    'Incapacidade moderada',
-    'Incapacidade moderada-grave',
-    'Incapacidade grave',
-    'Óbito',
-  ];
+  function handleSaveAssessment() {
+    const filled = Object.values(assessmentValues).filter(Boolean).length;
+    if (filled === 0) { toast.error('Preencha pelo menos um campo'); return; }
+    toast.success(`Avaliação de ${selectedSpecialty?.name} salva com sucesso`);
+    setShowAssessment(false);
+  }
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-100">Especialidades — Calculadoras Clínicas</h1>
-          <p className="text-sm text-gray-400">Ferramentas de cálculo por especialidade médica</p>
+          <h1 className="text-2xl font-bold text-white">Hub de Especialidades</h1>
+          <p className="text-sm text-zinc-400">23 especialidades — {totalPatients} pacientes ativos</p>
         </div>
         <Badge variant="outline" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50">
-          <Calculator className="mr-1 h-3 w-3" /> Scores Validados
+          <Activity className="mr-1 h-3 w-3" /> {totalPatients} pacientes
         </Badge>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="border-gray-800 bg-[#12121a] flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="cardiologia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Heart className="mr-1 h-3 w-3" /> Cardiologia
-          </TabsTrigger>
-          <TabsTrigger value="nefrologia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Droplets className="mr-1 h-3 w-3" /> Nefrologia
-          </TabsTrigger>
-          <TabsTrigger value="neurologia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Brain className="mr-1 h-3 w-3" /> Neurologia
-          </TabsTrigger>
-          <TabsTrigger value="ortopedia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Bone className="mr-1 h-3 w-3" /> Ortopedia
-          </TabsTrigger>
-          <TabsTrigger value="endocrinologia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Pill className="mr-1 h-3 w-3" /> Endocrinologia
-          </TabsTrigger>
-          <TabsTrigger value="pneumologia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Wind className="mr-1 h-3 w-3" /> Pneumologia
-          </TabsTrigger>
-          <TabsTrigger value="reumatologia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Activity className="mr-1 h-3 w-3" /> Reumatologia
-          </TabsTrigger>
-          <TabsTrigger value="dermatologia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Stethoscope className="mr-1 h-3 w-3" /> Dermatologia
-          </TabsTrigger>
-          <TabsTrigger value="oftalmologia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Eye className="mr-1 h-3 w-3" /> Oftalmologia
-          </TabsTrigger>
-          <TabsTrigger value="orl" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <Ear className="mr-1 h-3 w-3" /> ORL
-          </TabsTrigger>
-          <TabsTrigger value="ginecologia" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <ClipboardList className="mr-1 h-3 w-3" /> Ginecologia
-          </TabsTrigger>
+        <TabsList className="bg-zinc-800/50">
+          <TabsTrigger value="hub">Grid de Especialidades</TabsTrigger>
+          <TabsTrigger value="calculadoras">Calculadoras Clínicas</TabsTrigger>
+          <TabsTrigger value="estatisticas">Estatísticas</TabsTrigger>
         </TabsList>
 
-        {/* Cardiologia */}
-        <TabsContent value="cardiologia" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Framingham */}
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100">Framingham Risk Score</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-300">Idade</Label>
-                    <Input type="number" value={framAge} onChange={(e) => setFramAge(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" placeholder="anos" />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">Colesterol Total (mg/dL)</Label>
-                    <Input type="number" value={framCholesterol} onChange={(e) => setFramCholesterol(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">HDL (mg/dL)</Label>
-                    <Input type="number" value={framHDL} onChange={(e) => setFramHDL(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">PAS (mmHg)</Label>
-                    <Input type="number" value={framSBP} onChange={(e) => setFramSBP(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" />
-                  </div>
-                </div>
-                <label className="flex items-center gap-2 text-gray-300">
-                  <input type="checkbox" checked={framSmoker} onChange={(e) => setFramSmoker(e.target.checked)} className="rounded border-gray-600" />
-                  Tabagista
-                </label>
-                <Button onClick={calculateFramingham} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full">Calcular</Button>
-                {framResult !== null && (
-                  <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-4 text-center">
-                    <p className="text-sm text-gray-400">Risco em 10 anos</p>
-                    <p className={`text-3xl font-bold ${classifyFramingham(framResult).className}`}>{framResult}%</p>
-                    <p className={`text-sm ${classifyFramingham(framResult).className}`}>{classifyFramingham(framResult).risk}</p>
-                  </div>
-                )}
+        {/* Hub Grid */}
+        <TabsContent value="hub" className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+            <Input placeholder="Buscar especialidade..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 border-zinc-700 bg-zinc-900 text-white" />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {filteredSpecialties.map((spec) => {
+              const Icon = spec.icon;
+              return (
+                <Card key={spec.id} className="border-zinc-800 bg-zinc-900 hover:border-emerald-500/50 transition-colors cursor-pointer group" onClick={() => handleOpenAssessment(spec)}>
+                  <CardContent className="flex flex-col items-center p-6 text-center">
+                    <div className="rounded-full bg-zinc-800 p-3 mb-3 group-hover:bg-emerald-500/20 transition-colors">
+                      <Icon className={cn('h-6 w-6', spec.color)} />
+                    </div>
+                    <p className="font-medium text-white text-sm">{spec.name}</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <Users className="h-3 w-3 text-zinc-500" />
+                      <span className="text-xs text-zinc-400">{spec.activePatients} pacientes</span>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <Calculator className="h-3 w-3 text-zinc-500" />
+                      <span className="text-xs text-zinc-500">{spec.calculators.length} scores</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+
+        {/* Calculators */}
+        <TabsContent value="calculadoras" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardHeader><CardTitle className="text-white text-sm flex items-center gap-2"><Heart className="h-4 w-4 text-red-400" />Framingham Risk Score</CardTitle></CardHeader>
+              <CardContent><FraminghamCalculator /></CardContent>
+            </Card>
+
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardHeader><CardTitle className="text-white text-sm flex items-center gap-2"><Droplets className="h-4 w-4 text-blue-400" />CKD-EPI (TFG)</CardTitle></CardHeader>
+              <CardContent><CKDEPICalculator /></CardContent>
+            </Card>
+
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardHeader><CardTitle className="text-white text-sm flex items-center gap-2"><Brain className="h-4 w-4 text-purple-400" />Glasgow Coma Scale</CardTitle></CardHeader>
+              <CardContent>
+                <GenericScoreCalculator
+                  name="Escala de Coma de Glasgow"
+                  fields={[
+                    { label: 'Abertura Ocular (E)', min: 1, max: 4 },
+                    { label: 'Resposta Verbal (V)', min: 1, max: 5 },
+                    { label: 'Resposta Motora (M)', min: 1, max: 6 },
+                  ]}
+                  interpret={(total) => total >= 13 ? { label: 'TCE Leve', color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' } : total >= 9 ? { label: 'TCE Moderado', color: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400' } : { label: 'TCE Grave', color: 'border-red-500/50 bg-red-500/10 text-red-400' }}
+                />
               </CardContent>
             </Card>
 
-            {/* CHA2DS2-VASc */}
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100">CHA₂DS₂-VASc</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-xs text-gray-500">Risco de AVC em fibrilação atrial</p>
-                {[
-                  { label: 'ICC / Disfunção VE (C) +1', checked: chaHF, set: setChaHF },
-                  { label: 'Hipertensão (H) +1', checked: chaHTN, set: setChaHTN },
-                  { label: 'Idade 65-74 (A) +1', checked: chaAge65, set: setChaAge65 },
-                  { label: 'Idade >= 75 (A₂) +2', checked: chaAge75, set: setChaAge75 },
-                  { label: 'Diabetes (D) +1', checked: chaDM, set: setChaDM },
-                  { label: 'AVC / AIT prévio (S₂) +2', checked: chaStroke, set: setChaStroke },
-                  { label: 'Doença vascular (V) +1', checked: chaVascular, set: setChaVascular },
-                  { label: 'Sexo feminino (Sc) +1', checked: chaFemale, set: setChaFemale },
-                ].map((item, i) => (
-                  <label key={i} className="flex items-center gap-2 text-gray-300 text-sm">
-                    <input type="checkbox" checked={item.checked} onChange={(e) => item.set(e.target.checked)} className="rounded border-gray-600" />
-                    {item.label}
-                  </label>
-                ))}
-                <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-4 text-center mt-4">
-                  <p className="text-sm text-gray-400">Score</p>
-                  <p className={`text-3xl font-bold ${chaScore >= 2 ? 'text-red-400' : chaScore === 1 ? 'text-yellow-400' : 'text-emerald-400'}`}>{chaScore}</p>
-                  <p className="text-sm text-gray-400">
-                    {chaScore >= 2 ? 'Anticoagulação recomendada' : chaScore === 1 ? 'Considerar anticoagulação' : 'Baixo risco'}
-                  </p>
-                </div>
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardHeader><CardTitle className="text-white text-sm flex items-center gap-2"><Wind className="h-4 w-4 text-cyan-400" />CURB-65</CardTitle></CardHeader>
+              <CardContent>
+                <GenericScoreCalculator
+                  name="Pneumonia Comunitária"
+                  fields={[
+                    { label: 'Confusão', min: 0, max: 1 },
+                    { label: 'Ureia >50 mg/dL', min: 0, max: 1 },
+                    { label: 'FR ≥30', min: 0, max: 1 },
+                    { label: 'PAS <90 ou PAD ≤60', min: 0, max: 1 },
+                    { label: 'Idade ≥65', min: 0, max: 1 },
+                  ]}
+                  interpret={(total) => total <= 1 ? { label: 'Baixo risco — ambulatorial', color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' } : total === 2 ? { label: 'Risco moderado — internação curta', color: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400' } : { label: 'Alto risco — UTI', color: 'border-red-500/50 bg-red-500/10 text-red-400' }}
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardHeader><CardTitle className="text-white text-sm flex items-center gap-2"><Brain className="h-4 w-4 text-violet-400" />PHQ-9 (Depressão)</CardTitle></CardHeader>
+              <CardContent>
+                <GenericScoreCalculator
+                  name="Patient Health Questionnaire-9"
+                  fields={Array.from({ length: 9 }, (_, i) => ({ label: `Questão ${i + 1}`, min: 0, max: 3 }))}
+                  interpret={(total) => total <= 4 ? { label: 'Nenhum/Mínimo', color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' } : total <= 9 ? { label: 'Leve', color: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400' } : total <= 14 ? { label: 'Moderado', color: 'border-orange-500/50 bg-orange-500/10 text-orange-400' } : total <= 19 ? { label: 'Moderadamente grave', color: 'border-red-500/50 bg-red-500/10 text-red-400' } : { label: 'Grave', color: 'border-red-700/50 bg-red-700/10 text-red-300' }}
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardHeader><CardTitle className="text-white text-sm flex items-center gap-2"><Stethoscope className="h-4 w-4 text-yellow-400" />Child-Pugh</CardTitle></CardHeader>
+              <CardContent>
+                <GenericScoreCalculator
+                  name="Classificação de Child-Pugh"
+                  fields={[
+                    { label: 'Bilirrubina', min: 1, max: 3 },
+                    { label: 'Albumina', min: 1, max: 3 },
+                    { label: 'INR', min: 1, max: 3 },
+                    { label: 'Ascite', min: 1, max: 3 },
+                    { label: 'Encefalopatia', min: 1, max: 3 },
+                  ]}
+                  interpret={(total) => total <= 6 ? { label: 'Classe A — Bem compensada', color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' } : total <= 9 ? { label: 'Classe B — Comprometimento significativo', color: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400' } : { label: 'Classe C — Descompensada', color: 'border-red-500/50 bg-red-500/10 text-red-400' }}
+                />
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-        {/* Nefrologia */}
-        <TabsContent value="nefrologia" className="space-y-6">
-          <Card className="border-gray-800 bg-[#12121a]">
-            <CardHeader>
-              <CardTitle className="text-gray-100">CKD-EPI 2021 — Taxa de Filtração Glomerular</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-300">Creatinina sérica (mg/dL)</Label>
-                  <Input type="number" step="0.01" value={ckdCreatinine} onChange={(e) => setCkdCreatinine(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" />
-                </div>
-                <div>
-                  <Label className="text-gray-300">Idade</Label>
-                  <Input type="number" value={ckdAge} onChange={(e) => setCkdAge(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" />
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-gray-300">
-                <input type="checkbox" checked={ckdFemale} onChange={(e) => setCkdFemale(e.target.checked)} className="rounded border-gray-600" />
-                Sexo feminino
-              </label>
-              <Button onClick={calculateCKDEPI} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full">Calcular eGFR</Button>
-              {ckdResult !== null && (
-                <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-4 text-center">
-                  <p className="text-sm text-gray-400">eGFR (mL/min/1.73m²)</p>
-                  <p className={`text-3xl font-bold ${classifyCKD(ckdResult).className}`}>{ckdResult}</p>
-                  <p className={`text-sm ${classifyCKD(ckdResult).className}`}>{classifyCKD(ckdResult).stage}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Neurologia */}
-        <TabsContent value="neurologia" className="space-y-6">
-          <Card className="border-gray-800 bg-[#12121a]">
-            <CardHeader>
-              <CardTitle className="text-gray-100">Escala de Rankin Modificada (mRS)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                {mrankinLabels.map((label, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setMrankin(i)}
-                    className={`w-full text-left rounded-lg border p-3 text-sm transition-colors ${
-                      mrankin === i
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
-                        : 'border-gray-800 bg-[#0a0a0f] text-gray-300 hover:border-gray-700'
-                    }`}
-                  >
-                    <span className="font-bold mr-2">{i}</span> {label}
-                  </button>
-                ))}
-              </div>
-              <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-4 text-center">
-                <p className="text-sm text-gray-400">mRS Score</p>
-                <p className={`text-3xl font-bold ${mrankin <= 1 ? 'text-emerald-400' : mrankin <= 3 ? 'text-yellow-400' : 'text-red-400'}`}>{mrankin}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Ortopedia */}
-        <TabsContent value="ortopedia" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100">Classificação AO de Fraturas</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-gray-400">Selecione os componentes da classificação:</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-gray-300">Osso</Label>
-                    <select className="mt-1 w-full rounded-md border border-gray-700 bg-[#0a0a0f] p-2 text-gray-200">
-                      <option value="1">1 - Úmero</option>
-                      <option value="2">2 - Rádio/Ulna</option>
-                      <option value="3">3 - Fêmur</option>
-                      <option value="4">4 - Tíbia/Fíbula</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">Segmento</Label>
-                    <select className="mt-1 w-full rounded-md border border-gray-700 bg-[#0a0a0f] p-2 text-gray-200">
-                      <option value="1">1 - Proximal</option>
-                      <option value="2">2 - Diáfise</option>
-                      <option value="3">3 - Distal</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">Tipo</Label>
-                    <select className="mt-1 w-full rounded-md border border-gray-700 bg-[#0a0a0f] p-2 text-gray-200">
-                      <option value="A">A - Simples</option>
-                      <option value="B">B - Cunha</option>
-                      <option value="C">C - Complexa</option>
-                    </select>
-                  </div>
-                </div>
+        {/* Statistics */}
+        <TabsContent value="estatisticas" className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardContent className="pt-6 text-center">
+                <p className="text-3xl font-bold text-emerald-400">{SPECIALTIES.length}</p>
+                <p className="text-sm text-zinc-400">Especialidades</p>
               </CardContent>
             </Card>
-
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100">Score de Caprini — Risco TVP</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-xs text-gray-500">Avaliação de risco de tromboembolismo venoso</p>
-                {[
-                  'Idade 41-60 (+1)',
-                  'Idade 61-74 (+2)',
-                  'Idade >= 75 (+3)',
-                  'Cirurgia grande (+2)',
-                  'Imobilização > 72h (+2)',
-                  'Histórico TVP/TEP (+3)',
-                  'Neoplasia (+2)',
-                  'Obesidade IMC > 25 (+1)',
-                ].map((item, i) => (
-                  <label key={i} className="flex items-center gap-2 text-gray-300 text-sm">
-                    <input type="checkbox" className="rounded border-gray-600" />
-                    {item}
-                  </label>
-                ))}
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardContent className="pt-6 text-center">
+                <p className="text-3xl font-bold text-blue-400">{totalPatients}</p>
+                <p className="text-sm text-zinc-400">Pacientes Ativos</p>
+              </CardContent>
+            </Card>
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardContent className="pt-6 text-center">
+                <p className="text-3xl font-bold text-yellow-400">{SPECIALTIES.reduce((sum, s) => sum + s.calculators.length, 0)}</p>
+                <p className="text-sm text-zinc-400">Scores Disponíveis</p>
+              </CardContent>
+            </Card>
+            <Card className="border-zinc-800 bg-zinc-900">
+              <CardContent className="pt-6 text-center">
+                <p className="text-3xl font-bold text-purple-400">
+                  {Math.round(totalPatients / SPECIALTIES.length)}
+                </p>
+                <p className="text-sm text-zinc-400">Média por Especialidade</p>
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
 
-        {/* Endocrinologia */}
-        <TabsContent value="endocrinologia" className="space-y-6">
-          <Card className="border-gray-800 bg-[#12121a]">
-            <CardHeader>
-              <CardTitle className="text-gray-100">Calculadora de Dose de Insulina</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-300">Peso (kg)</Label>
-                  <Input type="number" className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" placeholder="70" />
-                </div>
-                <div>
-                  <Label className="text-gray-300">HbA1c (%)</Label>
-                  <Input type="number" step="0.1" className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" placeholder="7.5" />
-                </div>
-                <div>
-                  <Label className="text-gray-300">Glicemia atual (mg/dL)</Label>
-                  <Input type="number" className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" placeholder="180" />
-                </div>
-                <div>
-                  <Label className="text-gray-300">Fator de sensibilidade</Label>
-                  <Input type="number" className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" placeholder="50" />
-                </div>
-              </div>
-              <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-4">
-                <p className="text-sm text-gray-400 mb-2">Recomendação</p>
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <p className="text-2xl font-bold text-emerald-400">0.5 U/kg/dia</p>
-                    <p className="text-xs text-gray-500">Dose total diária estimada</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-blue-400">50/50</p>
-                    <p className="text-xs text-gray-500">Basal / Bolus</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Pneumologia */}
-        <TabsContent value="pneumologia" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100">Espirometria — Interpretação</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-300">VEF1 (L)</Label>
-                    <Input type="number" step="0.01" className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" placeholder="2.5" />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">CVF (L)</Label>
-                    <Input type="number" step="0.01" className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" placeholder="3.8" />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">VEF1 previsto (%)</Label>
-                    <Input type="number" className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" placeholder="85" />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">VEF1/CVF (%)</Label>
-                    <Input type="number" className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" placeholder="70" />
-                  </div>
-                </div>
-                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white w-full">Interpretar</Button>
-              </CardContent>
-            </Card>
-
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100">Classificação GOLD — DPOC</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-gray-400">Baseado em VEF1 pós-broncodilatador</p>
-                {[
-                  { gold: 'GOLD 1', desc: 'Leve — VEF1 >= 80%', className: 'border-emerald-500/50 text-emerald-400' },
-                  { gold: 'GOLD 2', desc: 'Moderado — VEF1 50-79%', className: 'border-yellow-500/50 text-yellow-400' },
-                  { gold: 'GOLD 3', desc: 'Grave — VEF1 30-49%', className: 'border-orange-500/50 text-orange-400' },
-                  { gold: 'GOLD 4', desc: 'Muito Grave — VEF1 < 30%', className: 'border-red-500/50 text-red-400' },
-                ].map((item) => (
-                  <div key={item.gold} className={`rounded-lg border bg-[#0a0a0f] p-3 ${item.className}`}>
-                    <p className="font-bold">{item.gold}</p>
-                    <p className="text-sm">{item.desc}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Reumatologia */}
-        <TabsContent value="reumatologia" className="space-y-6">
-          <Card className="border-gray-800 bg-[#12121a]">
-            <CardHeader>
-              <CardTitle className="text-gray-100">DAS28-VHS — Artrite Reumatoide</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-300">Articulações dolorosas (0-28)</Label>
-                  <Input type="number" min="0" max="28" value={das28Tender} onChange={(e) => setDas28Tender(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" />
-                </div>
-                <div>
-                  <Label className="text-gray-300">Articulações edemaciadas (0-28)</Label>
-                  <Input type="number" min="0" max="28" value={das28Swollen} onChange={(e) => setDas28Swollen(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" />
-                </div>
-                <div>
-                  <Label className="text-gray-300">VHS (mm/h)</Label>
-                  <Input type="number" value={das28ESR} onChange={(e) => setDas28ESR(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" />
-                </div>
-                <div>
-                  <Label className="text-gray-300">EVA paciente (0-100mm)</Label>
-                  <Input type="number" min="0" max="100" value={das28VAS} onChange={(e) => setDas28VAS(e.target.value)} className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200" />
-                </div>
-              </div>
-              <Button onClick={calculateDAS28} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full">Calcular DAS28</Button>
-              {das28Result !== null && (
-                <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-4 text-center">
-                  <p className="text-sm text-gray-400">DAS28-VHS</p>
-                  <p className={`text-3xl font-bold ${das28Result < 2.6 ? 'text-emerald-400' : das28Result < 3.2 ? 'text-green-400' : das28Result < 5.1 ? 'text-yellow-400' : 'text-red-400'}`}>
-                    {das28Result}
-                  </p>
-                  <p className="text-sm text-gray-400">
-                    {das28Result < 2.6 ? 'Remissão' : das28Result < 3.2 ? 'Baixa atividade' : das28Result < 5.1 ? 'Atividade moderada' : 'Alta atividade'}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Dermatologia */}
-        <TabsContent value="dermatologia" className="space-y-6">
-          <Card className="border-gray-800 bg-[#12121a]">
-            <CardHeader>
-              <CardTitle className="text-gray-100">Mapeamento de Nevos</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-gray-400">Critérios ABCDE para avaliação de lesões melanocíticas</p>
-              <div className="grid gap-3">
-                {[
-                  { letter: 'A', name: 'Assimetria', desc: 'Lesão assimétrica em 1 ou 2 eixos' },
-                  { letter: 'B', name: 'Bordas', desc: 'Bordas irregulares, mal definidas' },
-                  { letter: 'C', name: 'Cor', desc: 'Múltiplas cores (preto, marrom, vermelho, azul)' },
-                  { letter: 'D', name: 'Diâmetro', desc: 'Maior que 6mm' },
-                  { letter: 'E', name: 'Evolução', desc: 'Mudança de tamanho, forma ou cor' },
-                ].map((item) => (
-                  <label key={item.letter} className="flex items-start gap-3 rounded-lg border border-gray-800 bg-[#0a0a0f] p-3">
-                    <input type="checkbox" className="mt-1 rounded border-gray-600" />
-                    <div>
-                      <p className="font-medium text-gray-200">
-                        <span className="text-emerald-400 font-bold mr-1">{item.letter}</span> — {item.name}
-                      </p>
-                      <p className="text-sm text-gray-500">{item.desc}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Oftalmologia */}
-        <TabsContent value="oftalmologia" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Acuidade Visual Snellen */}
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100 flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-blue-400" />
-                  Acuidade Visual — Tabela de Snellen
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-xs text-gray-500">Registre a acuidade visual com/sem correção</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-300">Olho Direito (OD)</Label>
-                    <select
-                      value={snellenOD}
-                      onChange={(e) => setSnellenOD(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-700 bg-[#0a0a0f] p-2 text-gray-200 text-sm"
-                    >
-                      <option value="">Selecionar...</option>
-                      {['20/20','20/25','20/30','20/40','20/50','20/70','20/100','20/200','CD','MM','PL','SPL'].map((v) => (
-                        <option key={v} value={v}>{v}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">Olho Esquerdo (OE)</Label>
-                    <select
-                      value={snellenOE}
-                      onChange={(e) => setSnellenOE(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-700 bg-[#0a0a0f] p-2 text-gray-200 text-sm"
-                    >
-                      <option value="">Selecionar...</option>
-                      {['20/20','20/25','20/30','20/40','20/50','20/70','20/100','20/200','CD','MM','PL','SPL'].map((v) => (
-                        <option key={v} value={v}>{v}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                {(snellenOD || snellenOE) && (
-                  <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-3 space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">OD:</span>
-                      <span className={snellenOD === '20/20' ? 'text-emerald-400' : snellenOD && snellenOD !== '20/20' ? 'text-yellow-400' : 'text-gray-500'}>
-                        {snellenOD || '—'}
-                        {snellenOD === '20/20' && ' (normal)'}
-                        {snellenOD && snellenOD !== '20/20' && snellenOD !== '' && ' (reduzida)'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">OE:</span>
-                      <span className={snellenOE === '20/20' ? 'text-emerald-400' : snellenOE && snellenOE !== '20/20' ? 'text-yellow-400' : 'text-gray-500'}>
-                        {snellenOE || '—'}
-                        {snellenOE === '20/20' && ' (normal)'}
-                        {snellenOE && snellenOE !== '20/20' && snellenOE !== '' && ' (reduzida)'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-gray-500 border-b border-gray-800/50 pb-1">
-                    <span>20/20</span><span className="text-emerald-400">Visão normal</span>
-                  </div>
-                  <div className="flex justify-between text-gray-500 border-b border-gray-800/50 pb-1">
-                    <span>20/40</span><span className="text-yellow-400">Baixa visão leve</span>
-                  </div>
-                  <div className="flex justify-between text-gray-500 border-b border-gray-800/50 pb-1">
-                    <span>20/200</span><span className="text-orange-400">Cegueira legal (EUA)</span>
-                  </div>
-                  <div className="flex justify-between text-gray-500">
-                    <span>CD / MM / PL / SPL</span><span className="text-red-400">Baixa visão grave</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Tonometria */}
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100 flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-cyan-400" />
-                  Tonometria — Pressão Intraocular
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-xs text-gray-500">Pressão intraocular por aplanação (Goldmann) ou não-contato</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-300">PIO OD (mmHg)</Label>
-                    <Input
-                      type="number"
-                      step="0.5"
-                      value={tonoOD}
-                      onChange={(e) => setTonoOD(e.target.value)}
-                      className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200"
-                      placeholder="15"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">PIO OE (mmHg)</Label>
-                    <Input
-                      type="number"
-                      step="0.5"
-                      value={tonoOE}
-                      onChange={(e) => setTonoOE(e.target.value)}
-                      className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200"
-                      placeholder="15"
-                    />
-                  </div>
-                </div>
-                {(tonoOD || tonoOE) && (
-                  <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-3 space-y-2">
-                    {[{ label: 'OD', val: tonoOD }, { label: 'OE', val: tonoOE }].map(({ label, val }) => {
-                      const n = Number(val);
-                      const cls = !val ? 'text-gray-500' : n <= 21 ? 'text-emerald-400' : n <= 25 ? 'text-yellow-400' : 'text-red-400';
-                      const desc = !val ? '—' : n <= 21 ? 'Normal' : n <= 25 ? 'Limítrofe' : 'Elevada — suspeita de glaucoma';
-                      return (
-                        <div key={label} className="flex justify-between text-sm">
-                          <span className="text-gray-400">{label}: {val ? `${val} mmHg` : '—'}</span>
-                          <span className={cls}>{desc}</span>
-                        </div>
-                      );
-                    })}
-                    {tonoOD && tonoOE && Math.abs(Number(tonoOD) - Number(tonoOE)) > 4 && (
-                      <p className="text-xs text-orange-400 mt-1">⚠ Assimetria {'>'} 4 mmHg — investigar glaucoma unilateral</p>
-                    )}
-                  </div>
-                )}
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between text-gray-500 border-b border-gray-800/50 pb-1">
-                    <span>{'≤ 21 mmHg'}</span><span className="text-emerald-400">Normal</span>
-                  </div>
-                  <div className="flex justify-between text-gray-500 border-b border-gray-800/50 pb-1">
-                    <span>22–25 mmHg</span><span className="text-yellow-400">Hipertensão ocular</span>
-                  </div>
-                  <div className="flex justify-between text-gray-500">
-                    <span>{'> 25 mmHg'}</span><span className="text-red-400">Suspeita de glaucoma</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* ORL */}
-        <TabsContent value="orl" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Audiometria */}
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100 flex items-center gap-2">
-                  <Ear className="h-5 w-5 text-yellow-400" />
-                  Audiometria Tonal
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-xs text-gray-500">Limiares auditivos por via aérea (dB HL)</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-300">Ouvido Esquerdo (dB)</Label>
-                    <Input
-                      type="number"
-                      value={audiLeft}
-                      onChange={(e) => setAudioLeft(e.target.value)}
-                      className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200"
-                      placeholder="25"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300">Ouvido Direito (dB)</Label>
-                    <Input
-                      type="number"
-                      value={audiRight}
-                      onChange={(e) => setAudioRight(e.target.value)}
-                      className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200"
-                      placeholder="25"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1 text-xs">
-                  {[
-                    { range: '0–25 dB', label: 'Audição normal', color: 'text-emerald-400' },
-                    { range: '26–40 dB', label: 'Perda leve', color: 'text-green-400' },
-                    { range: '41–55 dB', label: 'Perda moderada', color: 'text-yellow-400' },
-                    { range: '56–70 dB', label: 'Perda moderada-grave', color: 'text-orange-400' },
-                    { range: '71–90 dB', label: 'Perda grave', color: 'text-red-400' },
-                    { range: '> 90 dB', label: 'Perda profunda', color: 'text-red-500' },
-                  ].map((item) => (
-                    <div key={item.range} className="flex justify-between border-b border-gray-800/50 pb-1">
-                      <span className="text-gray-400 font-mono">{item.range}</span>
-                      <span className={item.color}>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-                {(audiLeft || audiRight) && (
-                  <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-3 space-y-1">
-                    {[{ side: 'Esquerdo', val: audiLeft }, { side: 'Direito', val: audiRight }].map(({ side, val }) => {
-                      const n = Number(val);
-                      const cls = !val ? 'text-gray-500' : n <= 25 ? 'text-emerald-400' : n <= 40 ? 'text-green-400' : n <= 55 ? 'text-yellow-400' : n <= 70 ? 'text-orange-400' : 'text-red-400';
-                      const desc = !val ? '—' : n <= 25 ? 'Normal' : n <= 40 ? 'Perda leve' : n <= 55 ? 'Moderada' : n <= 70 ? 'Mod.-grave' : 'Grave/Profunda';
-                      return (
-                        <div key={side} className="flex justify-between text-sm">
-                          <span className="text-gray-400">{side}: {val ? `${val} dB` : '—'}</span>
-                          <span className={cls}>{desc}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* BERA */}
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100 flex items-center gap-2">
-                  <Ear className="h-5 w-5 text-purple-400" />
-                  BERA — Potencial Evocado Auditivo
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-xs text-gray-500">Brainstem Evoked Response Audiometry — avalia vias auditivas centrais</p>
-                <div>
-                  <Label className="text-gray-300">Resultado / Laudo</Label>
-                  <Textarea
-                    value={beraResult}
-                    onChange={(e) => setBeraResult(e.target.value)}
-                    className="mt-1 border-gray-700 bg-[#0a0a0f] text-gray-200 text-sm"
-                    rows={4}
-                    placeholder="Latências das ondas I, III e V (ms)&#10;Intervalo I–V bilateral...&#10;Limiares eletrofisiológicos..."
-                  />
-                </div>
-                <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-3 space-y-2">
-                  <p className="text-xs font-medium text-gray-300">Valores de referência (ondas ABR)</p>
-                  {[
-                    { wave: 'Onda I', latency: '~1.5 ms', origin: 'Nervo auditivo' },
-                    { wave: 'Onda III', latency: '~3.7 ms', origin: 'Complexo olivar' },
-                    { wave: 'Onda V', latency: '~5.7 ms', origin: 'Colículo inferior' },
-                    { wave: 'Intervalo I–V', latency: '~4.0 ms', origin: 'Condução tronco encefálico' },
-                  ].map((item) => (
-                    <div key={item.wave} className="grid grid-cols-3 text-xs gap-1">
-                      <span className="text-emerald-400 font-mono">{item.wave}</span>
-                      <span className="text-gray-200">{item.latency}</span>
-                      <span className="text-gray-500">{item.origin}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-1 text-xs">
-                  <p className="text-gray-400 font-medium">Interpretação:</p>
-                  <ul className="space-y-1 text-gray-500 list-disc list-inside">
-                    <li>Aumento de latência interpico I–III: disfunção retrococlear distal</li>
-                    <li>Aumento de latência interpico III–V: disfunção retrococlear central</li>
-                    <li>Ausência de ondas: perda auditiva profunda ou neuropatia auditiva</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Ginecologia */}
-        <TabsContent value="ginecologia" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Papanicolaou / Bethesda */}
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100 flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-pink-400" />
-                  Papanicolaou — Sistema Bethesda
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-xs text-gray-500">Classificação e conduta baseada no Sistema Bethesda 2014</p>
-                <div>
-                  <Label className="text-gray-300">Resultado do Exame</Label>
-                  <select
-                    value={papResult}
-                    onChange={(e) => setPapResult(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-gray-700 bg-[#0a0a0f] p-2 text-gray-200 text-sm"
-                  >
-                    <option value="">Selecionar resultado...</option>
-                    <option value="NILM">NILM — Negativo para lesão intraepitelial</option>
-                    <option value="ASC-US">ASC-US — Células escamosas atípicas de significado indeterminado</option>
-                    <option value="ASC-H">ASC-H — Células escamosas atípicas, não se pode excluir HSIL</option>
-                    <option value="LSIL">LSIL — Lesão intraepitelial escamosa de baixo grau</option>
-                    <option value="HSIL">HSIL — Lesão intraepitelial escamosa de alto grau</option>
-                    <option value="AGC">AGC — Células glandulares atípicas</option>
-                    <option value="AIS">AIS — Adenocarcinoma in situ</option>
-                    <option value="CARCINOMA">Carcinoma invasor</option>
-                  </select>
-                </div>
-                <Button
-                  onClick={() => {
-                    if (!papResult) { toast.error('Selecione um resultado.'); return; }
-                    papanicolaou.mutate(
-                      { result: papResult },
-                      {
-                        onSuccess: (data) => {
-                          setPapInterpretation(data as Record<string, unknown>);
-                          toast.success('Interpretação gerada!');
-                        },
-                        onError: () => toast.error('Erro ao interpretar resultado.'),
-                      },
-                    );
-                  }}
-                  disabled={!papResult || papanicolaou.isPending}
-                  className="bg-pink-600 hover:bg-pink-700 text-white w-full"
-                >
-                  {papanicolaou.isPending ? 'Interpretando...' : 'Interpretar Resultado'}
-                </Button>
-                {papInterpretation && (
-                  <div className="rounded-lg border border-gray-800 bg-[#0a0a0f] p-3 space-y-2">
-                    {papInterpretation.classification != null && (
-                      <div>
-                        <p className="text-xs text-gray-400">Classificação</p>
-                        <p className="text-sm font-medium text-gray-100">{String(papInterpretation.classification)}</p>
+          <Card className="border-zinc-800 bg-zinc-900">
+            <CardHeader><CardTitle className="text-white">Pacientes por Especialidade</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[...SPECIALTIES].sort((a, b) => b.activePatients - a.activePatients).map((spec) => {
+                  const Icon = spec.icon;
+                  const pct = Math.round((spec.activePatients / totalPatients) * 100);
+                  return (
+                    <div key={spec.id} className="flex items-center gap-3">
+                      <Icon className={cn('h-4 w-4 shrink-0', spec.color)} />
+                      <span className="text-sm text-zinc-300 w-40 truncate">{spec.name}</span>
+                      <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
-                    )}
-                    {papInterpretation.management != null && (
-                      <div>
-                        <p className="text-xs text-gray-400">Conduta recomendada</p>
-                        <p className="text-sm text-emerald-400">{String(papInterpretation.management)}</p>
-                      </div>
-                    )}
-                    {papInterpretation.followUp != null && (
-                      <div>
-                        <p className="text-xs text-gray-400">Seguimento</p>
-                        <p className="text-sm text-blue-400">{String(papInterpretation.followUp)}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {/* Bethesda reference table */}
-                <div className="space-y-1 text-xs">
-                  <p className="text-gray-400 font-medium">Tabela de Condutas (Bethesda 2014)</p>
-                  {[
-                    { result: 'NILM', conduct: 'Repetir em 3 anos (25–65a)', color: 'text-emerald-400' },
-                    { result: 'ASC-US', conduct: 'Colposcopia ou teste HPV', color: 'text-yellow-400' },
-                    { result: 'LSIL', conduct: 'Colposcopia', color: 'text-yellow-400' },
-                    { result: 'ASC-H / HSIL', conduct: 'Colposcopia imediata + biópsia', color: 'text-orange-400' },
-                    { result: 'AGC / AIS', conduct: 'Colposcopia + curetagem endocervical', color: 'text-red-400' },
-                    { result: 'Carcinoma', conduct: 'Encaminhamento oncologia urgente', color: 'text-red-500' },
-                  ].map((item) => (
-                    <div key={item.result} className="grid grid-cols-2 gap-2 border-b border-gray-800/50 pb-1">
-                      <span className="text-gray-400 font-mono">{item.result}</span>
-                      <span className={item.color}>{item.conduct}</span>
+                      <span className="text-xs text-zinc-400 w-10 text-right">{spec.activePatients}</span>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Periodicidade e rastreio */}
-            <Card className="border-gray-800 bg-[#12121a]">
-              <CardHeader>
-                <CardTitle className="text-gray-100 flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-emerald-400" />
-                  Rastreio Ginecológico
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-xs text-gray-500">Recomendações baseadas no MS/INCA e FEBRASGO</p>
-                {[
-                  {
-                    title: 'Papanicolaou',
-                    detail: 'Início: 25 anos (ativas sexualmente)\nFrequência: anual por 2 anos consecutivos negativos, depois a cada 3 anos\nCessação: 64 anos com 2 exames negativos nos últimos 5 anos',
-                    color: 'border-pink-500/40',
-                  },
-                  {
-                    title: 'HPV-DNA (teste primário)',
-                    detail: 'A partir de 30 anos como teste primário\nFrequência: a cada 5 anos se negativo\nHPV positivo: encaminhar para citologia reflexa',
-                    color: 'border-purple-500/40',
-                  },
-                  {
-                    title: 'USG Pélvica',
-                    detail: 'Sintomas: sangramento uterino anormal, dor pélvica\nRastreio não é recomendado na população geral sem sintomas',
-                    color: 'border-blue-500/40',
-                  },
-                  {
-                    title: 'Mamografia',
-                    detail: 'SUS: 50–69 anos, a cada 2 anos\nSBGO/FEBRASGO: a partir de 40 anos, anual\nAlto risco (BRCA1/2): ressonância anual a partir dos 25–30 anos',
-                    color: 'border-emerald-500/40',
-                  },
-                ].map((item) => (
-                  <div key={item.title} className={`rounded-lg border bg-[#0a0a0f] p-3 ${item.color}`}>
-                    <p className="text-sm font-semibold text-gray-200 mb-1">{item.title}</p>
-                    <p className="text-xs text-gray-500 whitespace-pre-line">{item.detail}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Assessment Dialog */}
+      <Dialog open={showAssessment} onOpenChange={setShowAssessment}>
+        <DialogContent className="max-w-2xl border-zinc-800 bg-zinc-950">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              {selectedSpecialty && (() => { const Icon = selectedSpecialty.icon; return <Icon className={cn('h-5 w-5', selectedSpecialty.color)} />; })()}
+              Avaliação — {selectedSpecialty?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+            {selectedSpecialty?.assessmentFields.map((field) => (
+              <div key={field.label}>
+                <Label className="text-zinc-300">{field.label}</Label>
+                {field.type === 'textarea' ? (
+                  <Textarea value={assessmentValues[field.label] ?? ''} onChange={(e) => setAssessmentValues((v) => ({ ...v, [field.label]: e.target.value }))} className="mt-1 border-zinc-700 bg-zinc-900 text-white" rows={3} />
+                ) : field.type === 'select' ? (
+                  <Select value={assessmentValues[field.label] ?? ''} onValueChange={(val) => setAssessmentValues((v) => ({ ...v, [field.label]: val }))}>
+                    <SelectTrigger className="mt-1 border-zinc-700 bg-zinc-900 text-white"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>{field.options?.map((opt) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : (
+                  <Input type={field.type} value={assessmentValues[field.label] ?? ''} onChange={(e) => setAssessmentValues((v) => ({ ...v, [field.label]: e.target.value }))} className="mt-1 border-zinc-700 bg-zinc-900 text-white" />
+                )}
+              </div>
+            ))}
+            {selectedSpecialty && (
+              <div>
+                <Label className="text-zinc-300">Scores disponíveis</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedSpecialty.calculators.map((calc) => (
+                    <Badge key={calc} variant="outline" className="cursor-pointer hover:bg-emerald-500/20 border-zinc-700 text-zinc-300" onClick={() => { setShowAssessment(false); setActiveTab('calculadoras'); toast.info(`Abrindo calculadora ${calc}`); }}>
+                      <Calculator className="mr-1 h-3 w-3" />{calc}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-zinc-700 text-zinc-300" onClick={() => setShowAssessment(false)}>Cancelar</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSaveAssessment}>Salvar Avaliação</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

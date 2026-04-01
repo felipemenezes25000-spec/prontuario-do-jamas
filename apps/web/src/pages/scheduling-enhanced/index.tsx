@@ -38,8 +38,16 @@ import {
   useCreateRecurringSchedule,
   useSmartSchedulingSuggestion,
   type RecurringSchedulePayload,
+  type RecurringScheduleResult,
   type SmartSchedulingPayload,
 } from '@/services/scheduling-enhanced.service';
+
+const PRIORITY_COLORS: Record<string, string> = {
+  URGENT: 'bg-red-600',
+  HIGH: 'bg-orange-600',
+  NORMAL: 'bg-yellow-600',
+  LOW: 'bg-blue-600',
+};
 
 export default function SchedulingEnhancedPage() {
   const [activeTab, setActiveTab] = useState('call-queue');
@@ -55,20 +63,23 @@ export default function SchedulingEnhancedPage() {
   const [recurringForm, setRecurringForm] = useState<RecurringSchedulePayload>({
     patientId: '', doctorId: '', type: 'RETURN', intervalMonths: 6, occurrences: 4, firstDate: '',
   });
-  const [recurringResult, setRecurringResult] = useState<{ appointmentsCreated: number; appointments: Array<{ id: string; scheduledAt: string }>; reminderNote: string } | null>(null);
+  const [recurringResult, setRecurringResult] = useState<RecurringScheduleResult | null>(null);
 
   const [smartForm, setSmartForm] = useState<SmartSchedulingPayload>({
     patientId: '', complexity: 'LOW',
   });
-  const [smartResult, setSmartResult] = useState<{ suggestions: Array<{ date: string; time: string; estimatedDuration: number; score: number; reason: string }>; note: string } | null>(null);
+  const [smartResult, setSmartResult] = useState<{
+    suggestions: Array<{ date: string; time: string; estimatedDuration: number; score: number; reason: string }>;
+    note: string;
+  } | null>(null);
 
-  async function handleCallNext(doctorId: string, room: string) {
+  async function handleCallNext(appointmentId: string, room: string) {
     try {
-      const result = await callNext.mutateAsync({ doctorId, room });
+      const result = await callNext.mutateAsync({ doctorId: appointmentId, room });
       if (result.patientName) {
         toast.success(`Chamando ${result.patientName} para ${room}.`);
       } else {
-        toast.info(result.message ?? 'Nenhum paciente aguardando.');
+        toast.info('Nenhum paciente aguardando.');
       }
     } catch {
       toast.error('Erro ao chamar próximo paciente.');
@@ -83,6 +94,12 @@ export default function SchedulingEnhancedPage() {
       toast.error('Erro ao enviar confirmações.');
     }
   }
+
+  // waitStats is WaitTimeStats[] — derive summary values from the array
+  const avgWaitDisplay = waitStats && waitStats.length > 0
+    ? Math.round(waitStats.reduce((sum, w) => sum + w.avgWaitMinutes, 0) / waitStats.length)
+    : null;
+  const totalDoctors = waitStats?.length ?? 0;
 
   return (
     <div className="space-y-6 p-6">
@@ -115,7 +132,7 @@ export default function SchedulingEnhancedPage() {
               <Clock className="h-8 w-8 text-yellow-500" />
               <div>
                 <p className="text-2xl font-bold text-white">
-                  {waitStats?.stats?.[0]?.avgWaitMinutes ?? '—'}
+                  {avgWaitDisplay ?? '—'}
                 </p>
                 <p className="text-xs text-zinc-400">Min espera média</p>
               </div>
@@ -127,7 +144,7 @@ export default function SchedulingEnhancedPage() {
             <div className="flex items-center gap-3">
               <UserPlus className="h-8 w-8 text-blue-500" />
               <div>
-                <p className="text-2xl font-bold text-white">{Array.isArray(waitlist) ? waitlist.length : 0}</p>
+                <p className="text-2xl font-bold text-white">{waitlist.length}</p>
                 <p className="text-xs text-zinc-400">Na lista de espera</p>
               </div>
             </div>
@@ -138,7 +155,7 @@ export default function SchedulingEnhancedPage() {
             <div className="flex items-center gap-3">
               <BarChart3 className="h-8 w-8 text-purple-500" />
               <div>
-                <p className="text-2xl font-bold text-white">{waitStats?.totalDoctors ?? 0}</p>
+                <p className="text-2xl font-bold text-white">{totalDoctors}</p>
                 <p className="text-xs text-zinc-400">Médicos monitorados</p>
               </div>
             </div>
@@ -219,7 +236,7 @@ export default function SchedulingEnhancedPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {!Array.isArray(waitlist) || waitlist.length === 0 ? (
+              {waitlist.length === 0 ? (
                 <p className="text-zinc-400 text-center py-8">Lista de espera vazia.</p>
               ) : (
                 <Table>
@@ -233,18 +250,18 @@ export default function SchedulingEnhancedPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {waitlist.map((entry) => (
-                      <TableRow key={entry.waitlistId} className="border-zinc-800">
-                        <TableCell className="text-white font-bold">{entry.position}</TableCell>
+                    {waitlist.map((entry, index) => (
+                      <TableRow key={entry.id} className="border-zinc-800">
+                        <TableCell className="text-white font-bold">{index + 1}</TableCell>
                         <TableCell className="text-white">{entry.patientName ?? '—'}</TableCell>
                         <TableCell className="text-zinc-300">{entry.specialty ?? 'Geral'}</TableCell>
                         <TableCell>
-                          <Badge className={entry.priority <= 3 ? 'bg-red-600' : entry.priority <= 6 ? 'bg-yellow-600' : 'bg-blue-600'}>
+                          <Badge className={PRIORITY_COLORS[entry.priority] ?? 'bg-zinc-600'}>
                             {entry.priority}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-zinc-300">
-                          {new Date(entry.waitingSince).toLocaleDateString('pt-BR')}
+                          {new Date(entry.addedAt).toLocaleDateString('pt-BR')}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -264,7 +281,7 @@ export default function SchedulingEnhancedPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {(!waitStats?.stats || waitStats.stats.length === 0) ? (
+              {!waitStats || waitStats.length === 0 ? (
                 <p className="text-zinc-400 text-center py-8">Sem dados de tempo de espera disponíveis.</p>
               ) : (
                 <Table>
@@ -277,7 +294,7 @@ export default function SchedulingEnhancedPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {waitStats.stats.map((s) => (
+                    {waitStats.map((s) => (
                       <TableRow key={s.doctorId} className="border-zinc-800">
                         <TableCell className="text-white">{s.doctorName}</TableCell>
                         <TableCell>
@@ -285,8 +302,8 @@ export default function SchedulingEnhancedPage() {
                             {s.avgWaitMinutes} min
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-zinc-300">{s.byShift.morning ?? '—'} min</TableCell>
-                        <TableCell className="text-zinc-300">{s.byShift.afternoon ?? '—'} min</TableCell>
+                        <TableCell className="text-zinc-300">{s.byShift['morning'] ?? '—'} min</TableCell>
+                        <TableCell className="text-zinc-300">{s.byShift['afternoon'] ?? '—'} min</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -357,19 +374,38 @@ export default function SchedulingEnhancedPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-zinc-400 text-xs">ID do Paciente *</Label>
-                  <Input className="bg-zinc-800 border-zinc-700 text-white mt-1" placeholder="UUID" value={recurringForm.patientId} onChange={(e) => setRecurringForm((f) => ({ ...f, patientId: e.target.value }))} />
+                  <Input
+                    className="bg-zinc-800 border-zinc-700 text-white mt-1"
+                    placeholder="UUID"
+                    value={recurringForm.patientId}
+                    onChange={(e) => setRecurringForm((f: RecurringSchedulePayload) => ({ ...f, patientId: e.target.value }))}
+                  />
                 </div>
                 <div>
                   <Label className="text-zinc-400 text-xs">ID do Médico *</Label>
-                  <Input className="bg-zinc-800 border-zinc-700 text-white mt-1" placeholder="UUID" value={recurringForm.doctorId} onChange={(e) => setRecurringForm((f) => ({ ...f, doctorId: e.target.value }))} />
+                  <Input
+                    className="bg-zinc-800 border-zinc-700 text-white mt-1"
+                    placeholder="UUID"
+                    value={recurringForm.doctorId}
+                    onChange={(e) => setRecurringForm((f: RecurringSchedulePayload) => ({ ...f, doctorId: e.target.value }))}
+                  />
                 </div>
                 <div>
                   <Label className="text-zinc-400 text-xs">Primeira Consulta *</Label>
-                  <Input type="date" className="bg-zinc-800 border-zinc-700 text-white mt-1" value={recurringForm.firstDate} onChange={(e) => setRecurringForm((f) => ({ ...f, firstDate: e.target.value }))} />
+                  <Input
+                    type="date"
+                    className="bg-zinc-800 border-zinc-700 text-white mt-1"
+                    value={recurringForm.firstDate}
+                    onChange={(e) => setRecurringForm((f: RecurringSchedulePayload) => ({ ...f, firstDate: e.target.value }))}
+                  />
                 </div>
                 <div>
                   <Label className="text-zinc-400 text-xs">Intervalo (meses)</Label>
-                  <select className="mt-1 w-full bg-zinc-800 border border-zinc-700 text-white rounded-md px-3 py-2 text-sm" value={recurringForm.intervalMonths} onChange={(e) => setRecurringForm((f) => ({ ...f, intervalMonths: Number(e.target.value) as 3 | 6 | 12 }))}>
+                  <select
+                    className="mt-1 w-full bg-zinc-800 border border-zinc-700 text-white rounded-md px-3 py-2 text-sm"
+                    value={recurringForm.intervalMonths}
+                    onChange={(e) => setRecurringForm((f: RecurringSchedulePayload) => ({ ...f, intervalMonths: Number(e.target.value) as 3 | 6 | 12 }))}
+                  >
                     <option value={3}>3 meses</option>
                     <option value={6}>6 meses</option>
                     <option value={12}>12 meses (anual)</option>
@@ -377,11 +413,24 @@ export default function SchedulingEnhancedPage() {
                 </div>
                 <div>
                   <Label className="text-zinc-400 text-xs">Número de Consultas</Label>
-                  <Input type="number" min={1} max={24} className="bg-zinc-800 border-zinc-700 text-white mt-1" value={recurringForm.occurrences} onChange={(e) => setRecurringForm((f) => ({ ...f, occurrences: parseInt(e.target.value) }))} />
+                  <Input
+                    type="number"
+                    min={1}
+                    max={24}
+                    className="bg-zinc-800 border-zinc-700 text-white mt-1"
+                    value={recurringForm.occurrences}
+                    onChange={(e) => setRecurringForm((f: RecurringSchedulePayload) => ({ ...f, occurrences: parseInt(e.target.value) }))}
+                  />
                 </div>
                 <div>
                   <Label className="text-zinc-400 text-xs">Duração (min)</Label>
-                  <Input type="number" className="bg-zinc-800 border-zinc-700 text-white mt-1" placeholder="30" value={recurringForm.duration ?? ''} onChange={(e) => setRecurringForm((f) => ({ ...f, duration: parseInt(e.target.value) || undefined }))} />
+                  <Input
+                    type="number"
+                    className="bg-zinc-800 border-zinc-700 text-white mt-1"
+                    placeholder="30"
+                    value={recurringForm.duration ?? ''}
+                    onChange={(e) => setRecurringForm((f: RecurringSchedulePayload) => ({ ...f, duration: parseInt(e.target.value) || undefined }))}
+                  />
                 </div>
               </div>
               <Button
@@ -393,7 +442,10 @@ export default function SchedulingEnhancedPage() {
                     return;
                   }
                   createRecurring.mutate(recurringForm, {
-                    onSuccess: (r) => { toast.success(`${r.appointmentsCreated} consultas agendadas para ${r.patientName}.`); setRecurringResult(r); },
+                    onSuccess: (r: RecurringScheduleResult) => {
+                      toast.success(`${r.appointmentsCreated} consultas agendadas com sucesso.`);
+                      setRecurringResult(r);
+                    },
                     onError: () => toast.error('Erro ao criar agendamento recorrente.'),
                   });
                 }}
@@ -435,15 +487,29 @@ export default function SchedulingEnhancedPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <Label className="text-zinc-400 text-xs">ID do Paciente *</Label>
-                  <Input className="bg-zinc-800 border-zinc-700 text-white mt-1" placeholder="UUID" value={smartForm.patientId} onChange={(e) => setSmartForm((f) => ({ ...f, patientId: e.target.value }))} />
+                  <Input
+                    className="bg-zinc-800 border-zinc-700 text-white mt-1"
+                    placeholder="UUID"
+                    value={smartForm.patientId}
+                    onChange={(e) => setSmartForm((f: SmartSchedulingPayload) => ({ ...f, patientId: e.target.value }))}
+                  />
                 </div>
                 <div>
                   <Label className="text-zinc-400 text-xs">ID do Médico (opcional)</Label>
-                  <Input className="bg-zinc-800 border-zinc-700 text-white mt-1" placeholder="UUID" value={smartForm.doctorId ?? ''} onChange={(e) => setSmartForm((f) => ({ ...f, doctorId: e.target.value || undefined }))} />
+                  <Input
+                    className="bg-zinc-800 border-zinc-700 text-white mt-1"
+                    placeholder="UUID"
+                    value={smartForm.doctorId ?? ''}
+                    onChange={(e) => setSmartForm((f: SmartSchedulingPayload) => ({ ...f, doctorId: e.target.value || undefined }))}
+                  />
                 </div>
                 <div>
                   <Label className="text-zinc-400 text-xs">Complexidade</Label>
-                  <select className="mt-1 w-full bg-zinc-800 border border-zinc-700 text-white rounded-md px-3 py-2 text-sm" value={smartForm.complexity} onChange={(e) => setSmartForm((f) => ({ ...f, complexity: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' }))}>
+                  <select
+                    className="mt-1 w-full bg-zinc-800 border border-zinc-700 text-white rounded-md px-3 py-2 text-sm"
+                    value={smartForm.complexity}
+                    onChange={(e) => setSmartForm((f: SmartSchedulingPayload) => ({ ...f, complexity: e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' }))}
+                  >
                     <option value="LOW">Baixa</option>
                     <option value="MEDIUM">Média</option>
                     <option value="HIGH">Alta</option>
