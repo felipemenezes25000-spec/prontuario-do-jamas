@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useVoiceStore, type VoiceIntent } from '@/stores/voice.store';
 import api from '@/lib/api';
 
-export type VoiceStatus = 'idle' | 'requesting-permission' | 'recording' | 'processing' | 'complete' | 'error';
+export type VoiceStatus =
+  | 'idle'
+  | 'requesting-permission'
+  | 'recording'
+  | 'processing'
+  | 'complete'
+  | 'error';
 
 interface UseVoiceOptions {
   context?: string;
@@ -10,7 +16,6 @@ interface UseVoiceOptions {
   patientId?: string;
 }
 
-/** Detect best supported audio mimeType for MediaRecorder */
 function getSupportedMimeType(): string | undefined {
   if (typeof MediaRecorder === 'undefined') return undefined;
   const candidates = [
@@ -65,6 +70,7 @@ export function useVoice(options?: UseVoiceOptions) {
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
+  const cancelledRef = useRef(false);
 
   const getStatus = (): VoiceStatus => {
     if (error) return 'error';
@@ -74,14 +80,28 @@ export function useVoice(options?: UseVoiceOptions) {
     return 'idle';
   };
 
-  // Stabilize options to avoid useCallback recreation on every render
   const context = options?.context;
   const encounterId = options?.encounterId;
   const patientId = options?.patientId;
 
+  const stopStream = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+  }, []);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
   const startRecording = useCallback(async () => {
     try {
-      // Guard: check browser support
+      cancelledRef.current = false;
+
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setError(
           'Navegador nao suporta gravacao de audio. Use HTTPS ou um navegador atualizado (Chrome, Firefox, Edge).',
@@ -102,9 +122,12 @@ export function useVoice(options?: UseVoiceOptions) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      if (cancelledRef.current) {
+        stopStream();
+        return;
+      }
 
-      // Derive file extension from mimeType for the upload
+      const recorder = new MediaRecorder(stream, { mimeType });
       const fileExt = mimeType.startsWith('audio/webm')
         ? 'webm'
         : mimeType.startsWith('audio/ogg')
@@ -113,45 +136,48 @@ export function useVoice(options?: UseVoiceOptions) {
             ? 'mp4'
             : 'audio';
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
+      recorder.ondataavailable = (event) => {
+        if (!cancelledRef.current && event.data.size > 0) {
+          chunksRef.current.push(event.data);
         }
       };
 
       recorder.onstop = () => {
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
+        clearTimer();
+        stopStream();
+        mediaRecorderRef.current = null;
+
+        // A user cancellation must never upload captured audio.
+        if (cancelledRef.current) {
+          chunksRef.current = [];
+          return;
         }
 
-        const blobMimeType = mimeType.split(';')[0]; // e.g. "audio/webm"
+        const blobMimeType = mimeType.split(';')[0];
         const audioBlob = new Blob(chunksRef.current, { type: blobMimeType });
+        chunksRef.current = [];
 
-        // Send audio to backend for transcription + intent classification
+        if (audioBlob.size === 0) {
+          setError('Nenhum audio foi capturado. Tente novamente.');
+          return;
+        }
+
         setProcessing(true);
 
         const formData = new FormData();
         formData.append('audio', audioBlob, `recording.${fileExt}`);
-        if (context) {
-          formData.append('context', context);
-        }
-        if (encounterId) {
-          formData.append('encounterId', encounterId);
-        }
-        if (patientId) {
-          formData.append('patientId', patientId);
-        }
+        if (context) formData.append('context', context);
+        if (encounterId) formData.append('encounterId', encounterId);
+        if (patientId) formData.append('patientId', patientId);
 
         api
           .post<TranscribeResponse>('/ai/voice/transcribe', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
-            timeout: 60000, // Intent classification adds latency
+            timeout: 60_000,
           })
           .then((response) => {
             setTranscription(response.data.text);
             setStructuredData(response.data.structuredData);
-            // Set intent from backend classification
             if (response.data.intent) {
               setIntent(
                 response.data.intent,
@@ -173,30 +199,32 @@ export function useVoice(options?: UseVoiceOptions) {
                     typeof ((err as Record<string, unknown>).response as Record<string, unknown>).data === 'object' &&
                     ((err as Record<string, unknown>).response as Record<string, unknown>).data !== null &&
                     'message' in (((err as Record<string, unknown>).response as Record<string, unknown>).data as Record<string, unknown>)
-                  ? String((((err as Record<string, unknown>).response as Record<string, unknown>).data as Record<string, unknown>).message)
+                  ? String(
+                      (((err as Record<string, unknown>).response as Record<string, unknown>)
+                        .data as Record<string, unknown>).message,
+                    )
                   : 'Erro ao transcrever audio.';
             setError(message);
           });
-
-        // Clean up the stream
-        stream.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
       };
 
       mediaRecorderRef.current = recorder;
-      recorder.start(250); // collect data every 250ms
+      recorder.start(250);
       storeStartRecording();
       startTimeRef.current = Date.now();
 
-      // Duration timer
       timerRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         setDuration(elapsed);
       }, 1000);
     } catch (err) {
+      stopStream();
+      clearTimer();
       console.error('[useVoice] startRecording error:', err);
       if (err instanceof DOMException && err.name === 'NotAllowedError') {
-        setError('Permissao de microfone negada. Habilite o microfone nas configuracoes do navegador.');
+        setError(
+          'Permissao de microfone negada. Habilite o microfone nas configuracoes do navegador.',
+        );
       } else if (err instanceof DOMException && err.name === 'NotFoundError') {
         setError('Nenhum microfone encontrado. Conecte um microfone e tente novamente.');
       } else if (err instanceof DOMException && err.name === 'NotReadableError') {
@@ -207,9 +235,23 @@ export function useVoice(options?: UseVoiceOptions) {
         );
       }
     }
-  }, [storeStartRecording, setProcessing, setTranscription, setStructuredData, setIntent, setError, setDuration, context, encounterId, patientId]);
+  }, [
+    clearTimer,
+    context,
+    encounterId,
+    patientId,
+    setDuration,
+    setError,
+    setIntent,
+    setProcessing,
+    setStructuredData,
+    setTranscription,
+    stopStream,
+    storeStartRecording,
+  ]);
 
   const stopRecording = useCallback(() => {
+    cancelledRef.current = false;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -217,29 +259,29 @@ export function useVoice(options?: UseVoiceOptions) {
   }, [storeStopRecording]);
 
   const cancelRecording = useCallback(() => {
+    cancelledRef.current = true;
+    chunksRef.current = [];
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    reset();
-  }, [reset]);
 
-  // Cleanup on unmount
+    clearTimer();
+    stopStream();
+    reset();
+  }, [clearTimer, reset, stopStream]);
+
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+      cancelledRef.current = true;
+      chunksRef.current = [];
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
       }
+      clearTimer();
+      stopStream();
     };
-  }, []);
+  }, [clearTimer, stopStream]);
 
   return {
     status: getStatus(),
