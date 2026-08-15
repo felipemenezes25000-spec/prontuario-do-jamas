@@ -2,8 +2,14 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth.store';
 
+const APP_API_BASE_URL = '/api/v1';
+const DEMO_ACCESS_TOKEN = 'demo-access-token';
+const DEMO_API_BASE_URL =
+  (import.meta.env.VITE_DEMO_API_URL as string | undefined)?.replace(/\/$/, '') ??
+  'https://starmed-mock-api.vercel.app/api/v1';
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: APP_API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -26,6 +32,10 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
+function isDemoBootstrap(config: InternalAxiosRequestConfig, accessToken: string | null) {
+  return !accessToken && config.method?.toLowerCase() === 'get' && config.url === '/auth/me';
+}
+
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (config.params?.limit !== undefined) {
@@ -34,9 +44,20 @@ api.interceptors.request.use(
     }
 
     const { accessToken, user } = useAuthStore.getState();
-    if (accessToken && config.headers) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
+    const isDemoSession = accessToken === DEMO_ACCESS_TOKEN;
+
+    if (isDemoSession || isDemoBootstrap(config, accessToken)) {
+      config.baseURL = DEMO_API_BASE_URL;
+      if (config.headers) {
+        delete config.headers.Authorization;
+      }
+    } else {
+      config.baseURL = APP_API_BASE_URL;
+      if (accessToken && config.headers) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+      }
     }
+
     if (user?.tenantId && config.headers) {
       config.headers['X-Tenant-Id'] = user.tenantId;
     }
@@ -52,6 +73,15 @@ api.interceptors.response.use(
     const originalRequest = error.config as
       | (InternalAxiosRequestConfig & { _retry?: boolean })
       | undefined;
+
+    const { accessToken } = useAuthStore.getState();
+    const isDemoSession = accessToken === DEMO_ACCESS_TOKEN;
+
+    if (error.response?.status === 401 && isDemoSession) {
+      useAuthStore.getState().logout();
+      window.location.assign('/login');
+      return Promise.reject(error);
+    }
 
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       if (isRefreshing) {
