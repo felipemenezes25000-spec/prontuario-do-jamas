@@ -13,9 +13,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.svg'],
       manifest: {
-        name: 'VoxPEP — Prontuário Eletrônico Inteligente',
-        short_name: 'VoxPEP',
-        description: 'Prontuário eletrônico com comando de voz para hospitais',
+        name: 'StarMed — Inteligência Hospitalar',
+        short_name: 'StarMed',
+        description: 'Plataforma clínica hospitalar com prontuário eletrônico e inteligência médica',
         theme_color: '#0d9488',
         background_color: '#0f172a',
         display: 'standalone',
@@ -66,13 +66,9 @@ export default defineConfig({
             },
           },
           {
+            // Never persist authenticated clinical API responses in Cache Storage.
             urlPattern: /\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
+            handler: 'NetworkOnly',
           },
         ],
       },
