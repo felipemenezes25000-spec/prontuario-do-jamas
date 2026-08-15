@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -34,7 +35,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
-type NavIcon = React.ComponentType<{ className?: string }>;
+type NavIcon = ComponentType<{ className?: string }>;
 
 interface NavItem {
   label: string;
@@ -98,16 +99,16 @@ function Brand({ collapsed }: { collapsed: boolean }) {
     <div className={cn('flex h-16 shrink-0 items-center', collapsed ? 'justify-center px-2' : 'gap-3 px-4')}>
       <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/15">
         <Activity className="h-5 w-5 text-white" />
-        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-zinc-950 bg-emerald-300" />
+        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-emerald-300" />
       </div>
       {!collapsed && (
         <div className="min-w-0">
           <div className="flex items-baseline gap-1">
-            <span className="text-lg font-bold tracking-tight text-white">Star</span>
-            <span className="text-lg font-bold tracking-tight text-emerald-400">Med</span>
+            <span className="text-lg font-bold tracking-tight text-foreground">Star</span>
+            <span className="text-lg font-bold tracking-tight text-primary">Med</span>
           </div>
-          <p className="truncate text-[9px] font-medium uppercase tracking-[0.17em] text-zinc-500">
-            Intelligence Hospital
+          <p className="truncate text-[9px] font-medium uppercase tracking-[0.17em] text-muted-foreground">
+            Inteligência Hospitalar
           </p>
         </div>
       )}
@@ -134,7 +135,7 @@ function Navigation({
           return (
             <div key={section.title}>
               {!collapsed && (
-                <p className="mb-1.5 px-3 text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
+                <p className="mb-1.5 px-3 text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
                   {section.title}
                 </p>
               )}
@@ -151,25 +152,25 @@ function Navigation({
                       onClick={onNavigate}
                       className={({ isActive }) =>
                         cn(
-                          'group relative flex min-h-9 items-center gap-3 rounded-xl text-[12px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-400/40',
+                          'group relative flex min-h-9 items-center gap-3 rounded-xl text-[12px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40',
                           collapsed ? 'justify-center px-2' : 'px-3',
                           item.isSubItem && !collapsed && 'ml-5 min-h-8 pl-3 text-[11px]',
                           isActive
-                            ? 'bg-emerald-500/10 text-emerald-300'
-                            : 'text-zinc-400 hover:bg-white/[0.045] hover:text-zinc-100',
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                         )
                       }
                     >
                       {({ isActive }) => (
                         <>
                           {isActive && (
-                            <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]" />
+                            <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-primary shadow-[0_0_10px_color-mix(in_srgb,var(--color-primary)_45%,transparent)]" />
                           )}
                           <Icon
                             className={cn(
-                              'shrink-0',
+                              'shrink-0 transition-colors',
                               item.isSubItem ? 'h-3.5 w-3.5' : 'h-[17px] w-[17px]',
-                              isActive ? 'text-emerald-400' : 'text-zinc-500 group-hover:text-zinc-300',
+                              isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-accent-foreground',
                             )}
                           />
                           {!collapsed && <span className="truncate">{item.label}</span>}
@@ -199,24 +200,24 @@ function UserFooter({ collapsed }: { collapsed: boolean }) {
   };
 
   return (
-    <div className="shrink-0 border-t border-white/[0.06] p-2">
+    <div className="shrink-0 border-t border-border/70 p-2">
       {!collapsed ? (
-        <div className="rounded-2xl border border-white/[0.05] bg-white/[0.025] p-2.5">
+        <div className="rounded-2xl border border-border/70 bg-muted/30 p-2.5">
           <div className="flex items-center gap-2.5">
-            <Avatar className="h-9 w-9 ring-1 ring-emerald-500/25">
+            <Avatar className="h-9 w-9 ring-1 ring-primary/25">
               <AvatarImage src={user?.avatarUrl} alt={user?.name ?? ''} />
-              <AvatarFallback className="bg-emerald-500/10 text-xs font-semibold text-emerald-400">
+              <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
                 {user ? getInitials(user.name) : '?'}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium text-zinc-200">{user?.name}</p>
-              <p className="truncate text-[10px] text-zinc-500">{user?.specialty ?? user?.role}</p>
+              <p className="truncate text-xs font-medium text-foreground">{user?.name}</p>
+              <p className="truncate text-[10px] text-muted-foreground">{user?.specialty ?? user?.role}</p>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0 rounded-xl text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+              className="h-8 w-8 shrink-0 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               aria-label="Sair"
               onClick={handleLogout}
             >
@@ -225,7 +226,7 @@ function UserFooter({ collapsed }: { collapsed: boolean }) {
           </div>
           <Button
             variant="ghost"
-            className="mt-2 h-8 w-full justify-between rounded-xl px-2 text-[10px] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300"
+            className="mt-2 h-8 w-full justify-between rounded-xl px-2 text-[10px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             onClick={toggleSidebar}
           >
             Recolher menu <ChevronLeft className="h-3.5 w-3.5" />
@@ -233,16 +234,16 @@ function UserFooter({ collapsed }: { collapsed: boolean }) {
         </div>
       ) : (
         <div className="flex flex-col items-center gap-1.5">
-          <Avatar className="h-9 w-9 ring-1 ring-emerald-500/25">
+          <Avatar className="h-9 w-9 ring-1 ring-primary/25">
             <AvatarImage src={user?.avatarUrl} alt={user?.name ?? ''} />
-            <AvatarFallback className="bg-emerald-500/10 text-[10px] font-semibold text-emerald-400">
+            <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
               {user ? getInitials(user.name) : '?'}
             </AvatarFallback>
           </Avatar>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-xl text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300"
+            className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             title="Expandir menu"
             aria-label="Expandir menu"
             onClick={toggleSidebar}
@@ -265,9 +266,9 @@ function SidebarShell({
   onNavigate: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
+    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <Brand collapsed={collapsed && !mobile} />
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-zinc-800 to-transparent" />
+      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
       <Navigation collapsed={collapsed && !mobile} onNavigate={onNavigate} />
       <UserFooter collapsed={collapsed && !mobile} />
     </div>
@@ -284,7 +285,7 @@ export function Sidebar() {
       <aside
         aria-label="Menu lateral"
         className={cn(
-          'fixed inset-y-0 left-0 z-40 hidden border-r border-white/[0.06] bg-zinc-950 shadow-[8px_0_30px_rgba(0,0,0,0.08)] transition-[width] duration-200 lg:block',
+          'fixed inset-y-0 left-0 z-40 hidden border-r border-border/70 bg-sidebar shadow-[8px_0_30px_rgba(0,0,0,0.06)] transition-[width] duration-200 lg:block',
           sidebarCollapsed ? 'w-[68px]' : 'w-64',
         )}
       >
@@ -292,7 +293,7 @@ export function Sidebar() {
       </aside>
 
       <Sheet open={sidebarMobileOpen} onOpenChange={setSidebarMobileOpen}>
-        <SheetContent side="left" className="w-[88vw] max-w-[300px] border-r border-white/[0.06] bg-zinc-950 p-0">
+        <SheetContent side="left" className="w-[88vw] max-w-[300px] border-r border-border bg-sidebar p-0">
           <SidebarShell collapsed={false} mobile onNavigate={() => setSidebarMobileOpen(false)} />
         </SheetContent>
       </Sheet>
