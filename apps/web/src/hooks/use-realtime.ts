@@ -121,7 +121,9 @@ export function useRealtime() {
     const socket = getSocket();
     const handler = callback as (...args: unknown[]) => void;
     socket.on(event as string, handler);
-    return () => socket.off(event as string, handler);
+    return () => {
+      socket.off(event as string, handler);
+    };
   }, []);
 
   const joinEncounter = useCallback((encounterId: string) => {
@@ -162,6 +164,8 @@ export function useRealtimeEvent<K extends keyof RealtimeEvents>(
     const socket = getSocket();
     const eventHandler = handler as (...args: unknown[]) => void;
     socket.on(eventName as string, eventHandler);
-    return () => socket.off(eventName as string, eventHandler);
+    return () => {
+      socket.off(eventName as string, eventHandler);
+    };
   }, [eventName, handler]);
 }
