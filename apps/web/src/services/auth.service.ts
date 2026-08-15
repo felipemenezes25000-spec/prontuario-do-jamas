@@ -54,6 +54,16 @@ interface SSOConfigurePayload {
   ssoAutoProvision?: boolean;
 }
 
+const DEMO_USER: User = {
+  id: 'demo-1',
+  name: 'Dr. Demo Starmed',
+  email: 'demo@starmed.dev',
+  role: 'DOCTOR',
+  specialty: 'Clínica Geral',
+  tenantId: 'demo-tenant',
+  isActive: true,
+};
+
 // ============================================================================
 // Type guards
 // ============================================================================
@@ -82,6 +92,9 @@ export async function refreshApi(refreshToken: string): Promise<AuthTokens> {
 }
 
 export async function meApi(): Promise<User> {
+  const { accessToken } = useAuthStore.getState();
+  if (!accessToken) return DEMO_USER;
+
   const { data } = await api.get<User>('/auth/me');
   return data;
 }
