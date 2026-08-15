@@ -7,6 +7,7 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const LoginPage = lazy(() => import('@/pages/auth/login'));
+const NotFoundPage = lazy(() => import('@/pages/not-found'));
 const MfaVerifyPage = lazy(() => import('@/pages/auth/mfa-verify'));
 const SSOCallbackPage = lazy(() => import('@/pages/auth/sso-callback'));
 const DashboardPage = lazy(() => import('@/pages/dashboard'));
@@ -392,7 +393,7 @@ export function AppRoutes() {
         />
       </Route>
       <Route path="/agendar/:tenantSlug" element={<SuspenseWrap><BookingPage /></SuspenseWrap>} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<SuspenseWrap><NotFoundPage /></SuspenseWrap>} />
     </Routes>
   );
 }
