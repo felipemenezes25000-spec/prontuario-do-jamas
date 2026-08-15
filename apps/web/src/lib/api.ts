@@ -1,12 +1,13 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
+import { useAuthStore } from '@/stores/auth.store';
 
 const api = axios.create({
   baseURL: '/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000,
+  timeout: 30_000,
 });
 
 interface QueueItem {
@@ -18,40 +19,28 @@ let isRefreshing = false;
 let failedQueue: QueueItem[] = [];
 
 const processQueue = (error: unknown, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
+  failedQueue.forEach((promise) => {
+    if (error) promise.reject(error);
+    else promise.resolve(token);
   });
   failedQueue = [];
 };
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Map frontend 'limit' param to API's 'pageSize'
     if (config.params?.limit !== undefined) {
       config.params.pageSize = config.params.limit;
       delete config.params.limit;
     }
 
-    const stored = localStorage.getItem('voxpep-auth');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        const token = parsed?.state?.accessToken;
-        if (token && config.headers) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        const tenantId = parsed?.state?.user?.tenantId;
-        if (tenantId && config.headers) {
-          config.headers['X-Tenant-Id'] = tenantId;
-        }
-      } catch {
-        // ignore parse errors
-      }
+    const { accessToken, user } = useAuthStore.getState();
+    if (accessToken && config.headers) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
+    if (user?.tenantId && config.headers) {
+      config.headers['X-Tenant-Id'] = user.tenantId;
+    }
+
     return config;
   },
   (error) => Promise.reject(error),
@@ -60,14 +49,16 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as
+      | (InternalAxiosRequestConfig & { _retry?: boolean })
+      | undefined;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve: resolve as (value: string | null) => void, reject });
+        return new Promise<string | null>((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
         }).then((token) => {
-          if (originalRequest.headers) {
+          if (token && originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${token}`;
           }
           return api(originalRequest);
@@ -78,54 +69,40 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const stored = localStorage.getItem('voxpep-auth');
-        const parsed = stored ? JSON.parse(stored) : null;
-        const refreshToken = parsed?.state?.refreshToken;
+        const { refreshToken, refreshTokens } = useAuthStore.getState();
+        if (!refreshToken) throw new Error('No refresh token');
 
-        if (!refreshToken) {
-          throw new Error('No refresh token');
-        }
+        const { data } = await axios.post<{
+          accessToken: string;
+          refreshToken: string;
+        }>('/api/v1/auth/refresh', { refreshToken });
 
-        const { data } = await axios.post('/api/v1/auth/refresh', {
-          refreshToken,
-        });
-
-        const newAccess = data.accessToken;
-        const newRefresh = data.refreshToken;
-
-        if (parsed?.state) {
-          parsed.state.accessToken = newAccess;
-          parsed.state.refreshToken = newRefresh;
-          localStorage.setItem('voxpep-auth', JSON.stringify(parsed));
-        }
-
-        processQueue(null, newAccess);
+        refreshTokens(data.accessToken, data.refreshToken);
+        processQueue(null, data.accessToken);
 
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+          originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
         }
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        localStorage.removeItem('voxpep-auth');
-        window.location.href = '/login';
+        useAuthStore.getState().logout();
+        window.location.assign('/login');
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
     }
 
-    // Global error toasts (non-401)
     const status = error.response?.status;
-    const message =
-      (error.response?.data as Record<string, unknown>)?.message as
-        | string
-        | undefined;
+    const message = (error.response?.data as Record<string, unknown> | undefined)?.message as
+      | string
+      | undefined;
 
     if (status === 403) {
       toast.error('Sem permissão para esta ação.');
     } else if (status === 404) {
-      // Silent — pages handle their own 404 UX
+      // Pages handle their own not-found UX.
     } else if (status === 422) {
       toast.error(`Dados inválidos: ${message ?? 'verifique os campos'}`);
     } else if (status === 503) {
