@@ -139,7 +139,7 @@ export const PatientTimeline = memo(function PatientTimeline({ patientId }: Pati
         <CardContent className="flex flex-col items-center py-12">
           <AlertTriangle className="h-10 w-10 text-red-400" />
           <p className="mt-3 text-sm text-muted-foreground">Erro ao carregar historico</p>
-          <Button variant="outline" className="mt-4" onClick={() => refetch()}>
+          <Button variant="outline" className="mt-4" onClick={() => void refetch()}>
             Tentar novamente
           </Button>
         </CardContent>
@@ -306,7 +306,7 @@ export const PatientTimeline = memo(function PatientTimeline({ patientId }: Pati
               <Button
                 variant="outline"
                 className="border-border"
-                onClick={() => fetchNextPage()}
+                onClick={() => void fetchNextPage()}
                 disabled={isFetchingNextPage}
               >
                 {isFetchingNextPage ? (
