@@ -4,55 +4,75 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LoginPage from './login';
 
-// Mock react-router-dom
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
   useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }));
 
-// Mock auth store
 const mockLogin = vi.fn();
+const mockSetMfaPending = vi.fn();
+interface MockAuthState {
+  login: typeof mockLogin;
+  setMfaPending: typeof mockSetMfaPending;
+}
+
 vi.mock('@/stores/auth.store', () => ({
-  useAuthStore: () => ({
-    login: mockLogin,
-    setMfaPending: vi.fn(),
-  }),
+  useAuthStore: <T,>(selector?: (state: MockAuthState) => T) => {
+    const state: MockAuthState = {
+      login: mockLogin,
+      setMfaPending: mockSetMfaPending,
+    };
+    return selector ? selector(state) : state;
+  },
 }));
 
-// Mock auth service
 const mockLoginApi = vi.fn();
+const mockMeApi = vi.fn();
 vi.mock('@/services/auth.service', () => ({
   loginApi: (...args: unknown[]) => mockLoginApi(...args),
   isMfaChallenge: () => false,
   detectSSOApi: vi.fn().mockResolvedValue({ ssoEnabled: false }),
+  meApi: (...args: unknown[]) => mockMeApi(...args),
 }));
 
-// Mock sonner
+vi.mock('@/services/webauthn.service', () => ({
+  webauthnLoginOptionsApi: vi.fn(),
+  webauthnLoginVerifyApi: vi.fn(),
+}));
+
+vi.mock('@/hooks/use-page-title', () => ({
+  usePageTitle: vi.fn(),
+}));
+
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
+const mockToastInfo = vi.fn();
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),
+    info: (...args: unknown[]) => mockToastInfo(...args),
   },
 }));
 
-// Mock UI components
 vi.mock('@/components/ui/button', () => ({
   Button: ({
     children,
     type,
     disabled,
     className,
+    onClick,
     ...rest
   }: {
     children: React.ReactNode;
-    type?: string;
+    type?: 'button' | 'submit' | 'reset';
     disabled?: boolean;
     className?: string;
+    onClick?: React.MouseEventHandler<HTMLButtonElement>;
+    [key: string]: unknown;
   }) => (
-    <button type={type as 'button' | 'submit'} disabled={disabled} className={className} {...rest}>
+    <button type={type} disabled={disabled} className={className} onClick={onClick} {...rest}>
       {children}
     </button>
   ),
@@ -60,9 +80,7 @@ vi.mock('@/components/ui/button', () => ({
 
 vi.mock('@/components/ui/input', () => ({
   Input: React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement> & { className?: string }>(
-    ({ className, ...props }, ref) => (
-      <input ref={ref} className={className} {...props} />
-    ),
+    ({ className, ...props }, ref) => <input ref={ref} className={className} {...props} />,
   ),
 }));
 
@@ -72,25 +90,19 @@ vi.mock('@/components/ui/label', () => ({
   ),
 }));
 
-vi.mock('@/components/ui/card', () => ({
-  Card: ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  ),
-  CardContent: ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  ),
-}));
+const submitButton = () => screen.getByRole('button', { name: 'Entrar no StarMed' });
 
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders the VoxPEP branding', () => {
+  it('renders the StarMed branding', () => {
     render(<LoginPage />);
-    // Logo text may be split across "Vox" + "PEP" for gradient styling
-    expect(screen.getAllByText(/Vox/i).length).toBeGreaterThan(0);
-    expect(screen.getByText('Fale. O prontuário escuta.')).toBeInTheDocument();
+    expect(screen.getAllByText('Star').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Med').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Intelligence Hospital').length).toBeGreaterThan(0);
+    expect(screen.getByText('Bem-vindo de volta')).toBeInTheDocument();
   });
 
   it('renders email and password inputs', () => {
@@ -99,15 +111,15 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Senha')).toBeInTheDocument();
   });
 
-  it('renders submit button with text "Entrar"', () => {
+  it('renders the StarMed submit button', () => {
     render(<LoginPage />);
-    expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument();
+    expect(submitButton()).toBeInTheDocument();
   });
 
   it('shows email validation error when submitted empty', async () => {
     const user = userEvent.setup();
     render(<LoginPage />);
-    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+    await user.click(submitButton());
     await waitFor(() => {
       expect(screen.getByText('Email é obrigatório')).toBeInTheDocument();
     });
@@ -116,7 +128,7 @@ describe('LoginPage', () => {
   it('shows password validation error when submitted empty', async () => {
     const user = userEvent.setup();
     render(<LoginPage />);
-    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+    await user.click(submitButton());
     await waitFor(() => {
       expect(screen.getByText('Senha é obrigatória')).toBeInTheDocument();
     });
@@ -124,16 +136,13 @@ describe('LoginPage', () => {
 
   it('shows invalid email error for malformed email', async () => {
     render(<LoginPage />);
-    const emailInput = screen.getByLabelText('Email');
-    const passwordInput = screen.getByLabelText('Senha');
-
-    fireEvent.change(emailInput, { target: { value: 'notanemail' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.submit(screen.getByRole('button', { name: 'Entrar' }).closest('form')!);
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'notanemail' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'password123' } });
+    fireEvent.submit(submitButton().closest('form')!);
 
     await waitFor(() => {
       expect(screen.getByText('Email inválido')).toBeInTheDocument();
-    }, { timeout: 3000 });
+    });
   });
 
   it('shows minimum password length error', async () => {
@@ -141,7 +150,7 @@ describe('LoginPage', () => {
     render(<LoginPage />);
     await user.type(screen.getByLabelText('Email'), 'test@test.com');
     await user.type(screen.getByLabelText('Senha'), '123');
-    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+    await user.click(submitButton());
     await waitFor(() => {
       expect(screen.getByText('Mínimo 6 caracteres')).toBeInTheDocument();
     });
@@ -149,42 +158,40 @@ describe('LoginPage', () => {
 
   it('calls loginApi on successful form submission', async () => {
     const mockResult = {
-      user: { id: '1', name: 'Dr. Carlos', email: 'carlos@voxpep.com', role: 'ADMIN' as const, tenantId: 't1' },
+      user: {
+        id: '1',
+        name: 'Dr. Carlos',
+        email: 'carlos@starmed.com',
+        role: 'ADMIN' as const,
+        tenantId: 't1',
+      },
       accessToken: 'token',
       refreshToken: 'refresh',
     };
-    mockLoginApi.mockImplementation(() => Promise.resolve(mockResult));
+    mockLoginApi.mockResolvedValue(mockResult);
 
     render(<LoginPage />);
-    const emailInput = screen.getByLabelText('Email');
-    const passwordInput = screen.getByLabelText('Senha');
-
-    fireEvent.change(emailInput, { target: { value: 'carlos@voxpep.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'admin123' } });
-    fireEvent.submit(screen.getByRole('button', { name: 'Entrar' }).closest('form')!);
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'carlos@starmed.com' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'admin123' } });
+    fireEvent.submit(submitButton().closest('form')!);
 
     await waitFor(() => {
-      expect(mockLoginApi).toHaveBeenCalledWith('carlos@voxpep.com', 'admin123');
-    }, { timeout: 5000 });
+      expect(mockLoginApi).toHaveBeenCalledWith('carlos@starmed.com', 'admin123');
+      expect(mockLogin).toHaveBeenCalledWith(mockResult.user, 'token', 'refresh');
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+    });
   });
 
   it('shows loading state during form submission', async () => {
     const user = userEvent.setup();
-    // Use a deferred promise to observe the loading state
-    mockLoginApi.mockImplementation(
-      () => new Promise(() => {/* never resolves */}),
-    );
+    mockLoginApi.mockImplementation(() => new Promise(() => undefined));
 
     render(<LoginPage />);
     await user.type(screen.getByLabelText('Email'), 'a@b.com');
     await user.type(screen.getByLabelText('Senha'), 'abcdef');
-    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+    await user.click(submitButton());
 
-    await waitFor(() => {
-      expect(mockLoginApi).toHaveBeenCalled();
-    });
-
-    // The button should show loading text while the API call is in flight
+    await waitFor(() => expect(mockLoginApi).toHaveBeenCalled());
     expect(screen.getByText('Entrando...')).toBeInTheDocument();
   });
 
@@ -195,7 +202,7 @@ describe('LoginPage', () => {
     render(<LoginPage />);
     await user.type(screen.getByLabelText('Email'), 'wrong@email.com');
     await user.type(screen.getByLabelText('Senha'), 'wrongpass');
-    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+    await user.click(submitButton());
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith('Email ou senha inválidos');
@@ -208,26 +215,18 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('Senha');
     expect(passwordInput).toHaveAttribute('type', 'password');
 
-    // Find the toggle button (the eye button next to password)
-    const toggleButtons = screen.getAllByRole('button');
-    const toggleButton = toggleButtons.find(
-      (btn) => !btn.textContent?.includes('Entrar') && !btn.textContent?.includes('Esqueceu'),
-    );
-    expect(toggleButton).toBeDefined();
-    await user.click(toggleButton!);
-
+    await user.click(screen.getByRole('button', { name: 'Mostrar senha' }));
     expect(passwordInput).toHaveAttribute('type', 'text');
+    expect(screen.getByRole('button', { name: 'Ocultar senha' })).toBeInTheDocument();
   });
 
-  it('renders "Esqueci minha senha" link', () => {
+  it('renders the forgot-password action', () => {
     render(<LoginPage />);
     expect(screen.getByText('Esqueci minha senha')).toBeInTheDocument();
   });
 
   it('renders demo mode button', () => {
     render(<LoginPage />);
-    expect(
-      screen.getByText(/Entrar em modo Demo/i),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Acessar ambiente demonstrativo' })).toBeInTheDocument();
   });
 });
