@@ -53,7 +53,7 @@ export function NotificationBell() {
       markRead.mutate(notif.id);
     }
     if (notif.actionUrl) {
-      navigate(notif.actionUrl);
+      void navigate(notif.actionUrl);
     }
   };
 
