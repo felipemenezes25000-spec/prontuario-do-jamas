@@ -38,9 +38,10 @@ function isDemoBootstrap(config: InternalAxiosRequestConfig, accessToken: string
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    if (config.params?.limit !== undefined) {
-      config.params.pageSize = config.params.limit;
-      delete config.params.limit;
+    const params = config.params as Record<string, unknown> | undefined;
+    if (params?.limit !== undefined) {
+      const { limit, ...rest } = params;
+      config.params = { ...rest, pageSize: limit };
     }
 
     const { accessToken, user } = useAuthStore.getState();
