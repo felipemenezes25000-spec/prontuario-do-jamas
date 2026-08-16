@@ -105,9 +105,7 @@ export function useRealtimeNotifications() {
     return () => {
       socket.off('notification:new', handleNotification);
     };
-    // addNotification is stable from Zustand
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, queryClient]);
+  }, [user, queryClient, addNotification]);
 
   return { setSoundEnabled, soundEnabled: soundEnabledRef.current };
 }
