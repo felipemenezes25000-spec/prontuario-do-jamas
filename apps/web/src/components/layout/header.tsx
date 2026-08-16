@@ -129,7 +129,13 @@ function SearchResult({
 export function Header() {
   const { user, logout } = useAuthStore();
   const { setSidebarMobileOpen, activeAlerts, setCommandOpen, commandOpen } = useUIStore();
-  const navigate = useNavigate();
+  const routerNavigate = useNavigate();
+  const navigate = useCallback(
+    (to: string) => {
+      void routerNavigate(to);
+    },
+    [routerNavigate],
+  );
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -180,7 +186,7 @@ export function Header() {
 
   const handleVoiceClick = useCallback(() => {
     if (isProcessing) return;
-    if (isRecording) stopRecording();
+    if (isRecording) void stopRecording();
     else void startRecording();
   }, [isProcessing, isRecording, startRecording, stopRecording]);
 
@@ -301,7 +307,7 @@ export function Header() {
                 size="icon"
                 className="ml-1 hidden h-9 w-9 rounded-xl text-red-500 hover:bg-red-500/10 sm:inline-flex"
                 aria-label="Cancelar gravação"
-                onClick={cancelRecording}
+                onClick={() => void cancelRecording()}
               >
                 <X className="h-4 w-4" />
               </Button>
