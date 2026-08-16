@@ -18,13 +18,15 @@ export function formatPhone(phone: string): string {
   return digits.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
 }
 
-export function getInitials(name: string): string {
+export function getInitials(name?: string | null): string {
+  if (!name?.trim()) return '?';
+
   return name
-    .split(' ')
-    .filter(Boolean)
+    .trim()
+    .split(/\s+/)
     .slice(0, 2)
-    .map((n) => n[0]?.toUpperCase() ?? '')
-    .join('');
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || '?';
 }
 
 export function calculateAge(birthDate: Date | string | null | undefined): number {
