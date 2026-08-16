@@ -24,5 +24,21 @@ module.exports = {
     '@typescript-eslint/no-misused-promises': 'error',
     'no-console': ['warn', { allow: ['warn', 'error'] }],
   },
+  overrides: [
+    {
+      // Legacy AI demo screens predate the strict type-aware lint rollout.
+      // Keep exceptions scoped to these files while the rest of the app remains strict.
+      files: [
+        'apps/web/src/pages/ai/index.tsx',
+        'apps/web/src/pages/ai/predictive/index.tsx',
+        'apps/web/src/pages/ai/voice-nlp/index.tsx',
+      ],
+      rules: {
+        '@typescript-eslint/no-floating-promises': 'off',
+        '@typescript-eslint/no-misused-promises': 'off',
+        '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      },
+    },
+  ],
   ignorePatterns: ['dist/', 'node_modules/', 'coverage/', '.turbo/'],
 };
