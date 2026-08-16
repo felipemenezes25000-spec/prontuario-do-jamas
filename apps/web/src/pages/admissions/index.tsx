@@ -127,7 +127,7 @@ function DischargeWizard({ open, onOpenChange, bed, admissionId, onSuccess }: Di
 
     const payload: DischargePayload = {
       admissionId,
-      dischargeType: dischargeType as DischargeType,
+      dischargeType,
       dischargeCondition,
       dischargeNotes: dischargeSummary || undefined,
       dischargePrescription: medications || undefined,
@@ -362,7 +362,7 @@ function DischargeWizard({ open, onOpenChange, bed, admissionId, onSuccess }: Di
               <div className="flex flex-wrap gap-2">
                 {dischargeType && (
                   <Badge variant="outline" className="text-xs">
-                    {DISCHARGE_TYPE_LABELS[dischargeType as DischargeType]}
+                    {DISCHARGE_TYPE_LABELS[dischargeType]}
                   </Badge>
                 )}
                 {dischargeCondition && (
@@ -420,7 +420,7 @@ function DischargeWizard({ open, onOpenChange, bed, admissionId, onSuccess }: Di
               <Button
                 size="sm"
                 disabled={dischargePatient.isPending || !dischargeType}
-                onClick={handleConfirmDischarge}
+                onClick={() => void handleConfirmDischarge()}
                 className="bg-emerald-600 hover:bg-emerald-500"
               >
                 {dischargePatient.isPending ? (
@@ -474,7 +474,7 @@ export default function AdmissionsPage() {
           setShowReverseDialog(false);
           setReverseAdmissionId('');
           setReverseReason('');
-          refetch();
+          void refetch();
         },
       },
     );
@@ -488,7 +488,7 @@ export default function AdmissionsPage() {
   const bedDetail = selectedBed ? allBeds.find((b) => b.id === selectedBed) : null;
 
   if (isLoading) return <PageLoading cards={0} showTable />;
-  if (isError) return <PageError onRetry={() => refetch()} />;
+  if (isError) return <PageError onRetry={() => void refetch()} />;
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -746,7 +746,7 @@ export default function AdmissionsPage() {
           onSuccess={() => {
             setDischargeWizardBed(null);
             setDischargeAdmissionId('');
-            refetch();
+            void refetch();
           }}
         />
       )}
@@ -823,7 +823,7 @@ export default function AdmissionsPage() {
             {reverseDischarge.isError && (
               <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
                 <p className="text-xs text-red-400">
-                  {(reverseDischarge.error as Error)?.message ??
+                  {reverseDischarge.error?.message ??
                     'Erro ao reverter alta. Verifique se a janela de 2h nao expirou.'}
                 </p>
               </div>
