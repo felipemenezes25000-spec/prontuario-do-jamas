@@ -12,7 +12,8 @@ export function PdfDownloadButton({
   label = 'PDF',
   size = 'sm',
 }: PdfDownloadButtonProps) {
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const baseUrl =
+    (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3000';
 
   const handleClick = () => {
     window.open(`${baseUrl}/api/v1/${endpoint}`, '_blank');
