@@ -142,7 +142,7 @@ export function WebAuthnSetup() {
                 size="sm"
                 onClick={() => {
                   if (window.confirm('Tem certeza que deseja remover este dispositivo?')) {
-                    handleRemove(cred.credentialID);
+                    void handleRemove(cred.credentialID);
                   }
                 }}
                 disabled={removingId === cred.credentialID}
@@ -161,7 +161,7 @@ export function WebAuthnSetup() {
 
       {/* Register button */}
       <Button
-        onClick={handleRegister}
+        onClick={() => void handleRegister()}
         disabled={registering}
         className="bg-teal-600 hover:bg-teal-500"
       >
