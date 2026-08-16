@@ -96,7 +96,7 @@ export function InstallPrompt() {
         </div>
         {!isIOS && deferredPrompt && (
           <button
-            onClick={handleInstall}
+            onClick={() => void handleInstall()}
             className="mt-3 w-full bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium py-2.5 rounded-xl transition-colors"
           >
             Instalar agora
