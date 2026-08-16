@@ -195,7 +195,7 @@ function UserFooter({ collapsed }: { collapsed: boolean }) {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    void navigate('/login');
   };
 
   return (
