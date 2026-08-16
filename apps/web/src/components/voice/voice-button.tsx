@@ -100,9 +100,9 @@ export function VoiceButton({
     }
     if (voice.isRecording) {
       // Stop recording — useVoice hook handles API call automatically
-      voice.stopRecording();
+      void voice.stopRecording();
     } else if (!voice.isProcessing) {
-      voice.startRecording();
+      void voice.startRecording();
     }
   }, [voiceState, voice]);
 
