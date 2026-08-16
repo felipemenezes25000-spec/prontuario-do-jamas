@@ -8,8 +8,8 @@ import './styles/globals.css';
   try {
     const raw = localStorage.getItem('voxpep-theme');
     if (raw) {
-      const parsed: { state?: { mode?: string } } = JSON.parse(raw);
-      const mode = parsed?.state?.mode ?? 'light';
+      const parsed = JSON.parse(raw) as { state?: { mode?: string } };
+      const mode = parsed.state?.mode ?? 'light';
       let resolved: string;
 
       if (mode === 'system') {
