@@ -97,7 +97,7 @@ export function SSOConfig() {
     }
   };
 
-  const handleTestConnection = async () => {
+  const handleTestConnection = () => {
     if (!form.ssoProvider) {
       toast.error('Selecione um provedor antes de testar');
       return;
@@ -106,7 +106,8 @@ export function SSOConfig() {
     setIsTesting(true);
     try {
       // Open SSO login in a popup to test
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl =
+        (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3000';
       const testUrl = `${apiUrl}/api/v1/auth/sso/${form.ssoProvider}`;
       const popup = window.open(testUrl, 'sso-test', 'width=600,height=700');
 
@@ -355,7 +356,7 @@ export function SSOConfig() {
         {/* Actions */}
         <div className="flex items-center gap-3 pt-2">
           <Button
-            onClick={handleSave}
+            onClick={() => void handleSave()}
             disabled={isSaving}
             className="bg-teal-600 text-white hover:bg-teal-500 shadow-lg shadow-teal-500/20"
           >
