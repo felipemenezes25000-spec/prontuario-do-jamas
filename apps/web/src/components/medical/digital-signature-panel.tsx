@@ -213,7 +213,7 @@ function SignatureCard({
               size="sm"
               variant="outline"
               className="mt-2 h-7 gap-1 text-xs"
-              onClick={() => onVerify(signature.id)}
+              onClick={() => void onVerify(signature.id)}
             >
               <ShieldCheck className="h-3 w-3" />
               Verificar assinatura
@@ -514,7 +514,7 @@ export function DigitalSignaturePanel({
           {/* Actions */}
           <div className="flex items-center gap-2">
             <Button
-              onClick={handleSign}
+              onClick={() => void handleSign()}
               disabled={signing || loading}
               className="h-8 flex-1 gap-1.5 bg-teal-600 text-xs text-white hover:bg-teal-700"
             >
