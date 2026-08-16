@@ -72,7 +72,7 @@ export default function AdminPage() {
   );
 
   if (isLoading) return <PageLoading cards={0} showTable />;
-  if (isError) return <PageError onRetry={() => refetch()} />;
+  if (isError) return <PageError onRetry={() => void refetch()} />;
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -265,7 +265,7 @@ export default function AdminPage() {
           {auditLoading ? (
             <PageLoading cards={0} showTable />
           ) : auditError ? (
-            <PageError onRetry={() => refetchAudit()} />
+            <PageError onRetry={() => void refetchAudit()} />
           ) : filteredAudit.length === 0 ? (
             <Card className="border-border bg-card">
               <CardContent className="flex flex-col items-center py-12">
@@ -310,7 +310,7 @@ export default function AdminPage() {
           {lgpdLoading ? (
             <PageLoading cards={0} showTable={false} />
           ) : lgpdError ? (
-            <PageError onRetry={() => refetchLgpd()} />
+            <PageError onRetry={() => void refetchLgpd()} />
           ) : lgpdRequests.length === 0 ? (
             <Card className="border-border bg-card">
               <CardContent className="flex flex-col items-center py-12">
