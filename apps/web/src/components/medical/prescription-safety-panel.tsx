@@ -339,7 +339,7 @@ export function SafetyValidationForm({ onValidationResult }: SafetyValidationFor
       {validateMutation.isError && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
           <XCircle className="mr-2 inline h-4 w-4" />
-          Erro ao validar: {(validateMutation.error as Error)?.message ?? 'Erro desconhecido'}
+          Erro ao validar: {validateMutation.error?.message ?? 'Erro desconhecido'}
         </div>
       )}
     </div>
