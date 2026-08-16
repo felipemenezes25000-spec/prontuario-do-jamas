@@ -14,8 +14,9 @@ function getAuthState(): { accessToken: string | null; tenantId: string | null; 
   try {
     const raw = localStorage.getItem('voxpep-auth');
     if (!raw) return { accessToken: null, tenantId: null, userId: null };
-    const parsed: { state?: { accessToken?: string; user?: { tenantId?: string; id?: string } } } =
-      JSON.parse(raw);
+    const parsed = JSON.parse(raw) as {
+      state?: { accessToken?: string; user?: { tenantId?: string; id?: string } };
+    };
     return {
       accessToken: parsed.state?.accessToken ?? null,
       tenantId: parsed.state?.user?.tenantId ?? null,
