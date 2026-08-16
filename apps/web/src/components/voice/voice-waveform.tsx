@@ -79,7 +79,7 @@ export function VoiceWaveform({
 
     return () => {
       cancelAnimationFrame(rafRef.current);
-      audioCtx.close();
+      void audioCtx.close();
       audioCtxRef.current = null;
     };
   }, [stream, isActive, barCount]);
