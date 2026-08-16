@@ -17,13 +17,13 @@ export function useAuth() {
 
         if (isMfaChallenge(result)) {
           setMfaPending(result.mfaToken);
-          navigate('/mfa-verify');
+          void navigate('/mfa-verify');
           return;
         }
 
         storeLogin(result.user, result.accessToken, result.refreshToken);
         toast.success('Login realizado com sucesso!');
-        navigate('/dashboard');
+        void navigate('/dashboard');
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Erro ao fazer login';
         toast.error(message);
@@ -37,7 +37,7 @@ export function useAuth() {
 
   const logout = useCallback(() => {
     storeLogout();
-    navigate('/login');
+    void navigate('/login');
     toast.info('Sessão encerrada');
   }, [storeLogout, navigate]);
 
