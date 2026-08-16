@@ -48,8 +48,9 @@ export function useStreamingSOAP(options?: StreamingSoapOptions) {
       if (doctorSpecialty) params.set('doctorSpecialty', doctorSpecialty);
 
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || '/api/v1';
-        const response = await fetch(`${baseUrl}/ai/soap/stream?${params}`, {
+        const baseUrl =
+          (import.meta.env.VITE_API_URL as string | undefined) || '/api/v1';
+        const response = await fetch(`${baseUrl}/ai/soap/stream?${params.toString()}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
