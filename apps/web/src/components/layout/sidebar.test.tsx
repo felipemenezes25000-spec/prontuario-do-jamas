@@ -3,7 +3,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Sidebar } from './sidebar';
 
-// Mock react-router-dom
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
@@ -18,49 +17,72 @@ vi.mock('react-router-dom', () => ({
     className?: string | ((props: { isActive: boolean }) => string);
     onClick?: () => void;
   }) => {
-    const resolvedClass =
-      typeof className === 'function' ? className({ isActive: to === '/dashboard' }) : className;
+    const isActive = to === '/dashboard';
+    const resolvedClass = typeof className === 'function' ? className({ isActive }) : className;
     return (
       <a href={to} className={resolvedClass} onClick={onClick} data-testid={`navlink-${to}`}>
-        {typeof children === 'function' ? children({ isActive: to === '/dashboard' }) : children}
+        {typeof children === 'function' ? children({ isActive }) : children}
       </a>
     );
   },
 }));
 
-// Mock auth store
+interface MockUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  specialty?: string;
+  avatarUrl?: string;
+  tenantId: string;
+}
+
+interface MockAuthState {
+  user: MockUser | null;
+  logout: () => void;
+}
+
 const mockLogout = vi.fn();
-let mockUser: { id: string; name: string; email: string; role: string; specialty?: string; avatarUrl?: string; tenantId: string } | null = {
+let mockUser: MockUser | null = {
   id: '1',
   name: 'Dr. Carlos Eduardo',
-  email: 'carlos@voxpep.com',
+  email: 'carlos@starmed.com',
   role: 'ADMIN',
   specialty: 'Cardiologia',
   tenantId: 't1',
 };
 
 vi.mock('@/stores/auth.store', () => ({
-  useAuthStore: () => ({
-    user: mockUser,
-    logout: mockLogout,
-  }),
+  useAuthStore: <T,>(selector?: (state: MockAuthState) => T) => {
+    const state: MockAuthState = { user: mockUser, logout: mockLogout };
+    return selector ? selector(state) : state;
+  },
 }));
 
-// Mock UI store
+interface MockUIState {
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+  sidebarMobileOpen: boolean;
+  setSidebarMobileOpen: (open: boolean) => void;
+}
+
 let mockSidebarCollapsed = false;
+let mockSidebarMobileOpen = false;
 const mockToggleSidebar = vi.fn();
 const mockSetSidebarMobileOpen = vi.fn();
 
 vi.mock('@/stores/ui.store', () => ({
-  useUIStore: () => ({
-    sidebarCollapsed: mockSidebarCollapsed,
-    toggleSidebar: mockToggleSidebar,
-    sidebarMobileOpen: false,
-    setSidebarMobileOpen: mockSetSidebarMobileOpen,
-  }),
+  useUIStore: <T,>(selector?: (state: MockUIState) => T) => {
+    const state: MockUIState = {
+      sidebarCollapsed: mockSidebarCollapsed,
+      toggleSidebar: mockToggleSidebar,
+      sidebarMobileOpen: mockSidebarMobileOpen,
+      setSidebarMobileOpen: mockSetSidebarMobileOpen,
+    };
+    return selector ? selector(state) : state;
+  },
 }));
 
-// Mock UI components
 vi.mock('@/components/ui/avatar', () => ({
   Avatar: ({ children, className }: { children: React.ReactNode; className?: string }) => (
     <div data-testid="avatar" className={className}>{children}</div>
@@ -87,23 +109,12 @@ vi.mock('@/components/ui/button', () => ({
     className?: string;
     variant?: string;
     size?: string;
+    [key: string]: unknown;
   }) => (
     <button onClick={onClick} className={className} data-variant={variant} data-size={size} {...rest}>
       {children}
     </button>
   ),
-}));
-
-vi.mock('@/components/ui/tooltip', () => ({
-  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TooltipContent: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="tooltip-content">{children}</div>
-  ),
-  TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
-vi.mock('@/components/ui/separator', () => ({
-  Separator: () => <hr data-testid="separator" />,
 }));
 
 vi.mock('@/components/ui/scroll-area', () => ({
@@ -112,29 +123,33 @@ vi.mock('@/components/ui/scroll-area', () => ({
   ),
 }));
 
+vi.mock('@/components/ui/sheet', () => ({
+  Sheet: ({ children, open }: { children: React.ReactNode; open?: boolean }) => (
+    open ? <div data-testid="mobile-sheet">{children}</div> : null
+  ),
+  SheetContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 describe('Sidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSidebarCollapsed = false;
+    mockSidebarMobileOpen = false;
     mockUser = {
       id: '1',
       name: 'Dr. Carlos Eduardo',
-      email: 'carlos@voxpep.com',
+      email: 'carlos@starmed.com',
       role: 'ADMIN',
       specialty: 'Cardiologia',
       tenantId: 't1',
     };
   });
 
-  it('renders the VoxPEP logo text', () => {
+  it('renders the StarMed brand', () => {
     render(<Sidebar />);
-    expect(screen.getByText('Vox')).toBeInTheDocument();
-    expect(screen.getByText('PEP')).toBeInTheDocument();
-  });
-
-  it('renders "Prontuário Inteligente" subtitle', () => {
-    render(<Sidebar />);
-    expect(screen.getByText('Prontuário Inteligente')).toBeInTheDocument();
+    expect(screen.getByText('Star')).toBeInTheDocument();
+    expect(screen.getByText('Med')).toBeInTheDocument();
+    expect(screen.getByText('Intelligence Hospital')).toBeInTheDocument();
   });
 
   it('renders main navigation items', () => {
@@ -147,21 +162,21 @@ describe('Sidebar', () => {
     expect(screen.getByText('Exames')).toBeInTheDocument();
   });
 
-  it('renders Admin link for ADMIN users', () => {
+  it('renders administration link for ADMIN users', () => {
     render(<Sidebar />);
-    expect(screen.getByText('Admin')).toBeInTheDocument();
+    expect(screen.getByText('Administração')).toBeInTheDocument();
   });
 
-  it('hides Admin link for non-ADMIN users', () => {
+  it('hides administration link for non-ADMIN users', () => {
     mockUser = {
       id: '2',
       name: 'Dr. Ana',
-      email: 'ana@voxpep.com',
+      email: 'ana@starmed.com',
       role: 'DOCTOR',
       tenantId: 't1',
     };
     render(<Sidebar />);
-    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Administração')).not.toBeInTheDocument();
   });
 
   it('renders user name and specialty', () => {
@@ -178,39 +193,30 @@ describe('Sidebar', () => {
   it('calls logout and navigates to /login when logout button is clicked', async () => {
     const user = userEvent.setup();
     render(<Sidebar />);
-    // Find the logout button - it's a button with LogOut icon
-    const buttons = screen.getAllByRole('button');
-    // The logout button is in the user info area
-    const logoutButton = buttons.find((btn) => {
-      const parent = btn.closest('div');
-      return parent && btn.querySelector('svg');
-    });
-    // Click any button that triggers logout - find it by content
-    // LogOut icon is in the first button with just an SVG child in the bottom section
-    if (logoutButton) {
-      await user.click(logoutButton);
-      expect(mockLogout).toHaveBeenCalledOnce();
-      expect(mockNavigate).toHaveBeenCalledWith('/login');
-    }
+
+    await user.click(screen.getByRole('button', { name: 'Sair' }));
+
+    expect(mockLogout).toHaveBeenCalledOnce();
+    expect(mockNavigate).toHaveBeenCalledWith('/login');
   });
 
   it('renders correct navigation link hrefs', () => {
     render(<Sidebar />);
-    expect(screen.getByTestId('navlink-/dashboard')).toBeInTheDocument();
-    expect(screen.getByTestId('navlink-/pacientes')).toBeInTheDocument();
-    expect(screen.getByTestId('navlink-/atendimentos')).toBeInTheDocument();
+    expect(screen.getByTestId('navlink-/dashboard')).toHaveAttribute('href', '/dashboard');
+    expect(screen.getByTestId('navlink-/pacientes')).toHaveAttribute('href', '/pacientes');
+    expect(screen.getByTestId('navlink-/atendimentos')).toHaveAttribute('href', '/atendimentos');
   });
 
-  it('renders the "Sair" tooltip content', () => {
+  it('exposes an accessible logout control', () => {
     render(<Sidebar />);
-    expect(screen.getByText('Sair')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument();
   });
 
   it('shows role when specialty is not available', () => {
     mockUser = {
       id: '2',
       name: 'Maria Enfermeira',
-      email: 'maria@voxpep.com',
+      email: 'maria@starmed.com',
       role: 'NURSE',
       tenantId: 't1',
     };
